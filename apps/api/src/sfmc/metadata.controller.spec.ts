@@ -1,11 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { MetadataController } from './metadata.controller';
 import { MetadataService } from './metadata.service';
-import { AuthGuard } from '@nestjs/passport'; // Assumed guard based on typical NestJS
-import { CanActivate } from '@nestjs/common';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 describe('MetadataController', () => {
   let controller: MetadataController;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let service: MetadataService;
 
   const mockService = {
@@ -13,8 +13,6 @@ describe('MetadataController', () => {
     getDataExtensions: vi.fn(),
     getFields: vi.fn(),
   };
-
-  const mockGuard: CanActivate = { canActivate: vi.fn(() => true) };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -26,8 +24,6 @@ describe('MetadataController', () => {
         },
       ],
     })
-    .overrideGuard(AuthGuard('jwt')) // Assuming JWT strategy
-    .useValue(mockGuard)
     .compile();
 
     controller = module.get<MetadataController>(MetadataController);
@@ -47,8 +43,8 @@ describe('MetadataController', () => {
       const mockResult = [{ id: '1', Name: 'Folder' }];
       mockService.getFolders.mockResolvedValue(mockResult);
 
-      // Mocking request user (usually handled by AuthGuard/Decorator)
-      const result = await controller.getFolders('t1', 'u1');
+      const user = { userId: 'u1', tenantId: 't1' };
+      const result = await controller.getFolders(user);
       
       expect(result).toBe(mockResult);
       expect(mockService.getFolders).toHaveBeenCalledWith('t1', 'u1');
@@ -60,7 +56,8 @@ describe('MetadataController', () => {
       const mockResult = [{ CustomerKey: 'DE1' }];
       mockService.getDataExtensions.mockResolvedValue(mockResult);
 
-      const result = await controller.getDataExtensions('t1', 'u1', 'eid1');
+      const user = { userId: 'u1', tenantId: 't1' };
+      const result = await controller.getDataExtensions(user, 'eid1');
       
       expect(result).toBe(mockResult);
       expect(mockService.getDataExtensions).toHaveBeenCalledWith('t1', 'u1', 'eid1');
@@ -72,7 +69,8 @@ describe('MetadataController', () => {
       const mockResult = [{ Name: 'Field1' }];
       mockService.getFields.mockResolvedValue(mockResult);
 
-      const result = await controller.getFields('t1', 'u1', 'DE_KEY');
+      const user = { userId: 'u1', tenantId: 't1' };
+      const result = await controller.getFields(user, 'DE_KEY');
       
       expect(result).toBe(mockResult);
       expect(mockService.getFields).toHaveBeenCalledWith('t1', 'u1', 'DE_KEY');

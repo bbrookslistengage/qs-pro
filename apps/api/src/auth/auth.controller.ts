@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Req, UnauthorizedException, Res, Redirect } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Req, UnauthorizedException, Res, Redirect } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { ConfigService } from '@nestjs/config';
 
@@ -8,6 +8,50 @@ export class AuthController {
     private authService: AuthService,
     private configService: ConfigService,
   ) {}
+
+  @Post('login')
+  async loginPost(@Body('jwt') jwt: string, @Req() req: any) {
+    if (!jwt) {
+      throw new UnauthorizedException('JWT is required');
+    }
+
+    const { user, tenant } = await this.authService.handleJwtLogin(jwt);
+
+    // Establish secure HTTP-only session
+    if (req.session) {
+      req.session.set('userId', user.id);
+      req.session.set('tenantId', tenant.id);
+    }
+
+    return { 
+      message: 'Login successful',
+      userId: user.id,
+      tenantId: tenant.id
+    };
+  }
+
+  @Get('me')
+  async me(@Req() req: any) {
+    if (!req.session) {
+      throw new UnauthorizedException('Session not available');
+    }
+
+    const userId = req.session.get('userId');
+    const tenantId = req.session.get('tenantId');
+
+    if (!userId || !tenantId) {
+      throw new UnauthorizedException('Not authenticated');
+    }
+
+    const user = await this.authService.findUserById(userId);
+    const tenant = await this.authService.findTenantById(tenantId);
+
+    if (!user || !tenant) {
+      throw new UnauthorizedException('User or Tenant not found');
+    }
+
+    return { user, tenant };
+  }
 
   @Get('login')
   @Redirect()

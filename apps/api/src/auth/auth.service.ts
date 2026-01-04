@@ -1,6 +1,7 @@
 import { Injectable, Inject, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import * as jose from 'jose';
 import { encrypt, decrypt } from '@qs-pro/database';
 import type { 
   ITenantRepository, 
@@ -26,6 +27,86 @@ export class AuthService {
     @Inject('USER_REPOSITORY') private userRepo: IUserRepository,
     @Inject('CREDENTIALS_REPOSITORY') private credRepo: ICredentialsRepository,
   ) {}
+
+  async verifySfmcJwt(jwt: string) {
+    const secret = this.configService.get<string>('SFMC_JWT_SIGNING_SECRET');
+    if (!secret) {
+      throw new UnauthorizedException('SFMC_JWT_SIGNING_SECRET not configured');
+    }
+
+    try {
+      const encodedSecret = new TextEncoder().encode(secret);
+      const { payload } = await jose.jwtVerify(jwt, encodedSecret);
+
+      let tssd = payload.stack as string;
+      if (!tssd && payload.application_context) {
+        const baseUrl = (payload.application_context as any).base_url;
+        const match = baseUrl?.match(/https:\/\/([^.]+)\.rest\.marketingcloudapis\.com/);
+        if (match) {
+          tssd = match[1];
+        }
+      }
+
+      if (!tssd) {
+        throw new Error('Could not determine TSSD from JWT');
+      }
+
+      return {
+        sfUserId: payload.user_id as string,
+        eid: payload.enterprise_id as string,
+        mid: payload.member_id as string,
+        tssd,
+      };
+    } catch (error) {
+      console.error('[Auth] JWT Verification failed:', error);
+      throw new UnauthorizedException('Invalid SFMC JWT');
+    }
+  }
+
+  async getTokensViaClientCredentials(tssd: string, accountId?: string): Promise<SfmcTokenResponse> {
+    const clientId = this.configService.get<string>('SFMC_CLIENT_ID');
+    const clientSecret = this.configService.get<string>('SFMC_CLIENT_SECRET');
+    const tokenUrl = `https://${tssd}.auth.marketingcloudapis.com/v2/token`;
+    
+    const response = await axios.post<SfmcTokenResponse>(tokenUrl, {
+      grant_type: 'client_credentials',
+      client_id: clientId,
+      client_secret: clientSecret,
+      ...(accountId ? { account_id: accountId } : {}),
+    });
+
+    return response.data;
+  }
+
+  async handleJwtLogin(jwt: string) {
+    const { sfUserId, eid, mid, tssd } = await this.verifySfmcJwt(jwt);
+
+    // Exchange for tokens using MID (member_id) context
+    const tokenData = await this.getTokensViaClientCredentials(tssd, mid);
+
+    // JIT Provisioning
+    const tenant = await this.tenantRepo.upsert({ eid, tssd });
+    
+    // SFMC JWT doesn't always have email/name. We can fetch it if needed or leave it.
+    // For now, we'll try to use what's in handleCallback if we had a code,
+    // but here we just have a JWT.
+    const user = await this.userRepo.upsert({ 
+      sfUserId, 
+      tenantId: tenant.id,
+    });
+
+    await this.saveTokens(tenant.id, user.id, tokenData);
+
+    return { user, tenant };
+  }
+
+  async findUserById(id: string) {
+    return this.userRepo.findById(id);
+  }
+
+  async findTenantById(id: string) {
+    return this.tenantRepo.findById(id);
+  }
 
   getAuthUrl(tssd: string): string {
     const clientId = this.configService.get<string>('SFMC_CLIENT_ID');

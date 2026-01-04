@@ -1,37 +1,33 @@
 import { Controller, Get, Query, UseGuards, UseFilters } from '@nestjs/common';
 import { MetadataService } from './metadata.service';
-import { AuthGuard } from '@nestjs/passport';
+import { SessionGuard } from '../auth/session.guard';
 import { GlobalExceptionFilter } from '../common/filters/global-exception.filter';
+import { CurrentUser, UserSession } from '../common/decorators/current-user.decorator';
 
 @Controller('metadata')
-// @UseGuards(AuthGuard('jwt')) // Commented out until JWT strategy is fully implemented
+@UseGuards(SessionGuard)
 @UseFilters(GlobalExceptionFilter)
 export class MetadataController {
   constructor(private readonly metadataService: MetadataService) {}
 
   @Get('folders')
-  async getFolders(
-    @Query('tenantId') tenantId: string,
-    @Query('userId') userId: string,
-  ) {
-    return this.metadataService.getFolders(tenantId, userId);
+  async getFolders(@CurrentUser() user: UserSession) {
+    return this.metadataService.getFolders(user.tenantId, user.userId);
   }
 
   @Get('data-extensions')
   async getDataExtensions(
-    @Query('tenantId') tenantId: string,
-    @Query('userId') userId: string,
+    @CurrentUser() user: UserSession,
     @Query('eid') eid: string,
   ) {
-    return this.metadataService.getDataExtensions(tenantId, userId, eid);
+    return this.metadataService.getDataExtensions(user.tenantId, user.userId, eid);
   }
 
   @Get('fields')
   async getFields(
-    @Query('tenantId') tenantId: string,
-    @Query('userId') userId: string,
+    @CurrentUser() user: UserSession,
     @Query('key') key: string,
   ) {
-    return this.metadataService.getFields(tenantId, userId, key);
+    return this.metadataService.getFields(user.tenantId, user.userId, key);
   }
 }

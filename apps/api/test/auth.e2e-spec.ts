@@ -6,6 +6,9 @@ import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { createDatabase, ITenantRepository, IUserRepository, ICredentialsRepository } from '@qs-pro/database';
+import * as jose from 'jose';
+import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import secureSession from '@fastify/secure-session';
 
 const server = setupServer(
   http.post('https://test-tssd.auth.marketingcloudapis.com/v2/token', () => {
@@ -22,30 +25,83 @@ const server = setupServer(
 );
 
 describe('Auth (e2e)', () => {
-  let app: INestApplication;
+  let app: NestFastifyApplication;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let db: any;
 
   beforeAll(async () => {
     server.listen();
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
 
-    app = moduleFixture.createNestApplication();
-    await app.init();
-    
-    db = app.get('DATABASE');
-    
-    // Set required ENVs for test
     process.env.SFMC_CLIENT_ID = 'test-id';
     process.env.SFMC_CLIENT_SECRET = 'test-secret';
     process.env.SFMC_REDIRECT_URI = 'http://localhost/callback';
     process.env.ENCRYPTION_KEY = '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
+    process.env.SFMC_JWT_SIGNING_SECRET = 'test-jwt-secret-at-least-32-chars-long';
+    process.env.SESSION_SECRET = 'test-session-secret-at-least-32-chars';
+
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = moduleFixture.createNestApplication<NestFastifyApplication>(
+      new FastifyAdapter()
+    );
+
+    await app.register(secureSession, {
+      secret: process.env.SESSION_SECRET,
+      salt: '1234567890123456',
+    });
+
+    await app.init();
+    await app.getHttpAdapter().getInstance().ready();
+    
+    db = app.get('DATABASE');
   });
 
   afterAll(async () => {
     server.close();
     await app.close();
+  });
+
+  it('/auth/login (POST) should handle SFMC JWT and set session', async () => {
+    const secret = process.env.SFMC_JWT_SIGNING_SECRET!;
+    const encodedSecret = new TextEncoder().encode(secret);
+
+    const payload = {
+      user_id: 'sf-user-jwt',
+      enterprise_id: 'eid-jwt',
+      member_id: 'mid-jwt',
+      stack: 'test-tssd',
+    };
+    
+    const jwt = await new jose.SignJWT(payload)
+      .setProtectedHeader({ alg: 'HS256' })
+      .setExpirationTime('1h')
+      .sign(encodedSecret);
+
+    const response = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ jwt })
+      .expect(201);
+
+    expect(response.body.message).toBe('Login successful');
+    expect(response.headers['set-cookie']).toBeDefined();
+    const cookie = response.headers['set-cookie'][0];
+    
+    // Verify user created
+    const userRepo: IUserRepository = app.get('USER_REPOSITORY');
+    const user = await userRepo.findBySfUserId('sf-user-jwt');
+    expect(user).toBeDefined();
+    expect(user?.sfUserId).toBe('sf-user-jwt');
+
+    // Verify /auth/me works with the cookie
+    const meResponse = await request(app.getHttpServer())
+      .get('/auth/me')
+      .set('Cookie', cookie)
+      .expect(200);
+
+    expect(meResponse.body.user.id).toBe(user?.id);
+    expect(meResponse.body.tenant.eid).toBe('eid-jwt');
   });
 
   it('/auth/callback (GET) should save credentials and return user', async () => {

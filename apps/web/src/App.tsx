@@ -1,18 +1,42 @@
+import { useEffect, useState } from 'react'
 import { useAuthStore } from '@/store/auth-store'
-import { LoginPage } from '@/features/auth/login-page'
+import { LaunchInstructionsPage } from '@/features/auth/launch-instructions-page'
 import { Toaster } from '@/components/ui/sonner'
 import { Button } from '@/components/ui/button'
 import { VerificationPage } from '@/features/verification/VerificationPage'
-import { useState } from 'react'
+import axios from 'axios'
 
 function App() {
-  const { isAuthenticated, user, tenant, logout } = useAuthStore()
-  const [showVerify, setShowVerify] = useState(false)
+  const { isAuthenticated, user, tenant, setAuth, logout } = useAuthStore()
+  const [showVerify, setShowVerify] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await axios.get('/api/auth/me')
+        setAuth(response.data.user, response.data.tenant)
+      } catch (error) {
+        logout()
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    checkAuth()
+  }, [setAuth, logout])
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
 
   if (!isAuthenticated) {
     return (
       <>
-        <LoginPage />
+        <LaunchInstructionsPage />
         <Toaster />
       </>
     )

@@ -1,0 +1,30 @@
+{
+  "name": "@qs-pro/database",
+  "version": "0.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:migrate": "ts-node src/migrate.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.45.1",
+    "drizzle-zod": "^0.8.3",
+    "postgres": "^3.4.3",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "drizzle-kit": "^0.31.8",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3",
+    "vitest": "^3.0.0"
+  }
+}

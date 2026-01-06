@@ -6,8 +6,10 @@ export class RequestLoggerMiddleware implements NestMiddleware {
   private readonly logger = new Logger('HTTP');
 
   use(req: any, res: any, next: () => void) {
-    const { method, url } = req;
-    this.logger.log(`${method} ${url} - Incoming Request`);
+    const method = String(req?.method ?? '');
+    const rawUrl = String(req?.url ?? '');
+    const pathname = rawUrl.split('?')[0] || rawUrl;
+    this.logger.log(`${method} ${pathname} - Incoming Request`);
     next();
   }
 }

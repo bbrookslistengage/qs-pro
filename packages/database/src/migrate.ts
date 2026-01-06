@@ -4,10 +4,23 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
 import * as dotenv from 'dotenv';
 import path from 'path';
+import fs from 'node:fs';
 
-dotenv.config();
+const envCandidates = [
+  path.resolve(process.cwd(), '.env'),
+  path.resolve(process.cwd(), '../../.env'),
+];
+for (const envPath of envCandidates) {
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath });
+    break;
+  }
+}
 
-const connectionString = process.env.DATABASE_URL || 'postgres://postgres:password@localhost:5432/qs_pro';
+const connectionString =
+  process.env.DATABASE_URL_MIGRATIONS ||
+  process.env.DATABASE_URL ||
+  'postgres://postgres:password@localhost:5432/qs_pro';
 
 async function runMigrations() {
   console.log('⏳ Connecting to database...');

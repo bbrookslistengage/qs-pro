@@ -20,10 +20,16 @@ const Sentry = {
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
 
+  private sanitizePath(url: string): string {
+    const idx = url.indexOf('?');
+    return idx === -1 ? url : url.slice(0, idx);
+  }
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<FastifyReply>();
     const request = ctx.getRequest<FastifyRequest>();
+    const path = this.sanitizePath(request.url);
 
     const status =
       exception instanceof HttpException
@@ -36,18 +42,18 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         : 'Internal server error';
 
     if (status >= 500) {
-      this.logger.error(`[${status}] ${request.url}`, exception);
+      this.logger.error(`[${status}] ${path}`, exception);
       Sentry.captureException(exception);
     } else {
       this.logger.warn(
-        `[${status}] ${request.url} - ${JSON.stringify(message)}`,
+        `[${status}] ${path} - ${JSON.stringify(message)}`,
       );
     }
 
     response.status(status).send({
       statusCode: status,
       timestamp: new Date().toISOString(),
-      path: request.url,
+      path,
       message: message,
     });
   }

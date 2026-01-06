@@ -7,10 +7,17 @@ import { UsersModule } from './users/users.module';
 import { DatabaseModule } from './database/database.module';
 import { MceModule } from './mce/mce.module';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
+import path from 'node:path';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }), 
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: [
+        path.resolve(process.cwd(), '.env'),
+        path.resolve(__dirname, '..', '..', '..', '.env'),
+      ],
+    }),
     DatabaseModule,
     AuthModule, 
     UsersModule,
@@ -21,8 +28,6 @@ import { RequestLoggerMiddleware } from './common/middleware/request-logger.midd
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(RequestLoggerMiddleware)
-      .forRoutes('*path');
+    consumer.apply(RequestLoggerMiddleware).forRoutes('*path');
   }
 }

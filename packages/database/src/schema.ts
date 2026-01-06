@@ -1,7 +1,7 @@
 import { pgTable, uuid, varchar, timestamp, text, integer, boolean, unique } from 'drizzle-orm/pg-core';
 import { createSelectSchema, createInsertSchema } from 'drizzle-zod';
 
-// 1. Tenants (The High Level "Customer" / SFMC Account)
+// 1. Tenants (The High Level "Customer" / MCE Account)
 export const tenants = pgTable('tenants', {
   id: uuid('id').defaultRandom().primaryKey(),
   eid: varchar('eid').notNull().unique(), // Enterprise ID
@@ -12,7 +12,7 @@ export const tenants = pgTable('tenants', {
 // 2. Users (The actual seat)
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
-  sfUserId: varchar('sf_user_id').notNull().unique(), // From SFMC ID Token
+  sfUserId: varchar('sf_user_id').notNull().unique(), // From MCE ID Token
   tenantId: uuid('tenant_id').references(() => tenants.id),
   email: varchar('email'),
   name: varchar('name'),

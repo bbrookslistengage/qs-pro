@@ -5,7 +5,9 @@
     "dev": "concurrently \"pnpm run api:dev\" \"pnpm run web:dev\"",
     "api:dev": "lsof -i :3000 -t | xargs kill -9 2>/dev/null || true && pnpm --filter api start:dev",
     "web:dev": "pnpm --filter @qs-pro/web dev",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
     "db:generate": "pnpm --filter @qs-pro/database db:generate",
     "db:migrate": "pnpm --filter @qs-pro/database db:migrate"
   },

@@ -4,14 +4,14 @@ module.exports = {
   extends: [
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended",
-    "plugin:security/recommended",
-    "prettier"
+    "prettier",
   ],
   rules: {
+    "no-console": "error",
     "prettier/prettier": "error",
     "@typescript-eslint/explicit-function-return-type": "off",
-    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/no-explicit-any": "error",
     "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
-    "security/detect-object-injection": "warn"
-  }
-};
+    "security/detect-object-injection": "error",
+  },
+}

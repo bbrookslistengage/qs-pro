@@ -19,7 +19,7 @@ describe('AuthService JWT Verification', () => {
           provide: ConfigService,
           useValue: {
             get: vi.fn((key: string) => {
-              if (key === 'SFMC_JWT_SIGNING_SECRET') return secret;
+              if (key === 'MCE_JWT_SIGNING_SECRET') return secret;
               return null;
             }),
           },
@@ -34,16 +34,20 @@ describe('AuthService JWT Verification', () => {
     configService = module.get<ConfigService>(ConfigService);
   });
 
-  async function createJwt(payload: any, options: { expiresAt?: string | number | Date } = {}) {
-    let builder = new jose.SignJWT(payload)
-      .setProtectedHeader({ alg: 'HS256' });
-    
+  async function createJwt(
+    payload: jose.JWTPayload,
+    options: { expiresAt?: string | number | Date } = {},
+  ) {
+    let builder = new jose.SignJWT(payload).setProtectedHeader({
+      alg: 'HS256',
+    });
+
     if (options.expiresAt) {
       builder = builder.setExpirationTime(options.expiresAt);
     } else {
       builder = builder.setExpirationTime('1h');
     }
-    
+
     return builder.sign(encodedSecret);
   }
 
@@ -56,8 +60,7 @@ describe('AuthService JWT Verification', () => {
     };
     const jwt = await createJwt(payload);
 
-    // Testing private method or internal logic
-    const result = await (service as any).verifySfmcJwt(jwt);
+    const result = await service.verifyMceJwt(jwt);
     expect(result).toMatchObject({
       sfUserId: payload.user_id,
       eid: payload.enterprise_id,
@@ -69,25 +72,26 @@ describe('AuthService JWT Verification', () => {
   it('should throw error for invalid signature', async () => {
     const jwt = await createJwt({ foo: 'bar' });
     const invalidJwt = jwt.slice(0, -5) + 'abcde';
-    
-    await expect((service as any).verifySfmcJwt(invalidJwt)).rejects.toThrow();
+
+    await expect(service.verifyMceJwt(invalidJwt)).rejects.toThrow();
   });
 
   it('should throw error for expired token', async () => {
     const jwt = await createJwt({ foo: 'bar' }, { expiresAt: '-1s' });
-    await expect((service as any).verifySfmcJwt(jwt)).rejects.toThrow();
+    await expect(service.verifyMceJwt(jwt)).rejects.toThrow();
   });
 
   it('should extract TSSD from application_context if stack is missing', async () => {
     const payload = {
       user_id: 'sf-user-123',
       enterprise_id: 'eid-456',
+      member_id: 'mid-789',
       application_context: {
-        base_url: 'https://mc-123.rest.marketingcloudapis.com/'
-      }
+        base_url: 'https://mc-123.rest.marketingcloudapis.com/',
+      },
     };
     const jwt = await createJwt(payload);
-    const result = await (service as any).verifySfmcJwt(jwt);
+    const result = await service.verifyMceJwt(jwt);
     expect(result.tssd).toBe('mc-123');
   });
 });

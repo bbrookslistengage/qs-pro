@@ -1,21 +1,18 @@
 import { Module } from '@nestjs/common';
-import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { SfmcStrategy } from './sfmc.strategy';
 import { DatabaseModule } from '../database/database.module';
-import { 
-  DrizzleTenantRepository, 
-  DrizzleUserRepository, 
-  DrizzleCredentialsRepository 
+import {
+  DrizzleTenantRepository,
+  DrizzleUserRepository,
+  DrizzleCredentialsRepository,
 } from '@qs-pro/database';
 
 @Module({
-  imports: [PassportModule, DatabaseModule],
+  imports: [DatabaseModule],
   controllers: [AuthController],
   providers: [
     AuthService,
-    SfmcStrategy,
     {
       provide: 'TENANT_REPOSITORY',
       useFactory: (db: any) => new DrizzleTenantRepository(db),

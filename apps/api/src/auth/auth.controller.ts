@@ -1,55 +1,99 @@
-import { Controller, Get, Post, Body, Query, Req, UnauthorizedException, Res, Redirect } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Query,
+  Req,
+  UnauthorizedException,
+  Res,
+  Redirect,
+  Logger,
+  UseGuards,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { ConfigService } from '@nestjs/config';
+import type { FastifyReply, FastifyRequest } from 'fastify';
+import { randomBytes } from 'crypto';
+import { SessionGuard } from './session.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import type { UserSession } from '../common/decorators/current-user.decorator';
+
+type SecureSession = {
+  get(key: string): unknown;
+  set(key: string, value: unknown): void;
+  delete(): void;
+};
+
+type SessionRequest = FastifyRequest & { session?: SecureSession };
+
+interface LoginPostBody {
+  jwt: string;
+}
+
+interface OAuthStatePayload {
+  tssd: string;
+  nonce: string;
+}
 
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(
     private authService: AuthService,
     private configService: ConfigService,
   ) {}
 
   @Post('login')
-  async loginPost(@Body('jwt') jwt: string, @Req() req: any, @Res() res: any) {
+  async loginPost(
+    @Body() body: LoginPostBody,
+    @Req() req: SessionRequest,
+    @Res() res: FastifyReply,
+  ) {
+    const jwt = typeof body?.jwt === 'string' ? body.jwt.trim() : '';
+
     if (!jwt) {
       throw new UnauthorizedException('JWT is required');
+    }
+
+    if (!req.session) {
+      throw new InternalServerErrorException('Session not available');
     }
 
     try {
       const { user, tenant } = await this.authService.handleJwtLogin(jwt);
 
-      // Establish secure HTTP-only session
-      if (req.session) {
-        req.session.set('userId', user.id);
-        req.session.set('tenantId', tenant.id);
-      }
+      req.session.delete();
+      req.session.set('userId', user.id);
+      req.session.set('tenantId', tenant.id);
 
-      // Redirect to frontend (root)
-      return res.redirect(302, '/');
+      return res.redirect('/', 302);
     } catch (error) {
-      console.error('[Auth Error] JWT Login failure:', error);
+      this.logger.error(
+        'JWT Login failure',
+        error instanceof Error ? error.stack : error,
+      );
       throw new UnauthorizedException('Authentication failed');
     }
   }
 
   @Get('me')
-  async me(@Req() req: any) {
-    if (!req.session) {
-      throw new UnauthorizedException('Session not available');
-    }
-
-    const userId = req.session.get('userId');
-    const tenantId = req.session.get('tenantId');
-
-    if (!userId || !tenantId) {
-      throw new UnauthorizedException('Not authenticated');
-    }
-
-    const user = await this.authService.findUserById(userId);
-    const tenant = await this.authService.findTenantById(tenantId);
+  @UseGuards(SessionGuard)
+  async me(@CurrentUser() userSession: UserSession, @Req() req: SessionRequest) {
+    const user = await this.authService.findUserById(userSession.userId);
+    const tenant = await this.authService.findTenantById(userSession.tenantId);
 
     if (!user || !tenant) {
       throw new UnauthorizedException('User or Tenant not found');
+    }
+
+    try {
+      await this.authService.refreshToken(tenant.id, user.id);
+    } catch (error) {
+      req.session?.delete();
+      throw error;
     }
 
     return { user, tenant };
@@ -57,17 +101,39 @@ export class AuthController {
 
   @Get('login')
   @Redirect()
-  async login(@Query('tssd') tssd: string) {
-    console.log(`[Auth] GET login hit with TSSD: ${tssd}`);
+  async login(@Query('tssd') tssd: string | undefined, @Req() req: SessionRequest) {
+    const session = req.session;
+    const hasSession = !!session?.get('userId') && !!session?.get('tenantId');
+    const resolvedTssd = this.resolveAuthTssd(tssd);
+
+    if (hasSession) {
+      return { url: '/', statusCode: 302 };
+    }
+
     try {
-      if (!tssd) {
-        throw new UnauthorizedException('TSSD is required for login');
+      if (!resolvedTssd) {
+        throw new UnauthorizedException(
+          'TSSD is required for login. Set MCE_TSSD.',
+        );
       }
-      const url = this.authService.getAuthUrl(tssd);
-      console.log(`[Auth] Redirecting to: ${url}`);
+
+      if (!session) {
+        throw new InternalServerErrorException('Session not available');
+      }
+
+      const nonce = randomBytes(16).toString('base64url');
+      const state = this.encodeOAuthState({ tssd: resolvedTssd, nonce });
+      session.set('oauth_state_nonce', nonce);
+      session.set('oauth_state_tssd', resolvedTssd);
+      session.set('oauth_state_created_at', String(Date.now()));
+
+      const url = this.authService.getAuthUrl(resolvedTssd, state);
       return { url, statusCode: 302 };
     } catch (error) {
-      console.error('[Auth Error] Login failure:', error);
+      this.logger.error(
+        'Login failure',
+        error instanceof Error ? error.stack : error,
+      );
       throw error;
     }
   }
@@ -75,33 +141,121 @@ export class AuthController {
   @Get('callback')
   async callback(
     @Query('code') code: string,
-    @Query('tssd') tssd: string,
     @Query('state') state: string,
-    @Query('sf_user_id') sfUserId?: string, 
+    @Req() req: SessionRequest,
+    @Res() res: FastifyReply,
+    @Query('sf_user_id') sfUserId?: string,
     @Query('eid') eid?: string,
   ) {
-    const effectiveTssd = tssd || state;
-    
-    if (!code || !effectiveTssd) {
-      throw new UnauthorizedException('Missing code or TSSD in callback');
+    if (!req.session) {
+      throw new InternalServerErrorException('Session not available');
     }
 
+    if (!code || !state) {
+      throw new UnauthorizedException('Missing code or state in callback');
+    }
+
+    const effectiveTssd = this.validateAndConsumeOAuthState(state, req.session);
+
     const result = await this.authService.handleCallback(
-      effectiveTssd, 
-      code, 
-      sfUserId, 
-      eid
+      effectiveTssd,
+      code,
+      sfUserId,
+      eid,
     );
-    
-    return result;
+
+    req.session.set('userId', result.user.id);
+    req.session.set('tenantId', result.tenant.id);
+
+    return res.redirect('/');
   }
 
   @Get('refresh')
-  async refresh(@Query('tenantId') tenantId: string, @Query('userId') userId: string) {
-    if (!tenantId || !userId) {
-      throw new UnauthorizedException('Tenant ID and User ID are required');
-    }
-    const { accessToken } = await this.authService.refreshToken(tenantId, userId);
+  @UseGuards(SessionGuard)
+  async refresh(@CurrentUser() userSession: UserSession) {
+    const { accessToken } = await this.authService.refreshToken(
+      userSession.tenantId,
+      userSession.userId,
+    );
     return { access_token: accessToken };
+  }
+
+  private resolveAuthTssd(explicitTssd?: string): string | undefined {
+    if (explicitTssd) return this.normalizeTssd(explicitTssd);
+
+    const configuredTssd = this.configService.get<string>('MCE_TSSD');
+    if (configuredTssd) return this.normalizeTssd(configuredTssd);
+    return undefined;
+  }
+
+  private normalizeTssd(value: string): string {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      throw new UnauthorizedException('TSSD is required');
+    }
+
+    if (!/^[a-z0-9-]+$/i.test(trimmed)) {
+      throw new UnauthorizedException('Invalid TSSD format');
+    }
+
+    return trimmed.toLowerCase();
+  }
+
+  private encodeOAuthState(payload: OAuthStatePayload): string {
+    return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+  }
+
+  private validateAndConsumeOAuthState(state: string, session: SecureSession): string {
+    const expectedNonce = session.get('oauth_state_nonce');
+    const expectedTssd = session.get('oauth_state_tssd');
+    const createdAt = session.get('oauth_state_created_at');
+
+    session.set('oauth_state_nonce', null);
+    session.set('oauth_state_tssd', null);
+    session.set('oauth_state_created_at', null);
+
+    if (
+      typeof expectedNonce !== 'string' ||
+      typeof expectedTssd !== 'string' ||
+      typeof createdAt !== 'string'
+    ) {
+      throw new UnauthorizedException('OAuth state not initialized');
+    }
+
+    const statePayload = this.decodeOAuthState(state);
+    if (!statePayload) {
+      throw new UnauthorizedException('Invalid OAuth state');
+    }
+
+    const maxAgeMs = 10 * 60 * 1000;
+    const createdAtMs = Number(createdAt);
+    if (!Number.isFinite(createdAtMs)) {
+      throw new UnauthorizedException('OAuth state not initialized');
+    }
+    if (Date.now() - createdAtMs > maxAgeMs) {
+      throw new UnauthorizedException('OAuth state expired');
+    }
+
+    if (
+      statePayload.nonce !== expectedNonce ||
+      statePayload.tssd !== expectedTssd
+    ) {
+      throw new UnauthorizedException('OAuth state mismatch');
+    }
+
+    return statePayload.tssd;
+  }
+
+  private decodeOAuthState(state: string): OAuthStatePayload | undefined {
+    try {
+      const json = Buffer.from(state, 'base64url').toString('utf8');
+      const parsed = JSON.parse(json) as Record<string, unknown>;
+      const tssd = typeof parsed.tssd === 'string' ? this.normalizeTssd(parsed.tssd) : undefined;
+      const nonce = typeof parsed.nonce === 'string' ? parsed.nonce : undefined;
+      if (!tssd || !nonce) return undefined;
+      return { tssd, nonce };
+    } catch {
+      return undefined;
+    }
   }
 }

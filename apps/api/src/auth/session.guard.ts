@@ -1,4 +1,9 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 
 @Injectable()
 export class SessionGuard implements CanActivate {
@@ -17,8 +22,7 @@ export class SessionGuard implements CanActivate {
       throw new UnauthorizedException('Not authenticated');
     }
 
-    // Attach to request for use in controllers
-    // We follow Passport convention by attaching to request.user
+    // Attach to request for use in controllers.
     request.user = { userId, tenantId };
 
     return true;

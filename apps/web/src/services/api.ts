@@ -19,9 +19,7 @@ api.interceptors.response.use(
       if (user && tenant) {
         try {
           // Attempt silent refresh
-          await axios.get(`/auth/refresh?tenantId=${tenant.id}&userId=${user.id}`, {
-             baseURL: '/api'
-          });
+          await axios.get('/auth/refresh', { baseURL: '/api' });
           
           // Retry the original request
           return api(originalRequest);

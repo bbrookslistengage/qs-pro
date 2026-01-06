@@ -5,9 +5,17 @@ import { AppModule } from './../src/app.module';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { createDatabase, ITenantRepository, IUserRepository, ICredentialsRepository } from '@qs-pro/database';
+import {
+  createDatabase,
+  ITenantRepository,
+  IUserRepository,
+  ICredentialsRepository,
+} from '@qs-pro/database';
 import * as jose from 'jose';
-import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from '@nestjs/platform-fastify';
 import secureSession from '@fastify/secure-session';
 
 const server = setupServer(
@@ -19,9 +27,9 @@ const server = setupServer(
       rest_instance_url: 'https://test-rest.com',
       soap_instance_url: 'https://test-soap.com',
       scope: 'read write',
-      token_type: 'Bearer'
+      token_type: 'Bearer',
     });
-  })
+  }),
 );
 
 describe('Auth (e2e)', () => {
@@ -32,11 +40,14 @@ describe('Auth (e2e)', () => {
   beforeAll(async () => {
     server.listen();
 
-    process.env.SFMC_CLIENT_ID = 'test-id';
-    process.env.SFMC_CLIENT_SECRET = 'test-secret';
-    process.env.SFMC_REDIRECT_URI = 'http://localhost/callback';
-    process.env.ENCRYPTION_KEY = '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
-    process.env.SFMC_JWT_SIGNING_SECRET = 'test-jwt-secret-at-least-32-chars-long';
+    process.env.MCE_CLIENT_ID = 'test-id';
+    process.env.MCE_CLIENT_SECRET = 'test-secret';
+    process.env.MCE_REDIRECT_URI = 'http://localhost/callback';
+    process.env.MCE_TSSD = 'test-tssd';
+    process.env.ENCRYPTION_KEY =
+      '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
+    process.env.MCE_JWT_SIGNING_SECRET =
+      'test-jwt-secret-at-least-32-chars-long';
     process.env.SESSION_SECRET = 'test-session-secret-at-least-32-chars';
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -44,7 +55,7 @@ describe('Auth (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication<NestFastifyApplication>(
-      new FastifyAdapter()
+      new FastifyAdapter(),
     );
 
     await app.register(secureSession, {
@@ -54,7 +65,7 @@ describe('Auth (e2e)', () => {
 
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
-    
+
     db = app.get('DATABASE');
   });
 
@@ -63,8 +74,8 @@ describe('Auth (e2e)', () => {
     await app.close();
   });
 
-  it('/auth/login (POST) should handle SFMC JWT and set session', async () => {
-    const secret = process.env.SFMC_JWT_SIGNING_SECRET!;
+  it('/auth/login (POST) should handle MCE JWT and set session', async () => {
+    const secret = process.env.MCE_JWT_SIGNING_SECRET!;
     const encodedSecret = new TextEncoder().encode(secret);
 
     const payload = {
@@ -73,7 +84,7 @@ describe('Auth (e2e)', () => {
       member_id: 'mid-jwt',
       stack: 'test-tssd',
     };
-    
+
     const jwt = await new jose.SignJWT(payload)
       .setProtectedHeader({ alg: 'HS256' })
       .setExpirationTime('1h')
@@ -82,12 +93,12 @@ describe('Auth (e2e)', () => {
     const response = await request(app.getHttpServer())
       .post('/auth/login')
       .send({ jwt })
-      .expect(201);
+      .expect(302);
 
-    expect(response.body.message).toBe('Login successful');
+    expect(response.headers.location).toBe('/');
     expect(response.headers['set-cookie']).toBeDefined();
     const cookie = response.headers['set-cookie'][0];
-    
+
     // Verify user created
     const userRepo: IUserRepository = app.get('USER_REPOSITORY');
     const user = await userRepo.findBySfUserId('sf-user-jwt');
@@ -105,19 +116,38 @@ describe('Auth (e2e)', () => {
   });
 
   it('/auth/callback (GET) should save credentials and return user', async () => {
+    const loginResponse = await request(app.getHttpServer())
+      .get('/auth/login')
+      .query({ tssd: 'test-tssd' })
+      .expect(302);
+
+    const loginCookie = loginResponse.headers['set-cookie'][0];
+    const redirectUrl = loginResponse.headers.location;
+    const state = new URL(redirectUrl).searchParams.get('state');
+
+    expect(state).toBeDefined();
+
     const response = await request(app.getHttpServer())
       .get('/auth/callback')
+      .set('Cookie', loginCookie)
       .query({
         code: 'any-code',
-        tssd: 'test-tssd',
+        state,
         sf_user_id: 'sf-user-123',
-        eid: 'eid-123'
+        eid: 'eid-123',
       })
+      .expect(302);
+
+    expect(response.headers.location).toBe('/');
+    expect(response.headers['set-cookie']).toBeDefined();
+    const cookie = response.headers['set-cookie'][0];
+
+    const meResponse = await request(app.getHttpServer())
+      .get('/auth/me')
+      .set('Cookie', cookie)
       .expect(200);
 
-    expect(response.body.user).toBeDefined();
-    expect(response.body.tenant).toBeDefined();
-    expect(response.body.user.sfUserId).toBe('sf-user-123');
+    expect(meResponse.body.user.sfUserId).toBe('sf-user-123');
 
     // Verify DB
     const tenantRepo: ITenantRepository = app.get('TENANT_REPOSITORY');
@@ -126,19 +156,31 @@ describe('Auth (e2e)', () => {
   });
 
   it('/auth/refresh (GET) should return a new access token', async () => {
-    // We already have a user and tenant from previous test
-    const tenantRepo: ITenantRepository = app.get('TENANT_REPOSITORY');
-    const userRepo: IUserRepository = app.get('USER_REPOSITORY');
-    
-    const tenant = await tenantRepo.findByEid('eid-123');
-    const user = await userRepo.findBySfUserId('sf-user-123');
+    const secret = process.env.MCE_JWT_SIGNING_SECRET!;
+    const encodedSecret = new TextEncoder().encode(secret);
+
+    const payload = {
+      user_id: 'sf-user-refresh',
+      enterprise_id: 'eid-refresh',
+      member_id: 'mid-refresh',
+      stack: 'test-tssd',
+    };
+
+    const jwt = await new jose.SignJWT(payload)
+      .setProtectedHeader({ alg: 'HS256' })
+      .setExpirationTime('1h')
+      .sign(encodedSecret);
+
+    const loginResponse = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ jwt })
+      .expect(302);
+
+    const cookie = loginResponse.headers['set-cookie'][0];
 
     const response = await request(app.getHttpServer())
       .get('/auth/refresh')
-      .query({
-        tenantId: tenant!.id,
-        userId: user!.id
-      })
+      .set('Cookie', cookie)
       .expect(200);
 
     expect(response.body.access_token).toBe('e2e-access-token');

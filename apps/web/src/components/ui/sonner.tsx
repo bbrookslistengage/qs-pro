@@ -1,10 +1,10 @@
 import {
-  CircleCheck,
-  Info,
-  LoaderCircle,
-  OctagonX,
-  TriangleAlert,
-} from "lucide-react"
+  CheckCircle,
+  DangerCircle,
+  DangerTriangle,
+  InfoCircle,
+  RefreshCircle,
+} from "@solar-icons/react"
 import { useTheme } from "next-themes"
 import { Toaster as Sonner } from "sonner"
 
@@ -18,11 +18,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
       icons={{
-        success: <CircleCheck className="h-4 w-4" />,
-        info: <Info className="h-4 w-4" />,
-        warning: <TriangleAlert className="h-4 w-4" />,
-        error: <OctagonX className="h-4 w-4" />,
-        loading: <LoaderCircle className="h-4 w-4 animate-spin" />,
+        success: <CheckCircle size={16} weight="Bold" className="h-4 w-4" />,
+        info: <InfoCircle size={16} weight="Bold" className="h-4 w-4" />,
+        warning: <DangerTriangle size={16} weight="Bold" className="h-4 w-4" />,
+        error: <DangerCircle size={16} weight="Bold" className="h-4 w-4" />,
+        loading: <RefreshCircle size={16} weight="Bold" className="h-4 w-4 animate-spin" />,
       }}
       toastOptions={{
         classNames: {

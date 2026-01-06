@@ -72,14 +72,19 @@ export class DrizzleUserRepository implements IUserRepository {
 export class DrizzleCredentialsRepository implements ICredentialsRepository {
   constructor(private db: any) {}
 
-  async findByUserAndTenant(userId: string, tenantId: string): Promise<Credential | undefined> {
+  async findByUserTenantMid(
+    userId: string,
+    tenantId: string,
+    mid: string,
+  ): Promise<Credential | undefined> {
     const [result] = await this.db
       .select()
       .from(credentials)
       .where(
         and(
           eq(credentials.userId, userId),
-          eq(credentials.tenantId, tenantId)
+          eq(credentials.tenantId, tenantId),
+          eq(credentials.mid, mid)
         )
       );
     return result;
@@ -93,10 +98,11 @@ export class DrizzleCredentialsRepository implements ICredentialsRepository {
       .insert(credentials)
       .values(credential)
       .onConflictDoUpdate({
-        target: [credentials.userId, credentials.tenantId],
+        target: [credentials.userId, credentials.tenantId, credentials.mid],
         set: {
           accessToken: credential.accessToken,
           refreshToken: credential.refreshToken,
+          mid: credential.mid,
           expiresAt: credential.expiresAt,
           updatedAt: new Date(),
         },

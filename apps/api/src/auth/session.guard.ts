@@ -17,13 +17,14 @@ export class SessionGuard implements CanActivate {
 
     const userId = session.get('userId');
     const tenantId = session.get('tenantId');
+    const mid = session.get('mid');
 
-    if (!userId || !tenantId) {
+    if (!userId || !tenantId || !mid) {
       throw new UnauthorizedException('Not authenticated');
     }
 
     // Attach to request for use in controllers.
-    request.user = { userId, tenantId };
+    request.user = { userId, tenantId, mid };
 
     return true;
   }

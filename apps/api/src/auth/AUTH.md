@@ -22,19 +22,46 @@ Sessions are handled by `@fastify/secure-session` in `apps/api/src/main.ts`.
 
 - Cookie settings (current defaults):
   - `httpOnly: true` prevents JavaScript from reading the cookie.
-  - `secure: true` requires HTTPS (required for production).
+  - `secure: true` requires HTTPS (required for iframe-based MCE embedding).
   - `sameSite: 'none'` allows cookies in an MCE iframe embed.
 - Session contents:
   - `userId` (internal DB user id)
   - `tenantId` (internal DB tenant id)
+  - `mid` (Business Unit context)
 - Authorization:
-  - `apps/api/src/auth/session.guard.ts` enforces presence of `userId` and `tenantId` in the session and attaches `{ userId, tenantId }` onto `request.user`.
+  - `apps/api/src/auth/session.guard.ts` enforces presence of `userId`, `tenantId`, and `mid` and attaches `{ userId, tenantId, mid }` onto `request.user`.
+
+## Tenant + BU Isolation (Postgres RLS)
+
+This service is multi-tenant and Business Unit (BU) scoped. We enforce isolation with Postgres Row Level Security (RLS) and require that every request runs with a DB “tenant context” derived from the session.
+
+- **Isolation key:** `(tenantId, mid)` (MID = BU / Member ID).
+- **RLS mode:** `ENABLE ROW LEVEL SECURITY` + `FORCE ROW LEVEL SECURITY` on tenant-scoped tables.
+- **Policy predicate:** compares row columns to per-request settings:
+  - `tenant_id::text = current_setting('app.tenant_id', true)`
+  - `mid::text = current_setting('app.mid', true)` (for BU-scoped tables)
+
+### How We Set RLS Context Per Request
+
+RLS depends on settings stored on the *same database connection* that executes queries. Because we use a connection pool, we must ensure the context does not “bleed” across requests and that the context is consistently present for all DB operations.
+
+Implementation (current approach):
+- On each request, we read `tenantId` + `mid` from the secure-session cookie.
+- We reserve a DB connection for the request, set both settings on that connection, and bind the request to use that DB handle for all queries.
+- On response finish/close/error, we reset the settings and release the connection back to the pool.
+
+Code references:
+- Request-lifetime DB context + RLS setup: `apps/api/src/main.ts`
+- Async request context holder: `apps/api/src/database/db-context.ts`
+
+This is the difference between:
+- “No credentials found” (RLS is active but context wasn’t applied, so the row is invisible), and
+- Correct behavior (RLS context is applied, so `(tenantId, mid)` rows are visible).
 
 ## Token Storage (“Token Wallet”)
 
 Tokens are stored server-side in the database (Credentials table).
 
-- Access token: stored as plaintext in DB for server-side API calls.
 - Refresh token: stored encrypted at rest using AES-256-GCM via `encrypt()`/`decrypt()` from `@qs-pro/database`.
 - Access token: stored encrypted at rest using the same AES-256-GCM mechanism; decrypted only just-in-time for outbound MCE API calls.
 - Encryption key:
@@ -51,6 +78,7 @@ The browser never receives refresh tokens.
 **Code:** `apps/api/src/auth/auth.controller.ts` → `AuthService.handleJwtLogin()`
 
 1. MCE loads the app in an iframe and posts a signed JWT to the backend.
+   - In this repo, the frontend listens for the platform’s JWT via `postMessage` and forwards it to `POST /api/auth/login`.
 2. The backend verifies the JWT signature with `MCE_JWT_SIGNING_SECRET` using `jose.jwtVerify()`:
    - Algorithm restricted to `HS256`.
    - Optional strict checks if configured:
@@ -69,9 +97,9 @@ The browser never receives refresh tokens.
    - Upserts Tenant by `{ eid, tssd }`.
    - Upserts User by `{ sfUserId, tenantId }`.
 6. Token persistence:
-   - Stores access token and encrypted refresh token in Credentials.
+   - Stores encrypted access and refresh tokens in Credentials keyed by `(tenantId, userId, mid)`.
 7. Session establishment:
-   - Clears any existing session data and sets `userId` and `tenantId`.
+   - Sets `userId`, `tenantId`, and `mid`.
 8. Redirect:
    - Responds `302` to `/` (frontend entry).
 
@@ -100,13 +128,19 @@ This is a redirect-based OAuth flow useful for initial authorization and local v
    - Derive user + org identifiers.
 4. Upsert Tenant and User, store tokens, set the session (`userId`, `tenantId`), and redirect to `/`.
 
+### Root Callback Handoff (MCE iframe)
+
+In some MCE environments, the OAuth redirect may return to the app root (`/`) with `?code=...&state=...` rather than calling the API callback path directly. The API handles this by redirecting requests that arrive at `/` with OAuth parameters to `GET /api/auth/callback` (server-side), so:
+- the authorization code exchange always happens server-to-server, and
+- we avoid leaking `code`/`state` in frontend routing or client logs.
+
 ## Token Refresh
 
 **Endpoint:** `GET /api/auth/refresh`
 
-- Protected by `SessionGuard`; it does not accept `tenantId`/`userId` from the browser.
-- The backend loads the encrypted refresh token from DB, decrypts it with `ENCRYPTION_KEY`, and exchanges it for a new access token when needed.
-- The frontend uses this endpoint for “silent refresh” on 401s (see `apps/web/src/services/api.ts`).
+- Protected by `SessionGuard`; it does not accept `tenantId`/`userId`/`mid` from the browser.
+- The backend loads the encrypted refresh token from DB (under RLS), decrypts it with `ENCRYPTION_KEY`, and exchanges it for a new access token when needed.
+- Response is `{ ok: true }` (the browser does not need the token); the frontend calls this endpoint for “silent refresh” on 401s and then retries (see `apps/web/src/services/api.ts`).
 
 ## Why This Is Secure (What We Rely On)
 
@@ -116,8 +150,10 @@ Key security properties are implemented at the API boundary:
 - **Stack isolation:** `tssd` is validated with a strict `[a-z0-9-]+` allowlist before constructing any MCE domain URLs.
 - **OAuth CSRF protection:** the redirect-based flow uses a random, session-bound `state` value that is short-lived and single-use.
 - **No browser token storage:** refresh tokens never reach the browser; they are stored encrypted in the database.
+- **Defense in depth via RLS:** tenant + BU isolation is enforced by the database (including for accidental query mistakes).
 - **Session security:** cookies are `HttpOnly` and `Secure`. `SameSite=None` is required for iframe-based embedding, so the API must be served over HTTPS.
 - **Least authority endpoints:** refresh and “me” endpoints are session-protected; callers can’t refresh tokens for arbitrary `tenantId`/`userId` values.
+- **No OAuth secrets in logs:** request logging and error responses redact query strings to avoid leaking OAuth `code`/`state`.
 
 ## Configuration
 

@@ -135,6 +135,7 @@ describe('Auth (e2e)', () => {
         state,
         sf_user_id: 'sf-user-123',
         eid: 'eid-123',
+        mid: 'mid-123',
       })
       .expect(302);
 

@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import * as jose from 'jose';
 import { encrypt, decrypt } from '@qs-pro/database';
+import { RlsContextService } from '../database/rls-context.service';
 import type {
   ITenantRepository,
   IUserRepository,
@@ -41,6 +42,7 @@ export class AuthService {
     @Inject('TENANT_REPOSITORY') private tenantRepo: ITenantRepository,
     @Inject('USER_REPOSITORY') private userRepo: IUserRepository,
     @Inject('CREDENTIALS_REPOSITORY') private credRepo: ICredentialsRepository,
+    private readonly rlsContext: RlsContextService,
   ) {}
 
   async verifyMceJwt(jwt: string) {
@@ -158,9 +160,9 @@ export class AuthService {
       tenantId: tenant.id,
     });
 
-    await this.saveTokens(tenant.id, user.id, tokenData);
+    await this.saveTokens(tenant.id, user.id, mid, tokenData);
 
-    return { user, tenant };
+    return { user, tenant, mid };
   }
 
   async findUserById(id: string) {
@@ -185,6 +187,7 @@ export class AuthService {
     tssd: string,
     code: string,
     fallbackCode?: string,
+    accountId?: string,
   ): Promise<MceTokenResponse> {
     const clientId = this.configService.get<string>('MCE_CLIENT_ID');
     const clientSecret = this.configService.get<string>('MCE_CLIENT_SECRET');
@@ -207,6 +210,10 @@ export class AuthService {
         client_secret: clientSecret,
         redirect_uri: redirectUri,
       });
+
+      if (accountId) {
+        body.set('account_id', accountId);
+      }
 
       try {
         const response = await axios.post<MceTokenResponse>(tokenUrl, body, {
@@ -235,14 +242,15 @@ export class AuthService {
   async refreshToken(
     tenantId: string,
     userId: string,
+    mid: string,
   ): Promise<{ accessToken: string; tssd: string }> {
-    const lockKey = `${tenantId}:${userId}`;
+    const lockKey = `${tenantId}:${userId}:${mid}`;
     const existingLock = this.refreshLocks.get(lockKey);
     if (existingLock) {
       return existingLock;
     }
 
-    const refreshPromise = this.refreshTokenInternal(tenantId, userId);
+    const refreshPromise = this.refreshTokenInternal(tenantId, userId, mid);
     this.refreshLocks.set(lockKey, refreshPromise);
 
     try {
@@ -255,6 +263,7 @@ export class AuthService {
   async saveTokens(
     tenantId: string,
     userId: string,
+    mid: string,
     tokenData: MceTokenResponse,
   ) {
     const encryptionKey = this.configService.get<string>('ENCRYPTION_KEY');
@@ -267,13 +276,16 @@ export class AuthService {
       encryptionKey,
     );
 
-    await this.credRepo.upsert({
-      tenantId,
-      userId,
-      accessToken: encryptedAccessToken,
-      refreshToken: encryptedRefreshToken,
-      expiresAt: new Date(Date.now() + tokenData.expires_in * 1000),
-      updatedAt: new Date(),
+    await this.rlsContext.runWithTenantContext(tenantId, mid, async () => {
+      await this.credRepo.upsert({
+        tenantId,
+        userId,
+        mid,
+        accessToken: encryptedAccessToken,
+        refreshToken: encryptedRefreshToken,
+        expiresAt: new Date(Date.now() + tokenData.expires_in * 1000),
+        updatedAt: new Date(),
+      });
     });
   }
 
@@ -292,25 +304,23 @@ export class AuthService {
     eid?: string,
     email?: string,
     name?: string,
+    mid?: string,
   ) {
     const embedded = this.extractAuthCode(code);
     const embeddedEid = embedded?.eid;
     const fallbackCode = embedded?.authCode;
 
     // 1. Exchange code
-    const tokenData = await this.exchangeCodeForToken(
-      tssd,
-      code,
-      fallbackCode,
-    );
+    const tokenData = await this.exchangeCodeForToken(tssd, code, fallbackCode, mid);
 
     // 2. Discover missing info if necessary
     let effectiveSfUserId = sfUserId;
     let effectiveEid = eid || embeddedEid;
     let effectiveEmail = email;
     let effectiveName = name;
+    let effectiveMid = mid;
 
-    if (!effectiveSfUserId || !effectiveEid) {
+    if (!effectiveSfUserId || !effectiveEid || !effectiveMid) {
       const info = await this.getUserInfo(tssd, tokenData.access_token);
       if (!info?.sub && !info?.user_id && !info?.user?.sub) {
         this.logger.warn('Userinfo response missing user identifiers', {
@@ -348,11 +358,22 @@ export class AuthService {
       effectiveEmail = effectiveEmail || info.email || info.user?.email;
       effectiveName =
         effectiveName || info.name || info.user?.name || info.user?.full_name;
+      effectiveMid =
+        effectiveMid ||
+        this.coerceId(info.member_id) ||
+        this.coerceId(info.user?.member_id) ||
+        this.coerceId(info.organization?.member_id) ||
+        this.extractIdFromObject(info.user, ['mid', 'member_id', 'memberId']) ||
+        this.extractIdFromObject(info.organization, [
+          'mid',
+          'member_id',
+          'memberId',
+        ]);
     }
 
-    if (!effectiveSfUserId || !effectiveEid) {
+    if (!effectiveSfUserId || !effectiveEid || !effectiveMid) {
       throw new UnauthorizedException(
-        'Could not determine MCE User ID or Enterprise ID',
+        'Could not determine MCE User ID, Enterprise ID, or MID',
       );
     }
 
@@ -368,9 +389,9 @@ export class AuthService {
     });
 
     // 5. Save tokens
-    await this.saveTokens(tenant.id, user.id, tokenData);
+    await this.saveTokens(tenant.id, user.id, effectiveMid, tokenData);
 
-    return { user, tenant };
+    return { user, tenant, mid: effectiveMid };
   }
 
   private extractIdFromObject(
@@ -464,8 +485,9 @@ export class AuthService {
   private async refreshTokenInternal(
     tenantId: string,
     userId: string,
+    mid: string,
   ): Promise<{ accessToken: string; tssd: string }> {
-    const creds = await this.credRepo.findByUserAndTenant(userId, tenantId);
+    const creds = await this.credRepo.findByUserTenantMid(userId, tenantId, mid);
     if (!creds) throw new UnauthorizedException('No credentials found');
 
     const tenant = await this.tenantRepo.findById(tenantId);
@@ -504,12 +526,14 @@ export class AuthService {
         client_secret: clientSecret,
       });
 
+      body.set('account_id', mid);
+
       const response = await axios.post<MceTokenResponse>(tokenUrl, body, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       });
 
       const tokenData = response.data;
-      await this.saveTokens(tenant.id, userId, tokenData);
+      await this.saveTokens(tenant.id, userId, mid, tokenData);
       return { accessToken: tokenData.access_token, tssd: tenant.tssd };
     } catch (error) {
       this.logTokenError('Refresh token failed', error);

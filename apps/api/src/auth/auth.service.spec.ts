@@ -17,6 +17,7 @@ import {
   IUserRepository,
   ICredentialsRepository,
 } from '@qs-pro/database';
+import { RlsContextService } from '../database/rls-context.service';
 
 const server = setupServer(
   http.post(
@@ -52,6 +53,7 @@ const server = setupServer(
           sub: 'sf-sub',
           name: 'SF User',
           email: 'sf-user@example.com',
+          member_id: 'mid-123',
         },
         organization: {
           enterprise_id: 12345,
@@ -120,11 +122,18 @@ describe('AuthService', () => {
           provide: 'CREDENTIALS_REPOSITORY',
           useValue: {
             upsert: vi.fn().mockResolvedValue({}),
-            findByUserAndTenant: vi.fn().mockResolvedValue({
+            findByUserTenantMid: vi.fn().mockResolvedValue({
               userId: 'u-1',
               tenantId: 't-1',
+              mid: 'mid-1',
               refreshToken: 'Q7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u=',
             }),
+          },
+        },
+        {
+          provide: RlsContextService,
+          useValue: {
+            runWithTenantContext: vi.fn(async (_tenantId: string, _mid: string, fn: () => Promise<unknown>) => fn()),
           },
         },
       ],
@@ -160,6 +169,9 @@ describe('AuthService', () => {
       'valid-code',
       'sf-1',
       '12345',
+      undefined,
+      undefined,
+      'mid-1',
     );
     expect(result.user.sfUserId).toBe('sf-1');
     expect(tenantRepo.upsert).toHaveBeenCalled();

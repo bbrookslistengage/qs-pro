@@ -22,7 +22,7 @@ import type { UserSession } from '../common/decorators/current-user.decorator';
 
 type SecureSession = {
   get(key: string): unknown;
-  set(key: string, value: unknown): void;
+  set(key: string, value: unknown | undefined): void;
   delete(): void;
 };
 
@@ -52,7 +52,7 @@ export class AuthController {
     @Req() req: SessionRequest,
     @Res() res: FastifyReply,
   ) {
-    const jwt = typeof body?.jwt === 'string' ? body.jwt.trim() : '';
+    const jwt = this.extractJwt(body);
 
     if (!jwt) {
       throw new UnauthorizedException('JWT is required');
@@ -62,12 +62,23 @@ export class AuthController {
       throw new InternalServerErrorException('Session not available');
     }
 
-    try {
-      const { user, tenant } = await this.authService.handleJwtLogin(jwt);
+    this.logger.log(
+      `MCE SSO login request content-type=${String(req.headers['content-type'] ?? '')} origin=${String(req.headers.origin ?? '')}`,
+    );
 
-      req.session.delete();
+    try {
+      const { user, tenant, mid } = await this.authService.handleJwtLogin(jwt);
+
       req.session.set('userId', user.id);
       req.session.set('tenantId', tenant.id);
+      req.session.set('mid', mid);
+
+      const accept = String(req.headers.accept ?? '');
+      const requestedJson = accept.includes('application/json');
+
+      if (requestedJson) {
+        return { ok: true };
+      }
 
       return res.redirect('/', 302);
     } catch (error) {
@@ -90,7 +101,7 @@ export class AuthController {
     }
 
     try {
-      await this.authService.refreshToken(tenant.id, user.id);
+      await this.authService.refreshToken(tenant.id, user.id, userSession.mid);
     } catch (error) {
       req.session?.delete();
       throw error;
@@ -103,7 +114,13 @@ export class AuthController {
   @Redirect()
   async login(@Query('tssd') tssd: string | undefined, @Req() req: SessionRequest) {
     const session = req.session;
-    const hasSession = !!session?.get('userId') && !!session?.get('tenantId');
+    const userId = session?.get('userId');
+    const tenantId = session?.get('tenantId');
+    const mid = session?.get('mid');
+    const hasSession =
+      typeof userId === 'string' &&
+      typeof tenantId === 'string' &&
+      typeof mid === 'string';
     const resolvedTssd = this.resolveAuthTssd(tssd);
 
     if (hasSession) {
@@ -111,6 +128,16 @@ export class AuthController {
     }
 
     try {
+      // If we have a legacy/partial session (missing MID), clear it so we don't loop on `/api/auth/me`.
+      if (
+        session &&
+        typeof userId === 'string' &&
+        typeof tenantId === 'string' &&
+        typeof mid !== 'string'
+      ) {
+        session.delete();
+      }
+
       if (!resolvedTssd) {
         throw new UnauthorizedException(
           'TSSD is required for login. Set MCE_TSSD.',
@@ -146,6 +173,7 @@ export class AuthController {
     @Res() res: FastifyReply,
     @Query('sf_user_id') sfUserId?: string,
     @Query('eid') eid?: string,
+    @Query('mid') mid?: string,
   ) {
     if (!req.session) {
       throw new InternalServerErrorException('Session not available');
@@ -162,10 +190,14 @@ export class AuthController {
       code,
       sfUserId,
       eid,
+      undefined,
+      undefined,
+      mid,
     );
 
     req.session.set('userId', result.user.id);
     req.session.set('tenantId', result.tenant.id);
+    req.session.set('mid', result.mid);
 
     return res.redirect('/');
   }
@@ -173,11 +205,12 @@ export class AuthController {
   @Get('refresh')
   @UseGuards(SessionGuard)
   async refresh(@CurrentUser() userSession: UserSession) {
-    const { accessToken } = await this.authService.refreshToken(
+    await this.authService.refreshToken(
       userSession.tenantId,
       userSession.userId,
+      userSession.mid,
     );
-    return { access_token: accessToken };
+    return { ok: true };
   }
 
   private resolveAuthTssd(explicitTssd?: string): string | undefined {
@@ -210,9 +243,9 @@ export class AuthController {
     const expectedTssd = session.get('oauth_state_tssd');
     const createdAt = session.get('oauth_state_created_at');
 
-    session.set('oauth_state_nonce', null);
-    session.set('oauth_state_tssd', null);
-    session.set('oauth_state_created_at', null);
+    session.set('oauth_state_nonce', undefined);
+    session.set('oauth_state_tssd', undefined);
+    session.set('oauth_state_created_at', undefined);
 
     if (
       typeof expectedNonce !== 'string' ||
@@ -257,5 +290,20 @@ export class AuthController {
     } catch {
       return undefined;
     }
+  }
+
+  private extractJwt(body: unknown): string {
+    if (typeof body === 'string') return body.trim();
+    if (!body || typeof body !== 'object') return '';
+
+    const record = body as Record<string, unknown>;
+    const candidate =
+      record.jwt ??
+      record.JWT ??
+      record.token ??
+      record.access_token ??
+      record.accessToken;
+
+    return typeof candidate === 'string' ? candidate.trim() : '';
   }
 }

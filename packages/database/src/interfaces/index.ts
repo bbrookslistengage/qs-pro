@@ -22,6 +22,10 @@ export interface IUserRepository {
 }
 
 export interface ICredentialsRepository {
-  findByUserAndTenant(userId: string, tenantId: string): Promise<Credential | undefined>;
+  findByUserTenantMid(
+    userId: string,
+    tenantId: string,
+    mid: string,
+  ): Promise<Credential | undefined>;
   upsert(credential: NewCredential): Promise<Credential>;
 }

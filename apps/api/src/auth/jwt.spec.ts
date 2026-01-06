@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { ConfigService } from '@nestjs/config';
 import * as jose from 'jose';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { RlsContextService } from '../database/rls-context.service';
 
 describe('AuthService JWT Verification', () => {
   let service: AuthService;
@@ -27,6 +28,12 @@ describe('AuthService JWT Verification', () => {
         { provide: 'TENANT_REPOSITORY', useValue: {} },
         { provide: 'USER_REPOSITORY', useValue: {} },
         { provide: 'CREDENTIALS_REPOSITORY', useValue: {} },
+        {
+          provide: RlsContextService,
+          useValue: {
+            runWithTenantContext: vi.fn(async (_tenantId: string, _mid: string, fn: () => Promise<unknown>) => fn()),
+          },
+        },
       ],
     }).compile();
 

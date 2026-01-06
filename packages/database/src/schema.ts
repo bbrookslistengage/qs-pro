@@ -23,12 +23,13 @@ export const credentials = pgTable('credentials', {
   id: uuid('id').defaultRandom().primaryKey(),
   tenantId: uuid('tenant_id').references(() => tenants.id),
   userId: uuid('user_id').references(() => users.id),
+  mid: varchar('mid').notNull(), // Business Unit context
   accessToken: text('access_token').notNull(),
   refreshToken: text('refresh_token').notNull(), // Encrypted!
   expiresAt: timestamp('expires_at').notNull(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (t) => ({
-  unq: unique().on(t.userId, t.tenantId),
+  unq: unique().on(t.userId, t.tenantId, t.mid),
 }));
 
 // 4. Query History (The "Smart" Layer)

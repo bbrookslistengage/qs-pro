@@ -45,20 +45,18 @@ const server = setupServer(
       return new HttpResponse(null, { status: 401 });
     },
   ),
-  http.get(
-    'https://test-tssd.auth.marketingcloudapis.com/v2/userinfo',
-    () =>
-      HttpResponse.json({
-        user: {
-          sub: 'sf-sub',
-          name: 'SF User',
-          email: 'sf-user@example.com',
-          member_id: 'mid-123',
-        },
-        organization: {
-          enterprise_id: 12345,
-        },
-      }),
+  http.get('https://test-tssd.auth.marketingcloudapis.com/v2/userinfo', () =>
+    HttpResponse.json({
+      user: {
+        sub: 'sf-sub',
+        name: 'SF User',
+        email: 'sf-user@example.com',
+        member_id: 'mid-123',
+      },
+      organization: {
+        enterprise_id: 12345,
+      },
+    }),
   ),
 );
 
@@ -133,7 +131,13 @@ describe('AuthService', () => {
         {
           provide: RlsContextService,
           useValue: {
-            runWithTenantContext: vi.fn(async (_tenantId: string, _mid: string, fn: () => Promise<unknown>) => fn()),
+            runWithTenantContext: vi.fn(
+              async (
+                _tenantId: string,
+                _mid: string,
+                fn: () => Promise<unknown>,
+              ) => fn(),
+            ),
           },
         },
       ],

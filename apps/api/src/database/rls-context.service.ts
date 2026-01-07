@@ -47,7 +47,9 @@ export class RlsContextService {
       await reserved`SELECT set_config('app.tenant_id', ${tenantId}, false)`;
       await reserved`SELECT set_config('app.mid', ${mid}, false)`;
 
-      const db = createDatabaseFromClient(this.makeDrizzleCompatibleSql(reserved));
+      const db = createDatabaseFromClient(
+        this.makeDrizzleCompatibleSql(reserved),
+      );
       return await runWithDbContext(db, fn);
     } catch (error) {
       this.logger.error(

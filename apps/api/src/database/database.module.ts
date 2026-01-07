@@ -16,9 +16,11 @@ type SqlClient = ReturnType<typeof createSqlClient>;
         const dbUrl =
           configService.get<string>('DATABASE_URL') ||
           'postgres://postgres:password@127.0.0.1:5432/qs_pro';
-        
-        logger.log(`Connecting to database at ${dbUrl.replace(/:[^:]+@/, ':****@')}`);
-        return createSqlClient(dbUrl) as SqlClient;
+
+        logger.log(
+          `Connecting to database at ${dbUrl.replace(/:[^:]+@/, ':****@')}`,
+        );
+        return createSqlClient(dbUrl);
       },
       inject: [ConfigService],
     },

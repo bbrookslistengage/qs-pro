@@ -31,7 +31,13 @@ describe('AuthService JWT Verification', () => {
         {
           provide: RlsContextService,
           useValue: {
-            runWithTenantContext: vi.fn(async (_tenantId: string, _mid: string, fn: () => Promise<unknown>) => fn()),
+            runWithTenantContext: vi.fn(
+              async (
+                _tenantId: string,
+                _mid: string,
+                fn: () => Promise<unknown>,
+              ) => fn(),
+            ),
           },
         },
       ],

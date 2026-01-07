@@ -22,7 +22,7 @@ import type { UserSession } from '../common/decorators/current-user.decorator';
 
 type SecureSession = {
   get(key: string): unknown;
-  set(key: string, value: unknown | undefined): void;
+  set(key: string, value: unknown): void;
   delete(): void;
 };
 
@@ -92,7 +92,10 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(SessionGuard)
-  async me(@CurrentUser() userSession: UserSession, @Req() req: SessionRequest) {
+  async me(
+    @CurrentUser() userSession: UserSession,
+    @Req() req: SessionRequest,
+  ) {
     const user = await this.authService.findUserById(userSession.userId);
     const tenant = await this.authService.findTenantById(userSession.tenantId);
 
@@ -112,7 +115,7 @@ export class AuthController {
 
   @Get('login')
   @Redirect()
-  async login(@Query('tssd') tssd: string | undefined, @Req() req: SessionRequest) {
+  login(@Query('tssd') tssd: string | undefined, @Req() req: SessionRequest) {
     const session = req.session;
     const userId = session?.get('userId');
     const tenantId = session?.get('tenantId');
@@ -238,7 +241,10 @@ export class AuthController {
     return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
   }
 
-  private validateAndConsumeOAuthState(state: string, session: SecureSession): string {
+  private validateAndConsumeOAuthState(
+    state: string,
+    session: SecureSession,
+  ): string {
     const expectedNonce = session.get('oauth_state_nonce');
     const expectedTssd = session.get('oauth_state_tssd');
     const createdAt = session.get('oauth_state_created_at');
@@ -283,7 +289,10 @@ export class AuthController {
     try {
       const json = Buffer.from(state, 'base64url').toString('utf8');
       const parsed = JSON.parse(json) as Record<string, unknown>;
-      const tssd = typeof parsed.tssd === 'string' ? this.normalizeTssd(parsed.tssd) : undefined;
+      const tssd =
+        typeof parsed.tssd === 'string'
+          ? this.normalizeTssd(parsed.tssd)
+          : undefined;
       const nonce = typeof parsed.nonce === 'string' ? parsed.nonce : undefined;
       if (!tssd || !nonce) return undefined;
       return { tssd, nonce };

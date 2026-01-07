@@ -34,7 +34,11 @@ export class RlsContextMiddleware implements NestMiddleware {
     return reserved;
   }
 
-  use(req: FastifyRequest & { session?: SecureSession }, res: FastifyReply, next: () => void) {
+  use(
+    req: FastifyRequest & { session?: SecureSession },
+    res: FastifyReply,
+    next: () => void,
+  ) {
     if (getDbFromContext()) {
       next();
       return;
@@ -84,7 +88,9 @@ export class RlsContextMiddleware implements NestMiddleware {
     res.raw.once('close', () => void cleanup());
     res.raw.once('error', () => void cleanup());
 
-    const db = createDatabaseFromClient(this.makeDrizzleCompatibleSql(reserved));
+    const db = createDatabaseFromClient(
+      this.makeDrizzleCompatibleSql(reserved),
+    );
     runWithDbContext(db, next);
   }
 }

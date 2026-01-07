@@ -55,7 +55,8 @@ export class AuthService {
 
     try {
       const encodedSecret = new TextEncoder().encode(secret);
-      const issuer = this.configService.get<string>('MCE_JWT_ISSUER') ?? undefined;
+      const issuer =
+        this.configService.get<string>('MCE_JWT_ISSUER') ?? undefined;
       const audience =
         this.configService.get<string>('MCE_JWT_AUDIENCE') ?? undefined;
 
@@ -232,7 +233,9 @@ export class AuthService {
         }
 
         this.logTokenError('Auth code exchange failed', error);
-        throw new UnauthorizedException('Failed to exchange authorization code');
+        throw new UnauthorizedException(
+          'Failed to exchange authorization code',
+        );
       }
     }
 
@@ -311,7 +314,12 @@ export class AuthService {
     const fallbackCode = embedded?.authCode;
 
     // 1. Exchange code
-    const tokenData = await this.exchangeCodeForToken(tssd, code, fallbackCode, mid);
+    const tokenData = await this.exchangeCodeForToken(
+      tssd,
+      code,
+      fallbackCode,
+      mid,
+    );
 
     // 2. Discover missing info if necessary
     let effectiveSfUserId = sfUserId;
@@ -487,7 +495,11 @@ export class AuthService {
     userId: string,
     mid: string,
   ): Promise<{ accessToken: string; tssd: string }> {
-    const creds = await this.credRepo.findByUserTenantMid(userId, tenantId, mid);
+    const creds = await this.credRepo.findByUserTenantMid(
+      userId,
+      tenantId,
+      mid,
+    );
     if (!creds) throw new UnauthorizedException('No credentials found');
 
     const tenant = await this.tenantRepo.findById(tenantId);

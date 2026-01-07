@@ -19,9 +19,9 @@ import path from 'node:path';
       ],
     }),
     DatabaseModule,
-    AuthModule, 
+    AuthModule,
     UsersModule,
-    MceModule
+    MceModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -45,9 +45,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       this.logger.error(`[${status}] ${path}`, exception);
       Sentry.captureException(exception);
     } else {
-      this.logger.warn(
-        `[${status}] ${path} - ${JSON.stringify(message)}`,
-      );
+      this.logger.warn(`[${status}] ${path} - ${JSON.stringify(message)}`);
     }
 
     response.status(status).send({

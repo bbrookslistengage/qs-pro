@@ -9,7 +9,6 @@ import formBody from '@fastify/formbody';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
-import path from 'node:path';
 import { createDatabaseFromClient } from '@qs-pro/database';
 import { getDbFromContext, runWithDbContext } from './database/db-context';
 
@@ -59,8 +58,8 @@ async function bootstrap() {
     cookieSameSiteRaw === 'strict'
       ? cookieSameSiteRaw
       : cookieSecure
-          ? 'none'
-          : 'lax';
+        ? 'none'
+        : 'lax';
 
   if (cookieSameSite === 'none' && !cookieSecure) {
     logger.error(
@@ -83,7 +82,7 @@ async function bootstrap() {
     },
   });
 
-  const sqlClient = app.get('SQL_CLIENT') as any;
+  const sqlClient = app.get('SQL_CLIENT');
 
   const makeDrizzleCompatibleSql = (reserved: any): any => {
     if (!reserved || typeof reserved !== 'function') return reserved;

@@ -14,6 +14,6 @@ export function enterWithDbContext(db: unknown): void {
   storage.enterWith({ db });
 }
 
-export function getDbFromContext(): unknown | undefined {
+export function getDbFromContext(): unknown {
   return storage.getStore()?.db;
 }

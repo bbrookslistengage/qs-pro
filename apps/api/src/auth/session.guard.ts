@@ -7,7 +7,7 @@ import {
 
 @Injectable()
 export class SessionGuard implements CanActivate {
-  async canActivate(context: ExecutionContext): Promise<boolean> {
+  canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
     const session = request.session;
 

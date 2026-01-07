@@ -80,7 +80,7 @@ export class AuthController {
         return { ok: true };
       }
 
-      return res.redirect('/', 302);
+      return await res.redirect('/', 302);
     } catch (error) {
       this.logger.error(
         'JWT Login failure',

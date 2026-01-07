@@ -56,7 +56,7 @@ export class RlsContextService {
       );
       // We cast the schema-specific db to the generic Record version used by the context holder.
 
-      return runWithDbContext(db, fn);
+      return await runWithDbContext(db, fn);
     } catch (error) {
       this.logger.error(
         'Failed to run with tenant context',

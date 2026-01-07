@@ -141,5 +141,4 @@ export class MceBridgeService {
 
     throw new HttpException(problem, HttpStatus.INTERNAL_SERVER_ERROR);
   }
-
 }

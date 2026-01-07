@@ -47,29 +47,40 @@ describe('MetadataService', () => {
     it('should return folders from cache if available', async () => {
       mockCache.get.mockResolvedValue([{ id: '1', Name: 'Test' }]);
 
-      const result = await service.getFolders('t1', 'u1', 'mid1');
+      const result = await service.getFolders('t1', 'u1', 'mid1', 'eid1');
 
       expect(result).toEqual([{ id: '1', Name: 'Test' }]);
-      expect(mockCache.get).toHaveBeenCalledWith('folders:t1:mid1');
+      expect(mockCache.get).toHaveBeenCalledWith('folders:t1:mid1:eid1');
       expect(bridge.soapRequest).not.toHaveBeenCalled();
     });
 
     it('should fetch from MCE if cache miss and set cache', async () => {
       mockCache.get.mockResolvedValue(null);
-      mockBridge.soapRequest.mockResolvedValue({
-        Body: {
-          RetrieveResponseMsg: {
-            Results: [{ ID: '1', Name: 'Folder1' }],
+      mockBridge.soapRequest
+        .mockResolvedValueOnce({
+          Body: {
+            RetrieveResponseMsg: {
+              Results: [{ ID: '1', Name: 'Folder1' }],
+            },
           },
-        },
-      });
+        })
+        .mockResolvedValueOnce({
+          Body: {
+            RetrieveResponseMsg: {
+              Results: [{ ID: '2', Name: 'SharedFolder' }],
+            },
+          },
+        });
 
-      const result = await service.getFolders('t1', 'u1', 'mid1');
+      const result = await service.getFolders('t1', 'u1', 'mid1', 'eid1');
 
-      expect(result).toEqual([{ ID: '1', Name: 'Folder1' }]);
-      expect(bridge.soapRequest).toHaveBeenCalled();
+      expect(result).toEqual([
+        { ID: '1', Name: 'Folder1' },
+        { ID: '2', Name: 'SharedFolder' },
+      ]);
+      expect(bridge.soapRequest).toHaveBeenCalledTimes(2);
       expect(mockCache.set).toHaveBeenCalledWith(
-        'folders:t1:mid1',
+        'folders:t1:mid1:eid1',
         expect.any(Array),
         600000,
       ); // 10 mins
@@ -97,7 +108,12 @@ describe('MetadataService', () => {
           },
         });
 
-      const result = await service.getDataExtensions('t1', 'u1', 'mid1', 'eid123');
+      const result = await service.getDataExtensions(
+        't1',
+        'u1',
+        'mid1',
+        'eid123',
+      );
 
       expect(result).toHaveLength(2);
       expect(result.find((r) => r.CustomerKey === 'DE1')).toBeDefined();

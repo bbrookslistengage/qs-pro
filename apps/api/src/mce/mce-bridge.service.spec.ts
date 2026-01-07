@@ -55,7 +55,9 @@ describe('MceBridgeService', () => {
 
   describe('request', () => {
     it('should make a request with refreshed token and correct base URL', async () => {
-      vi.spyOn(axios, 'request').mockResolvedValue({ data: { success: true } } as any);
+      vi.spyOn(axios, 'request').mockResolvedValue({
+        data: { success: true },
+      } as any);
 
       const response = await service.request('tenant-1', 'user-1', 'mid-1', {
         method: 'GET',
@@ -80,11 +82,19 @@ describe('MceBridgeService', () => {
     });
 
     it('should handle SOAP requests using POST and specific content type', async () => {
-      vi.spyOn(axios, 'request').mockResolvedValue({ data: '<soap>response</soap>' } as any);
+      vi.spyOn(axios, 'request').mockResolvedValue({
+        data: '<soap>response</soap>',
+      } as any);
 
       const soapBody = '<RetrieveRequestMsg>...</RetrieveRequestMsg>';
 
-      await service.soapRequest('tenant-1', 'user-1', 'mid-1', soapBody, 'Retrieve');
+      await service.soapRequest(
+        'tenant-1',
+        'user-1',
+        'mid-1',
+        soapBody,
+        'Retrieve',
+      );
 
       expect(axios.request).toHaveBeenCalledWith(
         expect.objectContaining({

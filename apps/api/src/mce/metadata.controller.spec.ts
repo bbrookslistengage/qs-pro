@@ -43,10 +43,15 @@ describe('MetadataController', () => {
       mockService.getFolders.mockResolvedValue(mockResult);
 
       const user = { userId: 'u1', tenantId: 't1', mid: 'mid1' };
-      const result = await controller.getFolders(user);
+      const result = await controller.getFolders(user, 'eid1');
 
       expect(result).toBe(mockResult);
-      expect(mockService.getFolders).toHaveBeenCalledWith('t1', 'u1', 'mid1');
+      expect(mockService.getFolders).toHaveBeenCalledWith(
+        't1',
+        'u1',
+        'mid1',
+        'eid1',
+      );
     });
   });
 

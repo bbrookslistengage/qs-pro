@@ -12,8 +12,16 @@ export class MetadataController {
   constructor(private readonly metadataService: MetadataService) {}
 
   @Get('folders')
-  async getFolders(@CurrentUser() user: UserSession) {
-    return this.metadataService.getFolders(user.tenantId, user.userId, user.mid);
+  async getFolders(
+    @CurrentUser() user: UserSession,
+    @Query('eid') eid?: string,
+  ) {
+    return this.metadataService.getFolders(
+      user.tenantId,
+      user.userId,
+      user.mid,
+      eid,
+    );
   }
 
   @Get('data-extensions')
@@ -31,6 +39,11 @@ export class MetadataController {
 
   @Get('fields')
   async getFields(@CurrentUser() user: UserSession, @Query('key') key: string) {
-    return this.metadataService.getFields(user.tenantId, user.userId, user.mid, key);
+    return this.metadataService.getFields(
+      user.tenantId,
+      user.userId,
+      user.mid,
+      key,
+    );
   }
 }

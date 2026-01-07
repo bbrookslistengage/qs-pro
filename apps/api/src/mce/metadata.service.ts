@@ -10,14 +10,50 @@ export class MetadataService {
     @Inject(CACHE_MANAGER) private cacheManager: cacheManager.Cache,
   ) {}
 
-  async getFolders(tenantId: string, userId: string, mid: string) {
-    const cacheKey = `folders:${tenantId}:${mid}`;
+  async getFolders(
+    tenantId: string,
+    userId: string,
+    mid: string,
+    eid?: string,
+  ) {
+    const cacheKey = eid
+      ? `folders:${tenantId}:${mid}:${eid}`
+      : `folders:${tenantId}:${mid}`;
     const cached = await this.cacheManager.get(cacheKey);
     if (cached) return cached;
+
+    const localPromise = this.fetchFolders(tenantId, userId, mid);
+    const sharedPromise = eid
+      ? this.fetchFolders(tenantId, userId, mid, eid)
+      : Promise.resolve([]);
+
+    const [local, shared] = await Promise.all([localPromise, sharedPromise]);
+    const merged = this.dedupeFolders([...local, ...shared]);
+
+    // Cache for 10 minutes (600000ms)
+    await this.cacheManager.set(cacheKey, merged, 600000);
+
+    return merged;
+  }
+
+  private async fetchFolders(
+    tenantId: string,
+    userId: string,
+    mid: string,
+    clientId?: string,
+  ) {
+    const clientContext = clientId
+      ? `
+      <ClientIDs>
+        <ClientID>${clientId}</ClientID>
+      </ClientIDs>
+    `
+      : '';
 
     const soapBody = `
       <RetrieveRequestMsg xmlns="http://exacttarget.com/wsdl/partnerAPI">
          <RetrieveRequest>
+            ${clientContext}
             <ObjectType>DataFolder</ObjectType>
             <Properties>ID</Properties>
             <Properties>Name</Properties>
@@ -44,13 +80,48 @@ export class MetadataService {
     // Normalize if single result (SOAP quirk) - though array is typical from simple-xml parsers usually
     const folders = Array.isArray(results) ? results : [results];
 
-    // Cache for 10 minutes (600000ms)
-    await this.cacheManager.set(cacheKey, folders, 600000);
+    if (!clientId) return folders;
 
-    return folders;
+    return folders.map((folder) => {
+      const name = typeof folder.Name === 'string' ? folder.Name : null;
+      const rawParentId = folder?.ParentFolder?.ID ?? null;
+      const parentId =
+        rawParentId !== null && rawParentId !== undefined
+          ? String(rawParentId).trim()
+          : '';
+      const isRoot = parentId === '' || parentId === '0';
+      if (isRoot && name && name.toLowerCase() === 'data extensions') {
+        return { ...folder, Name: 'Shared' };
+      }
+      return folder;
+    });
   }
 
-  async getDataExtensions(tenantId: string, userId: string, mid: string, eid: string) {
+  private dedupeFolders(folders: Record<string, unknown>[]) {
+    const seen = new Map<string, Record<string, unknown>>();
+    const deduped: Record<string, unknown>[] = [];
+
+    folders.forEach((folder) => {
+      const rawId = folder.ID ?? folder.Id ?? folder.id;
+      const id = rawId ? String(rawId) : null;
+      if (!id) {
+        deduped.push(folder);
+        return;
+      }
+      if (seen.has(id)) return;
+      seen.set(id, folder);
+      deduped.push(folder);
+    });
+
+    return deduped;
+  }
+
+  async getDataExtensions(
+    tenantId: string,
+    userId: string,
+    mid: string,
+    eid: string,
+  ) {
     // 1. Local DEs
     const localPromise = this.fetchDataExtensions(tenantId, userId, mid);
 
@@ -104,7 +175,12 @@ export class MetadataService {
     return Array.isArray(results) ? results : [results];
   }
 
-  async getFields(tenantId: string, userId: string, mid: string, deKey: string) {
+  async getFields(
+    tenantId: string,
+    userId: string,
+    mid: string,
+    deKey: string,
+  ) {
     const cacheKey = `fields:${tenantId}:${mid}:${deKey}`;
     const cached = await this.cacheManager.get(cacheKey);
     if (cached) return cached;

@@ -1,21 +1,24 @@
-import { useState } from 'react';
-import { useAuthStore } from '@/store/auth-store';
+import { useState } from "react";
+import { useAuthStore } from "@/store/auth-store";
 
 export function VerificationPage() {
   const { tenant } = useAuthStore();
-  const [deKey, setDeKey] = useState('');
-  const [results, setResults] = useState<any>(null);
+  const [deKey, setDeKey] = useState("");
+  const [results, setResults] = useState<unknown>(null);
   const [loading, setLoading] = useState(false);
 
-  const fetchData = async (endpoint: string, params: Record<string, string>) => {
+  const fetchData = async (
+    endpoint: string,
+    params: Record<string, string>,
+  ) => {
     setLoading(true);
     try {
       const query = new URLSearchParams(params).toString();
       const res = await fetch(`/api/metadata/${endpoint}?${query}`);
-      const data = await res.json();
+      const data = (await res.json()) as unknown;
       setResults(data);
-    } catch (err) {
-      setResults({ error: 'Failed to fetch' });
+    } catch {
+      setResults({ error: "Failed to fetch" });
     } finally {
       setLoading(false);
     }
@@ -25,19 +28,22 @@ export function VerificationPage() {
     <div className="p-4 space-y-4 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold">Metadata Verification</h1>
       <p className="text-sm text-muted-foreground">
-        Testing API calls for Tenant: <span className="font-mono font-bold text-primary">{tenant?.eid}</span>
+        Testing API calls for Tenant:{" "}
+        <span className="font-mono font-bold text-primary">{tenant?.eid}</span>
       </p>
-      
+
       <div className="flex gap-4">
-        <button 
-          onClick={() => fetchData('folders', {})}
+        <button
+          onClick={() => fetchData("folders", {})}
           className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"
         >
           Load Folders
         </button>
 
-        <button 
-          onClick={() => fetchData('data-extensions', { eid: tenant?.eid || '' })}
+        <button
+          onClick={() =>
+            fetchData("data-extensions", { eid: tenant?.eid || "" })
+          }
           className="bg-secondary text-secondary-foreground px-4 py-2 rounded-md hover:bg-secondary/80 transition-colors"
         >
           Load DEs
@@ -45,14 +51,14 @@ export function VerificationPage() {
       </div>
 
       <div className="flex gap-2 items-center">
-        <input 
-          value={deKey} 
-          onChange={e => setDeKey(e.target.value)} 
+        <input
+          value={deKey}
+          onChange={(e) => setDeKey(e.target.value)}
           placeholder="DE Customer Key"
           className="border p-2 rounded-md flex-1"
         />
-        <button 
-          onClick={() => fetchData('fields', { key: deKey })}
+        <button
+          onClick={() => fetchData("fields", { key: deKey })}
           className="bg-accent text-accent-foreground px-4 py-2 rounded-md hover:bg-accent/80 transition-colors"
         >
           Load Fields
@@ -66,7 +72,9 @@ export function VerificationPage() {
             Loading...
           </div>
         ) : (
-          <pre>{results ? JSON.stringify(results, null, 2) : '// No results yet'}</pre>
+          <pre>
+            {results ? JSON.stringify(results, null, 2) : "// No results yet"}
+          </pre>
         )}
       </div>
     </div>

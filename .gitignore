@@ -52,4 +52,3 @@ coverage/
 tmp/
 .eslintcache
 .stylelintcache
-agent-os/

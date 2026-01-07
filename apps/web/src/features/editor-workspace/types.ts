@@ -1,4 +1,4 @@
-export type FolderType = 'library' | 'data-extension';
+export type FolderType = "library" | "data-extension";
 
 export interface Folder {
   id: string;
@@ -15,7 +15,14 @@ export interface SavedQuery {
   updatedAt: string;
 }
 
-export type SFMCFieldType = 'Text' | 'Number' | 'Date' | 'Boolean' | 'Email' | 'Phone' | 'Decimal';
+export type SFMCFieldType =
+  | "Text"
+  | "Number"
+  | "Date"
+  | "Boolean"
+  | "Email"
+  | "Phone"
+  | "Decimal";
 
 export interface DataExtensionField {
   name: string;
@@ -34,7 +41,7 @@ export interface DataExtension {
   fields: DataExtensionField[];
 }
 
-export type QueryStatus = 'running' | 'success' | 'error' | 'idle';
+export type QueryStatus = "running" | "success" | "error" | "idle";
 
 export type ExecutionCell = string | number | boolean | null;
 
@@ -49,7 +56,7 @@ export interface ExecutionResult {
   errorMessage?: string;
 }
 
-export type QueryDataAction = 'Overwrite' | 'Append' | 'Update';
+export type QueryDataAction = "Overwrite" | "Append" | "Update";
 
 export interface QueryActivityDraft {
   name: string;
@@ -75,15 +82,17 @@ export interface DataExtensionDraft {
 }
 
 export interface EditorWorkspaceProps {
+  tenantId?: string | null;
   folders: Folder[];
   savedQueries: SavedQuery[];
   dataExtensions: DataExtension[];
   executionResult: ExecutionResult;
   initialTabs?: QueryTab[];
   isSidebarCollapsed: boolean;
+  isDataExtensionsFetching?: boolean;
   guardrailMessage?: string;
   guardrailTitle?: string;
-  onRun?: (mode: 'temp' | 'target') => void;
+  onRun?: (mode: "temp" | "target") => void;
   onSave?: (tabId: string, content: string) => void;
   onSaveAs?: (tabId: string, name: string, folderId: string) => void;
   onFormat?: () => void;
@@ -100,4 +109,5 @@ export interface EditorWorkspaceProps {
   onTabClose?: (tabId: string) => void;
   onTabChange?: (tabId: string) => void;
   onNewTab?: () => void;
+  joinSuggestionOverrides?: import("@/features/editor-workspace/utils/join-suggestions").JoinSuggestionOverrides;
 }

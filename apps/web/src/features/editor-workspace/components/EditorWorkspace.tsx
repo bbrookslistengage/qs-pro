@@ -1,19 +1,30 @@
-import { useState, type ReactNode, useEffect, type MouseEvent, useRef, type PointerEvent as ReactPointerEvent } from 'react';
-import type { EditorWorkspaceProps, QueryTab } from '@/features/editor-workspace/types';
-import { WorkspaceSidebar } from './WorkspaceSidebar';
-import { ResultsPane } from './ResultsPane';
-import { DataExtensionModal } from './DataExtensionModal';
-import { QueryActivityModal } from './QueryActivityModal';
-import { SaveQueryModal } from './SaveQueryModal';
-import { ConfirmationDialog } from './ConfirmationDialog';
-import * as Tooltip from '@radix-ui/react-tooltip';
-import { 
-  Play, 
-  Diskette, 
-  Download, 
-  Rocket, 
-  MenuDots, 
-  BombMinimalistic,
+import {
+  useState,
+  type ReactNode,
+  useEffect,
+  type MouseEvent,
+  useRef,
+  type PointerEvent as ReactPointerEvent,
+  useMemo,
+} from "react";
+import type {
+  EditorWorkspaceProps,
+  QueryTab,
+} from "@/features/editor-workspace/types";
+import { WorkspaceSidebar } from "./WorkspaceSidebar";
+import { ResultsPane } from "./ResultsPane";
+import { MonacoQueryEditor } from "./MonacoQueryEditor";
+import { DataExtensionModal } from "./DataExtensionModal";
+import { QueryActivityModal } from "./QueryActivityModal";
+import { SaveQueryModal } from "./SaveQueryModal";
+import { ConfirmationDialog } from "./ConfirmationDialog";
+import * as Tooltip from "@radix-ui/react-tooltip";
+import {
+  Play,
+  Diskette,
+  Download,
+  Rocket,
+  MenuDots,
   Code,
   Database,
   AddCircle,
@@ -21,19 +32,23 @@ import {
   FileText,
   AltArrowLeft,
   AltArrowRight,
-  AltArrowUp
-} from '@solar-icons/react';
-import { cn } from '@/lib/utils';
+  AltArrowUp,
+} from "@solar-icons/react";
+import { cn } from "@/lib/utils";
+import { lintSql } from "@/features/editor-workspace/utils/sql-lint";
+import { formatDiagnosticMessage } from "@/features/editor-workspace/utils/sql-diagnostics";
 
 export function EditorWorkspace({
+  tenantId,
   folders,
   savedQueries,
   dataExtensions,
   executionResult,
   initialTabs,
   isSidebarCollapsed: initialSidebarCollapsed,
-  guardrailMessage,
-  guardrailTitle = 'Guardrail Violation',
+  isDataExtensionsFetching = false,
+  guardrailMessage: _guardrailMessageProp,
+  guardrailTitle: _guardrailTitleProp = "Guardrail Violation",
   onRun,
   onSave,
   onSaveAs,
@@ -48,43 +63,77 @@ export function EditorWorkspace({
   onCreateDE,
   onTabClose,
   onTabChange,
-  onNewTab
+  onNewTab,
+  joinSuggestionOverrides,
 }: EditorWorkspaceProps) {
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(initialSidebarCollapsed);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
+    initialSidebarCollapsed,
+  );
   const [isDEModalOpen, setIsDEModalOpen] = useState(false);
-  const [isQueryActivityModalOpen, setIsQueryActivityModalOpen] = useState(false);
+  const [isQueryActivityModalOpen, setIsQueryActivityModalOpen] =
+    useState(false);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [isConfirmCloseOpen, setIsConfirmCloseOpen] = useState(false);
   const [tabToClose, setTabToClose] = useState<string | null>(null);
-  
+  const [isRunBlockedOpen, setIsRunBlockedOpen] = useState(false);
+
   // Tab Management
-  const [tabs, setTabs] = useState<QueryTab[]>(initialTabs || [
-    { id: 't-1', name: 'New Query', content: '', isDirty: false, isNew: true }
-  ]);
-  const [activeTabId, setActiveTabId] = useState<string>(tabs[0]?.id || '');
+  const [tabs, setTabs] = useState<QueryTab[]>(
+    initialTabs || [
+      {
+        id: "t-1",
+        name: "New Query",
+        content: "",
+        isDirty: false,
+        isNew: true,
+      },
+    ],
+  );
+  const [activeTabId, setActiveTabId] = useState<string>(tabs[0]?.id || "");
   const [isTabRailExpanded, setIsTabRailExpanded] = useState(false);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [resultsHeight, setResultsHeight] = useState(280);
   const [isResizingResults, setIsResizingResults] = useState(false);
   const workspaceRef = useRef<HTMLDivElement>(null);
 
-  const activeTab = tabs.find(t => t.id === activeTabId) || tabs[0];
+  const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
+  const sqlDiagnostics = useMemo(
+    () => lintSql(activeTab?.content ?? "", { dataExtensions }),
+    [activeTab?.content, dataExtensions],
+  );
+  const hasBlockingDiagnostics = sqlDiagnostics.length > 0;
+  const blockingDiagnostic = useMemo(() => {
+    if (sqlDiagnostics.length === 0) return null;
+    return (
+      sqlDiagnostics.find((diagnostic) => diagnostic.severity === "error") ??
+      sqlDiagnostics.find((diagnostic) => diagnostic.severity === "warning") ??
+      sqlDiagnostics.find((diagnostic) => diagnostic.severity === "prereq") ??
+      null
+    );
+  }, [sqlDiagnostics]);
+  const runBlockMessage = useMemo(() => {
+    if (!blockingDiagnostic) return null;
+    return formatDiagnosticMessage(blockingDiagnostic, activeTab?.content ?? "");
+  }, [activeTab?.content, blockingDiagnostic]);
+  const runTooltipMessage = hasBlockingDiagnostics
+    ? runBlockMessage ?? "Query is missing required SQL."
+    : "Execute SQL (Ctrl+Enter)";
 
   // Dirty State & BeforeUnload
   useEffect(() => {
-    const hasDirtyTabs = tabs.some(t => t.isDirty);
+    const hasDirtyTabs = tabs.some((t) => t.isDirty);
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (hasDirtyTabs) {
         e.preventDefault();
-        e.returnValue = '';
+        e.returnValue = "";
       }
     };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [tabs]);
 
   useEffect(() => {
-    if (executionResult.status !== 'idle') {
+    if (executionResult.status !== "idle") {
       setIsResultsOpen(true);
     }
   }, [executionResult.status]);
@@ -107,10 +156,10 @@ export function EditorWorkspace({
     const newId = `t-${Date.now()}`;
     const newTab: QueryTab = {
       id: newId,
-      name: 'Untitled Query',
-      content: '',
+      name: "Untitled Query",
+      content: "",
       isDirty: false,
-      isNew: true
+      isNew: true,
     };
     setTabs([...tabs, newTab]);
     setActiveTabId(newId);
@@ -122,9 +171,12 @@ export function EditorWorkspace({
     onTabChange?.(id);
   };
 
-  const handleRequestCloseTab = (e: MouseEvent<HTMLButtonElement>, id: string) => {
+  const handleRequestCloseTab = (
+    e: MouseEvent<HTMLButtonElement>,
+    id: string,
+  ) => {
     e.stopPropagation();
-    const tab = tabs.find(t => t.id === id);
+    const tab = tabs.find((t) => t.id === id);
     if (tab?.isDirty) {
       setTabToClose(id);
       setIsConfirmCloseOpen(true);
@@ -134,9 +186,15 @@ export function EditorWorkspace({
   };
 
   const handleCloseTab = (id: string) => {
-    const newTabs = tabs.filter(t => t.id !== id);
+    const newTabs = tabs.filter((t) => t.id !== id);
     if (newTabs.length === 0) {
-      const defaultTab = { id: 't-1', name: 'New Query', content: '', isDirty: false, isNew: true };
+      const defaultTab = {
+        id: "t-1",
+        name: "New Query",
+        content: "",
+        isDirty: false,
+        isNew: true,
+      };
       setTabs([defaultTab]);
       setActiveTabId(defaultTab.id);
     } else {
@@ -150,20 +208,30 @@ export function EditorWorkspace({
   };
 
   const handleEditorChange = (content: string) => {
-    setTabs(tabs.map(t => t.id === activeTabId ? { ...t, content, isDirty: true } : t));
+    setTabs(
+      tabs.map((t) =>
+        t.id === activeTabId ? { ...t, content, isDirty: true } : t,
+      ),
+    );
   };
 
   const handleSave = () => {
     if (activeTab.isNew) {
       setIsSaveModalOpen(true);
     } else {
-      setTabs(tabs.map(t => t.id === activeTabId ? { ...t, isDirty: false } : t));
+      setTabs(
+        tabs.map((t) => (t.id === activeTabId ? { ...t, isDirty: false } : t)),
+      );
       onSave?.(activeTab.id, activeTab.content);
     }
   };
 
   const handleFinalSave = (name: string, folderId: string) => {
-    setTabs(tabs.map(t => t.id === activeTabId ? { ...t, name, isDirty: false, isNew: false } : t));
+    setTabs(
+      tabs.map((t) =>
+        t.id === activeTabId ? { ...t, name, isDirty: false, isNew: false } : t,
+      ),
+    );
     onSaveAs?.(activeTab.id, name, folderId);
     setIsSaveModalOpen(false);
   };
@@ -172,7 +240,17 @@ export function EditorWorkspace({
     setIsResultsOpen((prev) => !prev);
   };
 
-  const handleResultsResizeStart = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const handleRunRequest = () => {
+    if (hasBlockingDiagnostics) {
+      setIsRunBlockedOpen(true);
+      return;
+    }
+    onRun?.("temp");
+  };
+
+  const handleResultsResizeStart = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
     if (!workspaceRef.current) return;
     event.preventDefault();
     const startY = event.clientY;
@@ -185,18 +263,21 @@ export function EditorWorkspace({
 
     const handleMove = (moveEvent: globalThis.PointerEvent) => {
       const delta = moveEvent.clientY - startY;
-      const nextHeight = Math.min(maxHeight, Math.max(minHeight, startHeight - delta));
+      const nextHeight = Math.min(
+        maxHeight,
+        Math.max(minHeight, startHeight - delta),
+      );
       setResultsHeight(nextHeight);
     };
 
     const handleUp = () => {
       setIsResizingResults(false);
-      window.removeEventListener('pointermove', handleMove);
-      window.removeEventListener('pointerup', handleUp);
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
     };
 
-    window.addEventListener('pointermove', handleMove);
-    window.addEventListener('pointerup', handleUp);
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
   };
 
   // Listen for sidebar selection to open in new tab or existing
@@ -205,34 +286,39 @@ export function EditorWorkspace({
     // In a real app, onSelectQuery would trigger this
   }, []);
 
-  const isIdle = executionResult.status === 'idle';
+  const isIdle = executionResult.status === "idle";
   const shouldShowResultsPane = !isIdle || isResultsOpen;
 
   return (
     <Tooltip.Provider delayDuration={400}>
       <div className="flex flex-1 overflow-hidden bg-background text-foreground font-sans h-full">
         {/* Sidebar Explorer */}
-        <WorkspaceSidebar 
+        <WorkspaceSidebar
+          tenantId={tenantId}
           folders={folders}
           savedQueries={savedQueries}
           dataExtensions={dataExtensions}
           isCollapsed={isSidebarCollapsed}
+          isDataExtensionsFetching={isDataExtensionsFetching}
           onToggle={handleToggleSidebar}
           onSelectQuery={(id) => {
-            const query = savedQueries.find(q => q.id === id);
+            const query = savedQueries.find((q) => q.id === id);
             if (query) {
-              const existingTab = tabs.find(t => t.queryId === id);
+              const existingTab = tabs.find((t) => t.queryId === id);
               if (existingTab) {
                 setActiveTabId(existingTab.id);
               } else {
                 const newId = `t-${Date.now()}`;
-                setTabs([...tabs, { 
-                  id: newId, 
-                  queryId: id, 
-                  name: query.name, 
-                  content: query.content, 
-                  isDirty: false 
-                }]);
+                setTabs([
+                  ...tabs,
+                  {
+                    id: newId,
+                    queryId: id,
+                    name: query.name,
+                    content: query.content,
+                    isDirty: false,
+                  },
+                ]);
                 setActiveTabId(newId);
               }
             }
@@ -244,30 +330,53 @@ export function EditorWorkspace({
 
         {/* Main IDE Workspace */}
         <div ref={workspaceRef} className="flex-1 flex flex-col min-w-0">
-          
           {/* Workspace Header / Toolbar */}
           <div className="h-12 border-b border-border bg-card flex items-center justify-between px-4 shrink-0">
             <div className="flex items-center gap-4">
               <div className="flex items-center">
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <button 
-                      onClick={() => onRun?.('temp')}
-                      className="flex items-center gap-2 bg-success hover:brightness-110 text-success-foreground h-8 px-4 rounded-l-md text-xs font-bold transition-all shadow-lg shadow-success/20 active:scale-95"
+                    <span
+                      className={cn(
+                        "inline-flex",
+                        hasBlockingDiagnostics && "cursor-not-allowed",
+                      )}
                     >
-                      <Play size={16} weight="Bold" />
-                      RUN
-                    </button>
+                      <button
+                        onClick={handleRunRequest}
+                        disabled={hasBlockingDiagnostics}
+                        className={cn(
+                          "flex items-center gap-2 bg-success text-success-foreground h-8 px-4 rounded-l-md text-xs font-bold transition-all shadow-lg shadow-success/20 active:scale-95",
+                          hasBlockingDiagnostics
+                            ? "opacity-60 cursor-not-allowed shadow-none"
+                            : "hover:brightness-110",
+                        )}
+                      >
+                        <Play size={16} weight="Bold" />
+                        RUN
+                      </button>
+                    </span>
                   </Tooltip.Trigger>
                   <Tooltip.Portal>
-                    <Tooltip.Content className="bg-foreground text-background text-[10px] px-2 py-1 rounded shadow-md z-50" sideOffset={5}>
-                      Execute SQL (Ctrl+Enter)
+                    <Tooltip.Content
+                      className="bg-foreground text-background text-[10px] px-2 py-1 rounded shadow-md z-50"
+                      sideOffset={5}
+                    >
+                      {runTooltipMessage}
                       <Tooltip.Arrow className="fill-foreground" />
                     </Tooltip.Content>
                   </Tooltip.Portal>
                 </Tooltip.Root>
-                
-                <button className="h-8 px-2 bg-success brightness-90 hover:brightness-100 text-success-foreground border-l border-black/10 rounded-r-md active:scale-95">
+
+                <button
+                  className={cn(
+                    "h-8 px-2 bg-success brightness-90 text-success-foreground border-l border-black/10 rounded-r-md active:scale-95",
+                    hasBlockingDiagnostics
+                      ? "opacity-60 cursor-not-allowed"
+                      : "hover:brightness-100",
+                  )}
+                  disabled={hasBlockingDiagnostics}
+                >
                   <MenuDots size={14} weight="Bold" />
                 </button>
               </div>
@@ -275,25 +384,25 @@ export function EditorWorkspace({
               <div className="h-4 w-px bg-border mx-1" />
 
               <div className="flex items-center gap-1">
-                <ToolbarButton 
-                  icon={<Diskette size={18} />} 
-                  label={activeTab.isDirty ? "Save Changes*" : "Save Query"} 
+                <ToolbarButton
+                  icon={<Diskette size={18} />}
+                  label={activeTab.isDirty ? "Save Changes*" : "Save Query"}
                   onClick={handleSave}
                   className={activeTab.isDirty ? "text-primary" : ""}
                 />
-                <ToolbarButton 
-                  icon={<Code size={18} />} 
-                  label="Format SQL" 
-                  onClick={onFormat} 
+                <ToolbarButton
+                  icon={<Code size={18} />}
+                  label="Format SQL"
+                  onClick={onFormat}
                 />
-                <ToolbarButton 
-                  icon={<Download size={18} />} 
-                  label="Export Results" 
+                <ToolbarButton
+                  icon={<Download size={18} />}
+                  label="Export Results"
                 />
                 <div className="h-4 w-px bg-border mx-1" />
-                <ToolbarButton 
-                  icon={<Database size={18} />} 
-                  label="Create Data Extension" 
+                <ToolbarButton
+                  icon={<Database size={18} />}
+                  label="Create Data Extension"
                   onClick={handleCreateDE}
                   className="text-primary hover:text-primary-foreground hover:bg-primary"
                 />
@@ -302,24 +411,35 @@ export function EditorWorkspace({
 
             <div className="flex items-center gap-3">
               <div className="hidden sm:flex flex-col items-end mr-2">
-                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Active Tab</span>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                  Active Tab
+                </span>
                 <span className="text-[10px] font-bold text-primary flex items-center gap-1">
                   {activeTab.name}
-                  {activeTab.isDirty && <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />}
+                  {activeTab.isDirty && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                  )}
                 </span>
               </div>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <button 
+                  <button
                     onClick={handleOpenQueryActivityModal}
                     className="flex items-center gap-2 border-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground h-8 px-4 rounded-md text-xs font-bold transition-all group active:scale-95"
                   >
-                    <Rocket size={16} weight="Bold" className="group-hover:animate-bounce" />
+                    <Rocket
+                      size={16}
+                      weight="Bold"
+                      className="group-hover:animate-bounce"
+                    />
                     Deploy to Automation
                   </button>
                 </Tooltip.Trigger>
                 <Tooltip.Portal>
-                  <Tooltip.Content className="bg-foreground text-background text-[10px] px-2 py-1 rounded shadow-md z-50" sideOffset={5}>
+                  <Tooltip.Content
+                    className="bg-foreground text-background text-[10px] px-2 py-1 rounded shadow-md z-50"
+                    sideOffset={5}
+                  >
                     Create permanent MCE Activity
                     <Tooltip.Arrow className="fill-foreground" />
                   </Tooltip.Content>
@@ -330,76 +450,61 @@ export function EditorWorkspace({
 
           {/* Editor & Results Pane Split */}
           <div className="flex-1 flex flex-col min-h-0">
-            
             {/* Editor Area with Vertical Tabs */}
             <div className="flex-1 flex min-h-0">
-              
-              {/* Mock Monaco Editor Pane */}
+              {/* Monaco Editor Pane */}
               <div className="flex-1 relative bg-background/50 overflow-hidden font-mono">
-                {/* Line Numbers */}
-                <div className="absolute left-0 top-0 bottom-0 w-10 bg-muted/20 border-r border-border flex flex-col items-center py-4 text-[10px] text-muted-foreground select-none">
-                    {Array.from({length: 12}).map((_, i) => <span key={i} className="h-5 leading-5">{i + 1}</span>)}
-                </div>
-                
-                {/* Code Area */}
-                <div 
-                  className="ml-10 p-4 text-sm leading-5 overflow-auto h-full outline-none focus:ring-1 focus:ring-inset focus:ring-primary/20"
-                  contentEditable
-                  suppressContentEditableWarning
-                  onInput={(e) => handleEditorChange(e.currentTarget.innerText)}
-                  onKeyDown={(e) => {
-                    if (e.ctrlKey && e.key === 's') {
-                      e.preventDefault();
-                      handleSave();
-                    }
-                  }}
-                >
-                    <div className="space-y-0.5 font-mono whitespace-pre-wrap">
-                      {activeTab.content || <span className="text-muted-foreground italic">-- Start typing your SQL here...</span>}
-                    </div>
-                </div>
-
-                {guardrailMessage ? (
-                  <div className="absolute bottom-6 right-6">
-                    <div className="bg-card border border-error shadow-2xl rounded-lg p-3 max-w-xs animate-in fade-in slide-in-from-bottom-2">
-                      <div className="flex gap-2 text-error mb-1">
-                        <BombMinimalistic size={16} weight="Bold" />
-                        <span className="text-[10px] font-bold uppercase tracking-wider">
-                          {guardrailTitle}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-foreground leading-relaxed">
-                        {guardrailMessage}
-                      </p>
-                    </div>
-                  </div>
-                ) : null}
+                <MonacoQueryEditor
+                  value={activeTab?.content ?? ""}
+                  onChange={handleEditorChange}
+                  onSave={handleSave}
+                  onRunRequest={handleRunRequest}
+                  diagnostics={sqlDiagnostics}
+                  dataExtensions={dataExtensions}
+                  folders={folders}
+                  tenantId={tenantId}
+                  joinSuggestionOverrides={joinSuggestionOverrides}
+                  className="h-full"
+                />
               </div>
 
               {/* Vertical Tabs Sidebar (Right Side) */}
               <div
                 className={cn(
                   "border-l border-border bg-card/50 flex flex-col py-2 shrink-0 transition-[width] duration-200",
-                  isTabRailExpanded ? "w-56" : "w-12 items-center"
+                  isTabRailExpanded ? "w-56" : "w-12 items-center",
                 )}
               >
-                <div className={cn("flex flex-col gap-2", isTabRailExpanded ? "px-2" : "items-center")}>
+                <div
+                  className={cn(
+                    "flex flex-col gap-2",
+                    isTabRailExpanded ? "px-2" : "items-center",
+                  )}
+                >
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
-                      <button 
+                      <button
                         onClick={handleNewTab}
                         className={cn(
                           "rounded-lg flex items-center text-primary hover:bg-primary/10 transition-colors",
-                          isTabRailExpanded ? "w-full px-2 py-1.5 text-xs font-bold" : "w-8 h-8 justify-center"
+                          isTabRailExpanded
+                            ? "w-full px-2 py-1.5 text-xs font-bold"
+                            : "w-8 h-8 justify-center",
                         )}
                       >
                         <AddCircle size={20} weight="Bold" />
-                        {isTabRailExpanded ? <span className="ml-2">New Tab</span> : null}
+                        {isTabRailExpanded ? (
+                          <span className="ml-2">New Tab</span>
+                        ) : null}
                       </button>
                     </Tooltip.Trigger>
                     {!isTabRailExpanded ? (
                       <Tooltip.Portal>
-                        <Tooltip.Content className="bg-foreground text-background text-[10px] px-2 py-1 rounded shadow-md z-50" side="left" sideOffset={10}>
+                        <Tooltip.Content
+                          className="bg-foreground text-background text-[10px] px-2 py-1 rounded shadow-md z-50"
+                          side="left"
+                          sideOffset={10}
+                        >
                           New Tab
                         </Tooltip.Content>
                       </Tooltip.Portal>
@@ -412,7 +517,7 @@ export function EditorWorkspace({
                       "rounded-lg flex items-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors",
                       isTabRailExpanded
                         ? "w-full px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest justify-between"
-                        : "w-8 h-8 justify-center"
+                        : "w-8 h-8 justify-center",
                     )}
                   >
                     {isTabRailExpanded ? (
@@ -426,22 +531,39 @@ export function EditorWorkspace({
                   </button>
                 </div>
 
-                <div className={cn("mt-3 flex-1 flex flex-col gap-2 overflow-y-auto no-scrollbar", isTabRailExpanded ? "px-2" : "items-center")}>
+                <div
+                  className={cn(
+                    "mt-3 flex-1 flex flex-col gap-2 overflow-y-auto no-scrollbar",
+                    isTabRailExpanded ? "px-2" : "items-center",
+                  )}
+                >
                   {tabs.map((tab) => (
                     <Tooltip.Root key={tab.id}>
                       <Tooltip.Trigger asChild>
-                        <div className={cn("relative group", isTabRailExpanded ? "w-full" : "")}>
+                        <div
+                          className={cn(
+                            "relative group",
+                            isTabRailExpanded ? "w-full" : "",
+                          )}
+                        >
                           <button
                             onClick={() => handleTabChange(tab.id)}
                             className={cn(
                               "rounded-lg flex items-center transition-all relative",
-                              isTabRailExpanded ? "w-full px-2 py-1.5 gap-2 pr-7" : "w-8 h-8 justify-center",
-                              activeTabId === tab.id 
-                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
-                                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                              isTabRailExpanded
+                                ? "w-full px-2 py-1.5 gap-2 pr-7"
+                                : "w-8 h-8 justify-center",
+                              activeTabId === tab.id
+                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                                : "text-muted-foreground hover:bg-muted hover:text-foreground",
                             )}
                           >
-                            <FileText size={18} weight={activeTabId === tab.id ? "Bold" : "Linear"} />
+                            <FileText
+                              size={18}
+                              weight={
+                                activeTabId === tab.id ? "Bold" : "Linear"
+                              }
+                            />
                             {isTabRailExpanded ? (
                               <span className="truncate text-[11px] font-medium flex items-center gap-1">
                                 {tab.name}
@@ -451,18 +573,24 @@ export function EditorWorkspace({
                               </span>
                             ) : null}
                             {!isTabRailExpanded && tab.isDirty ? (
-                              <div className={cn(
-                                "absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-background",
-                                activeTabId === tab.id ? "bg-white" : "bg-primary"
-                              )} />
+                              <div
+                                className={cn(
+                                  "absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-background",
+                                  activeTabId === tab.id
+                                    ? "bg-white"
+                                    : "bg-primary",
+                                )}
+                              />
                             ) : null}
                           </button>
-                          
+
                           <button
                             onClick={(e) => handleRequestCloseTab(e, tab.id)}
                             className={cn(
                               "absolute bg-background rounded-full text-muted-foreground hover:text-error opacity-0 group-hover:opacity-100 transition-opacity shadow-sm",
-                              isTabRailExpanded ? "right-1.5 top-1/2 -translate-y-1/2 p-0.5" : "-bottom-1 -right-1 p-0.5"
+                              isTabRailExpanded
+                                ? "right-1.5 top-1/2 -translate-y-1/2 p-0.5"
+                                : "-bottom-1 -right-1 p-0.5",
                             )}
                           >
                             <CloseCircle size={12} weight="Bold" />
@@ -471,8 +599,12 @@ export function EditorWorkspace({
                       </Tooltip.Trigger>
                       {!isTabRailExpanded ? (
                         <Tooltip.Portal>
-                          <Tooltip.Content className="bg-foreground text-background text-[10px] px-2 py-1 rounded shadow-md z-50 max-w-[120px] truncate" side="left" sideOffset={10}>
-                            {tab.name} {tab.isDirty ? '*' : ''}
+                          <Tooltip.Content
+                            className="bg-foreground text-background text-[10px] px-2 py-1 rounded shadow-md z-50 max-w-[120px] truncate"
+                            side="left"
+                            sideOffset={10}
+                          >
+                            {tab.name} {tab.isDirty ? "*" : ""}
                           </Tooltip.Content>
                         </Tooltip.Portal>
                       ) : null}
@@ -486,7 +618,9 @@ export function EditorWorkspace({
             <div
               className={cn(
                 "border-t border-border bg-background flex flex-col min-h-[32px]",
-                isResizingResults ? "transition-none" : "transition-[height] duration-300 ease-out"
+                isResizingResults
+                  ? "transition-none"
+                  : "transition-[height] duration-300 ease-out",
               )}
               style={{ height: shouldShowResultsPane ? resultsHeight : 32 }}
             >
@@ -499,12 +633,13 @@ export function EditorWorkspace({
                     <div className="mx-auto mt-0.5 h-1 w-10 rounded-full bg-muted-foreground/30" />
                   </div>
                   <div className="flex-1 min-h-0">
-                    <ResultsPane 
+                    <ResultsPane
                       result={executionResult}
                       onPageChange={onPageChange}
                       onViewInContactBuilder={() => {
-                        const subscriberKey = executionResult.rows[0]?.SubscriberKey;
-                        if (typeof subscriberKey === 'string') {
+                        const subscriberKey =
+                          executionResult.rows[0]?.SubscriberKey;
+                        if (typeof subscriberKey === "string") {
                           onViewInContactBuilder?.(subscriberKey);
                         }
                       }}
@@ -526,7 +661,7 @@ export function EditorWorkspace({
         </div>
 
         {/* Modals */}
-        <DataExtensionModal 
+        <DataExtensionModal
           isOpen={isDEModalOpen}
           onClose={() => setIsDEModalOpen(false)}
         />
@@ -548,6 +683,17 @@ export function EditorWorkspace({
           initialName={activeTab.name}
           onClose={() => setIsSaveModalOpen(false)}
           onSave={handleFinalSave}
+        />
+
+        <ConfirmationDialog
+          isOpen={isRunBlockedOpen}
+          title="Query can't run yet"
+          description={runBlockMessage ?? "Query is missing required SQL."}
+          confirmLabel="OK"
+          cancelLabel="Close"
+          variant="warning"
+          onClose={() => setIsRunBlockedOpen(false)}
+          onConfirm={() => {}}
         />
 
         <ConfirmationDialog 
@@ -576,23 +722,28 @@ interface ToolbarButtonProps {
   className?: string;
 }
 
-function ToolbarButton({ icon, label, onClick, className }: ToolbarButtonProps) {
+function ToolbarButton({
+  icon,
+  label,
+  onClick,
+  className,
+}: ToolbarButtonProps) {
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
-        <button 
+        <button
           onClick={onClick}
           className={cn(
             "p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-all active:scale-95",
-            className
+            className,
           )}
         >
           {icon}
         </button>
       </Tooltip.Trigger>
       <Tooltip.Portal>
-        <Tooltip.Content 
-          className="bg-foreground text-background text-[10px] px-2 py-1 rounded shadow-md z-50 font-bold uppercase tracking-tight" 
+        <Tooltip.Content
+          className="bg-foreground text-background text-[10px] px-2 py-1 rounded shadow-md z-50 font-bold uppercase tracking-tight"
           sideOffset={5}
         >
           {label}

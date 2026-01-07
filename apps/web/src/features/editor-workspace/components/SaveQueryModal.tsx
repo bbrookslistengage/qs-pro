@@ -1,8 +1,14 @@
-import { useState } from 'react';
-import type { Folder } from '@/features/editor-workspace/types';
-import { Dialog, DialogContent, DialogFooter, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Diskette, Folder as FolderIcon, InfoCircle } from '@solar-icons/react';
+import { useState } from "react";
+import type { Folder } from "@/features/editor-workspace/types";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Diskette, Folder as FolderIcon, InfoCircle } from "@solar-icons/react";
 
 interface SaveQueryModalProps {
   isOpen: boolean;
@@ -16,15 +22,17 @@ interface SaveQueryModalProps {
 export function SaveQueryModal({
   isOpen,
   folders,
-  initialName = '',
+  initialName = "",
   initialFolderId,
   onClose,
   onSave,
 }: SaveQueryModalProps) {
   const [name, setName] = useState(initialName);
-  const [folderId, setFolderId] = useState(initialFolderId || (folders.find(f => f.type === 'library')?.id || ''));
+  const [folderId, setFolderId] = useState(
+    initialFolderId || folders.find((f) => f.type === "library")?.id || "",
+  );
 
-  const libraryFolders = folders.filter(f => f.type === 'library');
+  const libraryFolders = folders.filter((f) => f.type === "library");
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -35,7 +43,9 @@ export function SaveQueryModal({
               <Diskette size={24} weight="Bold" className="text-primary" />
             </div>
             <div>
-              <DialogTitle className="font-display text-xl font-bold tracking-tight">Save Query</DialogTitle>
+              <DialogTitle className="font-display text-xl font-bold tracking-tight">
+                Save Query
+              </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground mt-0.5">
                 Save this query to your personal or shared library.
               </DialogDescription>
@@ -45,7 +55,9 @@ export function SaveQueryModal({
 
         <div className="p-6 space-y-5">
           <div className="space-y-1.5">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1">Query Name</label>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1">
+              Query Name
+            </label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -55,9 +67,14 @@ export function SaveQueryModal({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1">Target Folder</label>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1">
+              Target Folder
+            </label>
             <div className="relative">
-              <FolderIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+              <FolderIcon
+                size={18}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+              />
               <select
                 value={folderId}
                 onChange={(e) => setFolderId(e.target.value)}
@@ -75,13 +92,19 @@ export function SaveQueryModal({
           <div className="flex items-start gap-2.5 p-3 rounded-lg bg-muted/30 border border-border/50 text-[11px] text-muted-foreground">
             <InfoCircle size={16} className="shrink-0 mt-0.5" />
             <p>
-              Saving to your workspace makes this query available for reuse and collaboration. It does not affect any existing Automation Studio activities.
+              Saving to your workspace makes this query available for reuse and
+              collaboration. It does not affect any existing Automation Studio
+              activities.
             </p>
           </div>
         </div>
 
         <DialogFooter className="bg-muted/30 px-6 py-4 border-t border-border">
-          <Button variant="ghost" onClick={onClose} className="text-xs font-bold text-muted-foreground hover:text-foreground">
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            className="text-xs font-bold text-muted-foreground hover:text-foreground"
+          >
             Cancel
           </Button>
           <Button

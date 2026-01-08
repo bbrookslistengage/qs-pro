@@ -2,14 +2,13 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PostgresJsDatabase, drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { tenants, users, shellQueryRuns, tenantSettings } from "../schema";
-import * as dotenv from "dotenv";
 import { eq } from "drizzle-orm";
 
-dotenv.config();
-
-const connectionString =
-  process.env.DATABASE_URL ||
-  "postgres://postgres:password@localhost:5432/qs_pro";
+// DATABASE_URL is loaded from root .env via vitest.setup.ts
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error("DATABASE_URL environment variable is required for database tests");
+}
 
 describe("Shell Query Engine Schema", () => {
   let db: PostgresJsDatabase;

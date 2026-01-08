@@ -7,13 +7,17 @@ import {
   DrizzleUserRepository,
   DrizzleCredentialsRepository,
 } from "../repositories/drizzle-repositories";
-import * as dotenv from "dotenv";
+import { eq } from "drizzle-orm";
 
-dotenv.config();
+// DATABASE_URL is loaded from root .env via vitest.setup.ts
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error("DATABASE_URL environment variable is required for database tests");
+}
 
-const connectionString =
-  process.env.DATABASE_URL ||
-  "postgres://postgres:password@localhost:5432/qs_pro";
+// Use unique test identifiers to avoid conflicts with other test suites
+const TEST_EID = "repo-test-eid-12345";
+const TEST_SF_USER_ID = "repo-test-user-789";
 
 describe("Drizzle Repositories", () => {
   let db: PostgresJsDatabase;
@@ -21,6 +25,8 @@ describe("Drizzle Repositories", () => {
   let tenantRepo: DrizzleTenantRepository;
   let userRepo: DrizzleUserRepository;
   let credRepo: DrizzleCredentialsRepository;
+  let testTenantId: string;
+  let testUserId: string;
 
   beforeAll(async () => {
     client = postgres(connectionString);
@@ -28,20 +34,24 @@ describe("Drizzle Repositories", () => {
     tenantRepo = new DrizzleTenantRepository(db);
     userRepo = new DrizzleUserRepository(db);
     credRepo = new DrizzleCredentialsRepository(db);
-
-    // Clean up
-    await db.delete(credentials);
-    await db.delete(users);
-    await db.delete(tenants);
   });
 
   afterAll(async () => {
+    // Clean up only our test data (in correct FK order)
+    if (testUserId) {
+      await db.delete(credentials).where(eq(credentials.userId, testUserId));
+    }
+    if (testTenantId) {
+      await db.delete(users).where(eq(users.tenantId, testTenantId));
+      await db.delete(tenants).where(eq(tenants.id, testTenantId));
+    }
     await client.end();
   });
 
   it("should upsert and find a tenant by eid", async () => {
-    const tenantData = { eid: "12345", tssd: "mc-stack-1" };
+    const tenantData = { eid: TEST_EID, tssd: "mc-stack-1" };
     const savedTenant = await tenantRepo.upsert(tenantData);
+    testTenantId = savedTenant.id;
 
     expect(savedTenant.eid).toBe(tenantData.eid);
     expect(savedTenant.tssd).toBe(tenantData.tssd);
@@ -51,15 +61,15 @@ describe("Drizzle Repositories", () => {
   });
 
   it("should upsert and find a user by sfUserId", async () => {
-    const [tenant] = await db.select().from(tenants).limit(1);
     const userData = {
-      sfUserId: "user-789",
-      tenantId: tenant.id,
+      sfUserId: TEST_SF_USER_ID,
+      tenantId: testTenantId,
       email: "test@example.com",
       name: "Test User",
     };
 
     const savedUser = await userRepo.upsert(userData);
+    testUserId = savedUser.id;
     expect(savedUser.sfUserId).toBe(userData.sfUserId);
 
     const foundUser = await userRepo.findBySfUserId(userData.sfUserId);
@@ -67,25 +77,27 @@ describe("Drizzle Repositories", () => {
   });
 
   it("should upsert and find credentials", async () => {
-    const [tenant] = await db.select().from(tenants).limit(1);
-    const [user] = await db.select().from(users).limit(1);
-
+    const mid = "mid-123";
     const credData = {
-      tenantId: tenant.id,
-      userId: user.id,
-      mid: "mid-123",
+      tenantId: testTenantId,
+      userId: testUserId,
+      mid,
       accessToken: "access-123",
       refreshToken: "refresh-encrypted",
       expiresAt: new Date(Date.now() + 3600000),
     };
 
+    // Set RLS context for tenant/BU isolation (required by RLS policies)
+    await client`SELECT set_config('app.tenant_id', ${testTenantId}, false)`;
+    await client`SELECT set_config('app.mid', ${mid}, false)`;
+
     const savedCred = await credRepo.upsert(credData);
     expect(savedCred.accessToken).toBe(credData.accessToken);
 
     const foundCred = await credRepo.findByUserTenantMid(
-      user.id,
-      tenant.id,
-      "mid-123",
+      testUserId,
+      testTenantId,
+      mid,
     );
     expect(foundCred?.id).toBe(savedCred.id);
   });

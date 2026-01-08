@@ -5,7 +5,7 @@ import { AuthService } from '../auth/auth.service';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { HttpException, Logger } from '@nestjs/common';
+import { HttpException } from '@nestjs/common';
 
 describe('MceBridgeService', () => {
   let service: MceBridgeService;
@@ -18,8 +18,10 @@ describe('MceBridgeService', () => {
         {
           provide: AuthService,
           useValue: {
-            refreshToken: vi.fn(),
-            invalidateToken: vi.fn(),
+            refreshToken: vi.fn().mockResolvedValue({
+              accessToken: 'valid-token',
+              tssd: 'test-tssd',
+            }),
           },
         },
         {
@@ -33,11 +35,6 @@ describe('MceBridgeService', () => {
 
     service = module.get<MceBridgeService>(MceBridgeService);
     authService = module.get<AuthService>(AuthService);
-
-    vi.mocked(authService.refreshToken).mockResolvedValue({
-      accessToken: 'valid-token',
-      tssd: 'test-tssd',
-    });
   });
 
   afterEach(() => {
@@ -112,53 +109,6 @@ describe('MceBridgeService', () => {
           data: expect.stringContaining('soap:Envelope'),
         }),
       );
-    });
-
-    it('should retry once when SOAP returns Login Failed security fault', async () => {
-      const faultXml = `
-        <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
-          <soap:Body>
-            <soap:Fault>
-              <faultcode xmlns:q0="...wssecurity...">q0:Security</faultcode>
-              <faultstring>Login Failed</faultstring>
-            </soap:Fault>
-          </soap:Body>
-        </soap:Envelope>
-      `;
-
-      vi.spyOn(axios, 'request')
-        .mockResolvedValueOnce({ data: faultXml })
-        .mockResolvedValueOnce({ data: '<soap>ok</soap>' });
-      vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-
-      await service.soapRequest(
-        'tenant-1',
-        'user-1',
-        'mid-1',
-        '<RetrieveRequestMsg>...</RetrieveRequestMsg>',
-        'Retrieve',
-      );
-
-      expect(vi.mocked(authService.invalidateToken)).toHaveBeenCalledWith(
-        'tenant-1',
-        'user-1',
-        'mid-1',
-      );
-      expect(vi.mocked(authService.refreshToken)).toHaveBeenNthCalledWith(
-        1,
-        'tenant-1',
-        'user-1',
-        'mid-1',
-        false,
-      );
-      expect(vi.mocked(authService.refreshToken)).toHaveBeenNthCalledWith(
-        2,
-        'tenant-1',
-        'user-1',
-        'mid-1',
-        true,
-      );
-      expect(vi.mocked(axios.request)).toHaveBeenCalledTimes(2);
     });
 
     it('should normalize axios 401 error to ProblemDetails', async () => {

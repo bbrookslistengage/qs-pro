@@ -1,10 +1,4 @@
-import {
-  Injectable,
-  HttpException,
-  HttpStatus,
-  Logger,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosRequestConfig } from 'axios';
 import { AuthService } from '../auth/auth.service';
@@ -21,8 +15,6 @@ export interface ProblemDetails {
 
 @Injectable()
 export class MceBridgeService {
-  private readonly logger = new Logger(MceBridgeService.name);
-
   constructor(
     private authService: AuthService,
     private configService: ConfigService,
@@ -89,85 +81,33 @@ export class MceBridgeService {
     soapAction: string,
   ): Promise<any> {
     try {
-      const baseRequest = async (forceRefresh: boolean) => {
-        const { accessToken, tssd } = await this.authService.refreshToken(
-          tenantId,
-          userId,
-          mid,
-          forceRefresh,
-        );
-        const envelope = this.buildSoapEnvelope(accessToken, soapBody);
-        const baseUrl = `https://${tssd}.soap.marketingcloudapis.com`;
+      const { accessToken, tssd } = await this.authService.refreshToken(
+        tenantId,
+        userId,
+        mid,
+      );
+      const envelope = this.buildSoapEnvelope(accessToken, soapBody);
 
-        const response = await axios.request({
-          method: 'POST',
-          baseURL: baseUrl,
-          url: '/Service.asmx',
-          headers: {
-            'Content-Type': 'text/xml',
-            SOAPAction: soapAction,
-          },
-          data: envelope,
-        });
+      const baseUrl = `https://${tssd}.soap.marketingcloudapis.com`;
 
-        const parsed =
-          typeof response.data === 'string'
-            ? parseSoapXml(response.data)
-            : (response.data as unknown);
+      const response = await axios.request({
+        method: 'POST',
+        baseURL: baseUrl,
+        url: '/Service.asmx',
+        headers: {
+          'Content-Type': 'text/xml',
+          SOAPAction: soapAction,
+        },
+        data: envelope,
+      });
 
-        return { raw: response.data, parsed };
-      };
-
-      const first = await baseRequest(false);
-      if (this.isSoapLoginFailedFault(first.raw, first.parsed)) {
-        this.logger.warn(
-          `SOAP auth fault detected (Login Failed). Invalidating token and retrying once. action=${soapAction} tenantId=${tenantId} userId=${userId} mid=${mid}`,
-        );
-        await this.authService.invalidateToken(tenantId, userId, mid);
-        const second = await baseRequest(true);
-        if (this.isSoapLoginFailedFault(second.raw, second.parsed)) {
-          throw new UnauthorizedException('MCE SOAP authentication failed');
-        }
-        return second.parsed;
-      }
-
-      return first.parsed;
+      return typeof response.data === 'string'
+        ? parseSoapXml(response.data)
+        : response.data;
     } catch (error) {
       this.handleError(error);
       throw error;
     }
-  }
-
-  private isSoapLoginFailedFault(raw: unknown, parsed: unknown): boolean {
-    if (typeof raw === 'string') {
-      const hasFaultString =
-        /<faultstring>\s*Login Failed\s*<\/faultstring>/i.test(raw);
-      const hasSecurityFaultCode =
-        /<faultcode[^>]*>[^<]*Security[^<]*<\/faultcode>/i.test(raw);
-      if (hasFaultString && hasSecurityFaultCode) return true;
-    }
-
-    if (!parsed || typeof parsed !== 'object') return false;
-    const record = parsed as Record<string, unknown>;
-    const body = record.Body as Record<string, unknown> | undefined;
-    const fault = body?.Fault as Record<string, unknown> | undefined;
-    const faultcode = fault?.faultcode;
-    const faultstring = fault?.faultstring;
-
-    const code =
-      typeof faultcode === 'string'
-        ? faultcode
-        : Array.isArray(faultcode)
-          ? String(faultcode[0] ?? '')
-          : '';
-    const message =
-      typeof faultstring === 'string'
-        ? faultstring
-        : Array.isArray(faultstring)
-          ? String(faultstring[0] ?? '')
-          : '';
-
-    return /Security/i.test(code) && /Login Failed/i.test(message);
   }
 
   private handleError(error: any): void {

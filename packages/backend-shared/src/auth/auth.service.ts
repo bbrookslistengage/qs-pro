@@ -246,20 +246,14 @@ export class AuthService {
     tenantId: string,
     userId: string,
     mid: string,
-    forceRefresh = false,
   ): Promise<{ accessToken: string; tssd: string }> {
-    const lockKey = `${tenantId}:${userId}:${mid}:${forceRefresh ? 'force' : 'normal'}`;
+    const lockKey = `${tenantId}:${userId}:${mid}`;
     const existingLock = this.refreshLocks.get(lockKey);
     if (existingLock) {
       return existingLock;
     }
 
-    const refreshPromise = this.refreshTokenInternal(
-      tenantId,
-      userId,
-      mid,
-      forceRefresh,
-    );
+    const refreshPromise = this.refreshTokenInternal(tenantId, userId, mid);
     this.refreshLocks.set(lockKey, refreshPromise);
 
     try {
@@ -267,31 +261,6 @@ export class AuthService {
     } finally {
       this.refreshLocks.delete(lockKey);
     }
-  }
-
-  /**
-   * Forces the next `refreshToken()` call to bypass `isAccessTokenValid` by setting
-   * `expiresAt` to an already-expired value for the given (tenantId, userId, mid).
-   */
-  async invalidateToken(tenantId: string, userId: string, mid: string) {
-    const creds = await this.credRepo.findByUserTenantMid(
-      userId,
-      tenantId,
-      mid,
-    );
-    if (!creds) return;
-
-    await this.rlsContext.runWithTenantContext(tenantId, mid, async () => {
-      await this.credRepo.upsert({
-        tenantId,
-        userId,
-        mid,
-        accessToken: creds.accessToken,
-        refreshToken: creds.refreshToken,
-        expiresAt: new Date(0),
-        updatedAt: new Date(),
-      });
-    });
   }
 
   async saveTokens(
@@ -525,7 +494,6 @@ export class AuthService {
     tenantId: string,
     userId: string,
     mid: string,
-    forceRefresh: boolean,
   ): Promise<{ accessToken: string; tssd: string }> {
     const creds = await this.credRepo.findByUserTenantMid(
       userId,
@@ -537,11 +505,7 @@ export class AuthService {
     const tenant = await this.tenantRepo.findById(tenantId);
     if (!tenant) throw new UnauthorizedException('Tenant not found');
 
-    if (
-      !forceRefresh &&
-      creds.accessToken &&
-      this.isAccessTokenValid(creds.expiresAt)
-    ) {
+    if (creds.accessToken && this.isAccessTokenValid(creds.expiresAt)) {
       const encryptionKey = this.configService.get<string>('ENCRYPTION_KEY');
       if (!encryptionKey) {
         throw new InternalServerErrorException('ENCRYPTION_KEY not configured');

@@ -87,7 +87,7 @@ describe('MetadataService', () => {
 
     it('should paginate if MoreDataAvailable is returned', async () => {
       mockCache.get.mockResolvedValue(null);
-      mockBridge.soapRequest.mockImplementation(async (_tid, _uid, _mid, body) => {
+      mockBridge.soapRequest.mockImplementation((_tid, _uid, _mid, body) => {
         if (body.includes('<ClientID>eid1</ClientID>')) {
           // Shared Call
           return {
@@ -130,9 +130,11 @@ describe('MetadataService', () => {
 
       // Verify at least one call used ContinueRequest
       const callBodies = mockBridge.soapRequest.mock.calls.map((c) => c[3]);
-      expect(callBodies.some((b) => b.includes('<ContinueRequest>req-123</ContinueRequest>'))).toBe(
-        true,
-      );
+      expect(
+        callBodies.some((b) =>
+          b.includes('<ContinueRequest>req-123</ContinueRequest>'),
+        ),
+      ).toBe(true);
     });
   });
 
@@ -165,8 +167,12 @@ describe('MetadataService', () => {
       );
 
       expect(result).toHaveLength(2);
-      expect(result.find((r) => r.CustomerKey === 'DE1')).toBeDefined();
-      expect(result.find((r) => r.CustomerKey === 'DE2')).toBeDefined();
+      expect(
+        result.find((r) => (r as any).CustomerKey === 'DE1'),
+      ).toBeDefined();
+      expect(
+        result.find((r) => (r as any).CustomerKey === 'DE2'),
+      ).toBeDefined();
 
       // Verify calls
       expect(bridge.soapRequest).toHaveBeenCalledTimes(2);

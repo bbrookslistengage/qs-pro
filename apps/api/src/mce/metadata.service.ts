@@ -112,13 +112,17 @@ export class MetadataService {
 
       const retrieveResponse = response?.Body?.RetrieveResponseMsg;
       const results = retrieveResponse?.Results || [];
-      const folders = (Array.isArray(results) ? results : [results]) as MceSoapFolder[];
+      const folders = (
+        Array.isArray(results) ? results : [results]
+      ) as MceSoapFolder[];
 
       allFolders = allFolders.concat(folders);
 
       const status = retrieveResponse?.OverallStatus;
       continueRequest =
-        status === 'MoreDataAvailable' ? retrieveResponse?.RequestID ?? null : null;
+        status === 'MoreDataAvailable'
+          ? (retrieveResponse?.RequestID ?? null)
+          : null;
       page++;
     } while (continueRequest && page <= MAX_PAGES);
 
@@ -233,7 +237,9 @@ export class MetadataService {
 
       const status = retrieveResponse?.OverallStatus;
       continueRequest =
-        status === 'MoreDataAvailable' ? retrieveResponse?.RequestID ?? null : null;
+        status === 'MoreDataAvailable'
+          ? (retrieveResponse?.RequestID ?? null)
+          : null;
       page++;
     } while (continueRequest && page <= MAX_PAGES);
 

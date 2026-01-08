@@ -3,6 +3,7 @@ import type {
   DataExtensionField,
 } from "@/features/editor-workspace/types";
 import type { SqlTableReference } from "./sql-context";
+import { MAX_SUGGESTIONS } from "@/features/editor-workspace/constants";
 
 export interface DataExtensionSuggestion {
   label: string;
@@ -36,6 +37,43 @@ export const fuzzyMatch = (term: string, candidate: string) => {
   return false;
 };
 
+/**
+ * Scores a suggestion for sorting based on match quality.
+ * Higher scores indicate better matches.
+ */
+const scoreSuggestion = (term: string, suggestion: string): number => {
+  const normalizedTerm = normalize(term);
+  const normalizedSuggestion = normalize(suggestion);
+
+  // Empty term - return neutral score so alphabetical sort takes over
+  if (!normalizedTerm) {
+    return 0;
+  }
+
+  // Exact prefix match - highest priority
+  // Shorter matches rank higher within this tier
+  if (normalizedSuggestion.startsWith(normalizedTerm)) {
+    return 1000 - normalizedSuggestion.length;
+  }
+
+  // CamelCase or underscore boundary match
+  // Split on capital letters or underscores
+  const boundaries = suggestion
+    .split(/(?=[A-Z])|_/)
+    .map((s) => s.toLowerCase());
+  if (boundaries.some((b) => b.startsWith(normalizedTerm))) {
+    return 500;
+  }
+
+  // Contains match
+  if (normalizedSuggestion.includes(normalizedTerm)) {
+    return 100;
+  }
+
+  // Fuzzy match (non-contiguous characters)
+  return 50;
+};
+
 const toBracketed = (value: string) => {
   const trimmed = value.trim();
   if (trimmed.startsWith("[") && trimmed.endsWith("]")) return trimmed;
@@ -46,6 +84,7 @@ export const buildDataExtensionSuggestions = (
   dataExtensions: DataExtension[],
   sharedFolderIds: Set<string>,
   searchTerm: string,
+  maxSuggestions: number = MAX_SUGGESTIONS,
 ): DataExtensionSuggestion[] => {
   const normalizedTerm = normalize(searchTerm.replace(/^ent\./i, ""));
 
@@ -57,9 +96,16 @@ export const buildDataExtensionSuggestions = (
         fuzzyMatch(normalizedTerm, name) || fuzzyMatch(normalizedTerm, key)
       );
     })
-    .sort((a, b) =>
-      a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
-    )
+    .sort((a, b) => {
+      // Sort by score (higher is better), then alphabetically
+      const scoreA = scoreSuggestion(normalizedTerm, a.name);
+      const scoreB = scoreSuggestion(normalizedTerm, b.name);
+      if (scoreA !== scoreB) {
+        return scoreB - scoreA; // Higher scores first
+      }
+      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    })
+    .slice(0, maxSuggestions) // Enforce maximum suggestions limit
     .map((de) => {
       const isShared = sharedFolderIds.has(de.folderId);
       const bracketedName = toBracketed(de.name);

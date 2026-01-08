@@ -28,7 +28,11 @@ export const getEditorOptions =
     autoIndent: "advanced",
     formatOnPaste: false,
     formatOnType: false,
-    quickSuggestions: true,
+    quickSuggestions: {
+      other: true,
+      comments: false,
+      strings: false,
+    },
     fontFamily: "var(--font-mono)",
     fontLigatures: false,
     renderLineHighlight: "line",

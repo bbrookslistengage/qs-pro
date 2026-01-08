@@ -17,6 +17,10 @@ import {
   MONACO_THEME_NAME,
 } from "@/features/editor-workspace/utils/monaco-options";
 import {
+  IMMEDIATE_TRIGGER_CHARS,
+  MIN_TRIGGER_CHARS,
+} from "@/features/editor-workspace/constants/autocomplete-config";
+import {
   buildDataExtensionSuggestions,
   buildFieldSuggestions,
   getPrimaryTable,
@@ -250,12 +254,130 @@ export function MonacoQueryEditor({
       completionDisposableRef.current?.dispose();
       completionDisposableRef.current =
         monacoInstance.languages.registerCompletionItemProvider("sql", {
-          triggerCharacters: [" ", ".", "[", ",", ")"],
-          provideCompletionItems: async (model, position) => {
+          triggerCharacters: [".", "["],
+          provideCompletionItems: async (model, position, completionContext) => {
             const text = model.getValue();
             const cursorIndex = model.getOffsetAt(position);
-            const context = getSqlCursorContext(text, cursorIndex);
+            const sqlContext = getSqlCursorContext(text, cursorIndex);
             const bracketRange = getBracketReplacementRange(model, position);
+
+            // Check if this is an explicit trigger (Ctrl+Space)
+            const isExplicitTrigger =
+              completionContext.triggerKind ===
+              monacoInstance.languages.CompletionTriggerKind.Invoke;
+
+            // Check if cursor is on asterisk in SELECT clause
+            const textBefore = text.slice(0, cursorIndex);
+            const isOnAsterisk =
+              /\bSELECT\s+\*$/i.test(textBefore) ||
+              /\bSELECT\s+.*,\s*\*$/i.test(textBefore);
+
+            // Handle asterisk expansion when explicitly triggered
+            if (isExplicitTrigger && isOnAsterisk) {
+              // Check for ambiguity: multiple tables without aliases
+              const tablesWithoutAliases = sqlContext.tablesInScope.filter(
+                (t) => !t.alias,
+              );
+              if (tablesWithoutAliases.length > 1) {
+                // Return error as a special completion item
+                const wordInfo = model.getWordUntilPosition(position);
+                const wordRange = new monacoInstance.Range(
+                  position.lineNumber,
+                  wordInfo.startColumn,
+                  position.lineNumber,
+                  position.column,
+                );
+
+                return {
+                  suggestions: [
+                    {
+                      label: "⚠️ Cannot expand: multiple tables without aliases",
+                      kind: monacoInstance.languages.CompletionItemKind.Issue,
+                      insertText: "*",
+                      detail: "Add table aliases to disambiguate columns",
+                      sortText: "0000",
+                      range: wordRange,
+                    },
+                  ],
+                };
+              }
+
+              // Build column expansion
+              const columnList: string[] = [];
+
+              for (const table of sqlContext.tablesInScope) {
+                let fields: DataExtensionField[] = [];
+
+                if (table.isSubquery) {
+                  fields = table.outputFields.map((name) => ({
+                    name,
+                    type: "Text" as const,
+                    isPrimaryKey: false,
+                    isNullable: true,
+                  }));
+                } else if (tenantIdRef.current) {
+                  const dataExtension = resolveDataExtension(table.name);
+                  const customerKey = dataExtension?.customerKey ?? table.name;
+                  fields = await fetchFields(customerKey);
+                }
+
+                const prefix = table.alias || "";
+
+                for (const field of fields) {
+                  const fieldName = field.name.includes(" ")
+                    ? `[${field.name}]`
+                    : field.name;
+
+                  const fullName = prefix ? `${prefix}.${fieldName}` : fieldName;
+
+                  columnList.push(fullName);
+                }
+              }
+
+              if (columnList.length > 0) {
+                const expandedColumns = columnList.join(",\n  ");
+
+                // Find the asterisk position to replace it
+                const asteriskMatch = textBefore.match(/\*$/);
+                if (asteriskMatch) {
+                  const asteriskOffset = textBefore.length - 1;
+                  const asteriskPos = model.getPositionAt(asteriskOffset);
+                  const replaceRange = new monacoInstance.Range(
+                    asteriskPos.lineNumber,
+                    asteriskPos.column,
+                    position.lineNumber,
+                    position.column,
+                  );
+
+                  return {
+                    suggestions: [
+                      {
+                        label: `Expand to ${columnList.length} columns`,
+                        kind: monacoInstance.languages.CompletionItemKind.Snippet,
+                        insertText: expandedColumns,
+                        detail: "Expand * to full column list",
+                        documentation: expandedColumns,
+                        range: replaceRange,
+                        sortText: "0000",
+                      },
+                    ],
+                  };
+                }
+              }
+            }
+
+            // Get the character that triggered completion
+            const triggerChar = completionContext.triggerCharacter;
+            const currentWord = sqlContext.currentWord || "";
+
+            // For immediate trigger chars (. [ _), allow 1-char minimum
+            const isImmediateContext =
+              triggerChar && IMMEDIATE_TRIGGER_CHARS.includes(triggerChar as never);
+
+            // For general typing, require 2+ chars
+            if (!isImmediateContext && currentWord.length < MIN_TRIGGER_CHARS) {
+              return { suggestions: [] };
+            }
 
             // Compute word range for suggestions - Monaco uses this to replace the current word
             const wordInfo = model.getWordUntilPosition(position);
@@ -268,7 +390,7 @@ export function MonacoQueryEditor({
 
             // Get contextual keywords for prioritization
             const contextualKeywords = new Set(
-              getContextualKeywords(context.lastKeyword),
+              getContextualKeywords(sqlContext.lastKeyword),
             );
 
             // Build keyword suggestions with sortText prioritization
@@ -292,10 +414,10 @@ export function MonacoQueryEditor({
               };
             });
 
-            if (context.aliasBeforeDot) {
+            if (sqlContext.aliasBeforeDot) {
               const table = resolveTableForAlias(
-                context.aliasBeforeDot,
-                context.tablesInScope,
+                sqlContext.aliasBeforeDot,
+                sqlContext.tablesInScope,
               );
               if (!table) return { suggestions: [] };
 
@@ -331,17 +453,18 @@ export function MonacoQueryEditor({
               return { suggestions };
             }
 
-            if (context.isAfterFromJoin) {
+            if (sqlContext.isAfterFromJoin) {
               const shouldSuggestTables =
-                !context.hasFromJoinTable ||
-                context.cursorInFromJoinTable ||
+                !sqlContext.hasFromJoinTable ||
+                sqlContext.cursorInFromJoinTable ||
                 bracketRange.inBracket;
               if (shouldSuggestTables) {
                 const suggestionsBase = buildDataExtensionSuggestions(
                   dataExtensionsRef.current,
                   sharedFolderIdsRef.current,
-                  context.currentWord,
-                ).slice(0, MAX_DE_SUGGESTIONS);
+                  sqlContext.currentWord,
+                  MAX_DE_SUGGESTIONS,
+                );
                 const countResults = await Promise.all(
                   suggestionsBase.map((suggestion, index) =>
                     getFieldsCount(
@@ -399,8 +522,8 @@ export function MonacoQueryEditor({
               }
             }
 
-            if (context.isAfterSelect) {
-              const primaryTable = getPrimaryTable(context.tablesInScope);
+            if (sqlContext.isAfterSelect) {
+              const primaryTable = getPrimaryTable(sqlContext.tablesInScope);
               if (!primaryTable) return { suggestions: keywordSuggestions };
 
               let fields: DataExtensionField[] = [];

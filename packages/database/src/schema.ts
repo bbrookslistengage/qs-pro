@@ -7,6 +7,7 @@ import {
   integer,
   boolean,
   unique,
+  index,
 } from "drizzle-orm/pg-core";
 import { createSelectSchema, createInsertSchema } from "drizzle-zod";
 
@@ -73,6 +74,54 @@ export const snippets = pgTable("snippets", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// 6. Shell Query Runs
+export const shellQueryRuns = pgTable(
+  "shell_query_runs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .references(() => tenants.id)
+      .notNull(),
+    userId: uuid("user_id")
+      .references(() => users.id)
+      .notNull(),
+    mid: varchar("mid").notNull(),
+    snippetName: varchar("snippet_name"),
+    sqlTextHash: varchar("sql_text_hash").notNull(),
+    status: varchar("status")
+      .$type<"queued" | "running" | "ready" | "failed" | "canceled">()
+      .default("queued")
+      .notNull(),
+    taskId: varchar("task_id"),
+    errorMessage: text("error_message"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    startedAt: timestamp("started_at"),
+    completedAt: timestamp("completed_at"),
+  },
+  (t) => ({
+    tenantIdIdx: index("shell_query_runs_tenant_id_idx").on(t.tenantId),
+    statusIdx: index("shell_query_runs_status_idx").on(t.status),
+    createdAtIdx: index("shell_query_runs_created_at_idx").on(t.createdAt),
+  }),
+);
+
+// 7. Tenant Settings (e.g. Cached Folder IDs)
+export const tenantSettings = pgTable(
+  "tenant_settings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .references(() => tenants.id)
+      .notNull(),
+    mid: varchar("mid").notNull(),
+    qppFolderId: integer("qpp_folder_id"),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (t) => ({
+    unq: unique().on(t.tenantId, t.mid),
+  }),
+);
+
 // --- Zod Validation Schemas ---
 export const selectTenantSchema = createSelectSchema(tenants);
 export const insertTenantSchema = createInsertSchema(tenants);
@@ -88,3 +137,9 @@ export const insertQueryHistorySchema = createInsertSchema(queryHistory);
 
 export const selectSnippetSchema = createSelectSchema(snippets);
 export const insertSnippetSchema = createInsertSchema(snippets);
+
+export const selectShellQueryRunSchema = createSelectSchema(shellQueryRuns);
+export const insertShellQueryRunSchema = createInsertSchema(shellQueryRuns);
+
+export const selectTenantSettingsSchema = createSelectSchema(tenantSettings);
+export const insertTenantSettingsSchema = createInsertSchema(tenantSettings);

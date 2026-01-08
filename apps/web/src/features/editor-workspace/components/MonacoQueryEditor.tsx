@@ -35,6 +35,8 @@ import {
 } from "@/features/editor-workspace/utils/join-suggestions";
 import type { SqlDiagnostic } from "@/features/editor-workspace/utils/sql-diagnostics";
 import { toMonacoMarkers } from "@/features/editor-workspace/utils/sql-diagnostics";
+import { getContextualKeywords } from "@/features/editor-workspace/utils/autocomplete-keyword";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { cn } from "@/lib/utils";
 
 const SQL_KEYWORDS = [
@@ -114,6 +116,9 @@ export function MonacoQueryEditor({
   const queryClient = useQueryClient();
   const getJoinSuggestions = useJoinSuggestions(joinSuggestionOverrides);
 
+  // Debounce the value to prevent excessive decoration updates during rapid typing
+  const debouncedValue = useDebouncedValue(value, 150);
+
   const sharedFolderIds = useMemo(() => getSharedFolderIds(folders), [folders]);
   const dataExtensionsRef = useRef<DataExtension[]>(dataExtensions);
   const sharedFolderIdsRef = useRef<Set<string>>(sharedFolderIds);
@@ -129,15 +134,28 @@ export function MonacoQueryEditor({
   }, []);
 
   const fetchFields = useCallback(
-    async (customerKey: string) => {
+    async (customerKey: string, signal?: AbortSignal) => {
       if (!tenantIdRef.current) return [];
       try {
         const options = buildFieldsQueryOptions(
           tenantIdRef.current,
           customerKey,
         );
-        return await queryClient.fetchQuery(options);
+        // Check if aborted before making the request
+        if (signal?.aborted) {
+          return [];
+        }
+        const result = await queryClient.fetchQuery(options);
+        // Check if aborted after request completes
+        if (signal?.aborted) {
+          return [];
+        }
+        return result;
       } catch {
+        // Return empty array if aborted or if there's an error
+        if (signal?.aborted) {
+          return [];
+        }
         return [];
       }
     },
@@ -235,20 +253,28 @@ export function MonacoQueryEditor({
       completionDisposableRef.current?.dispose();
       completionDisposableRef.current =
         monacoInstance.languages.registerCompletionItemProvider("sql", {
-          triggerCharacters: [" ", ".", "["],
+          triggerCharacters: [" ", ".", "[", ",", ")", "\n", "\t"],
           provideCompletionItems: async (model, position) => {
             const text = model.getValue();
             const cursorIndex = model.getOffsetAt(position);
             const context = getSqlCursorContext(text, cursorIndex);
             const bracketRange = getBracketReplacementRange(model, position);
-            const keywordSuggestions = SQL_KEYWORDS.filter((keyword) =>
-              keyword
-                .toLowerCase()
-                .startsWith(context.currentWord.toLowerCase()),
-            ).map((keyword) => ({
+
+            // Get contextual keywords for prioritization
+            const contextualKeywords = new Set(
+              getContextualKeywords(context.lastKeyword),
+            );
+
+            // Build keyword suggestions with sortText prioritization
+            // Note: We don't filter by currentWord here - Monaco handles that internally
+            // This ensures keywords are always available as fallback suggestions
+            const keywordSuggestions = SQL_KEYWORDS.map((keyword) => ({
               label: keyword,
               insertText: keyword,
               kind: monacoInstance.languages.CompletionItemKind.Keyword,
+              sortText: contextualKeywords.has(keyword)
+                ? `0-${keyword}`
+                : `1-${keyword}`,
             }));
 
             if (context.aliasBeforeDot) {
@@ -283,6 +309,7 @@ export function MonacoQueryEditor({
                 insertText: suggestion.insertText,
                 detail: suggestion.detail,
                 kind: monacoInstance.languages.CompletionItemKind.Field,
+                sortText: `2-${suggestion.label}`,
               }));
               return { suggestions };
             }
@@ -369,6 +396,7 @@ export function MonacoQueryEditor({
                         ? "Fields: —"
                         : `Fields: ${countResults[index]}`,
                     range,
+                    sortText: `2-${suggestion.label}`,
                     additionalTextEdits:
                       bracketRange.inBracket && shouldInsertOn
                         ? [
@@ -385,13 +413,13 @@ export function MonacoQueryEditor({
                         : undefined,
                   };
                 });
-                return { suggestions };
+                return { suggestions: [...suggestions, ...keywordSuggestions] };
               }
             }
 
             if (context.isAfterSelect) {
               const primaryTable = getPrimaryTable(context.tablesInScope);
-              if (!primaryTable) return { suggestions: [] };
+              if (!primaryTable) return { suggestions: keywordSuggestions };
 
               let fields: DataExtensionField[] = [];
               const ownerLabel = primaryTable.isSubquery
@@ -421,11 +449,10 @@ export function MonacoQueryEditor({
                 insertText: suggestion.insertText,
                 detail: suggestion.detail,
                 kind: monacoInstance.languages.CompletionItemKind.Field,
+                sortText: `2-${suggestion.label}`,
               }));
               return {
-                suggestions: context.currentWord
-                  ? [...suggestions, ...keywordSuggestions]
-                  : suggestions,
+                suggestions: [...suggestions, ...keywordSuggestions],
               };
             }
 
@@ -436,13 +463,7 @@ export function MonacoQueryEditor({
               !context.currentWord
             ) {
               return {
-                suggestions: [
-                  {
-                    label: "ON",
-                    insertText: "ON",
-                    kind: monacoInstance.languages.CompletionItemKind.Keyword,
-                  },
-                ],
+                suggestions: keywordSuggestions,
               };
             }
 
@@ -611,6 +632,8 @@ export function MonacoQueryEditor({
       diagnostics,
       fetchFields,
       getFieldsCount,
+      getBracketReplacementRange,
+      getJoinSuggestions,
       onRunRequest,
       onSave,
       resolveDataExtension,
@@ -692,7 +715,7 @@ export function MonacoQueryEditor({
       ...decorations,
       ...fieldDecorations,
     ]);
-  }, [value]);
+  }, [debouncedValue]);
 
   return (
     <div className={cn("h-full w-full", className)}>

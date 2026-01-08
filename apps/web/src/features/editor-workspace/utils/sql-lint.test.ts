@@ -275,4 +275,297 @@ describe("sql lint", () => {
       diagnostics.some((diag) => diag.message.includes("Ambiguous field")),
     ).toBe(true);
   });
+
+  // Task Group 2: Prohibited Keywords & CTE Detection tests
+  test("lintSql_WithCreateKeyword_ReturnsErrorDiagnostic", () => {
+    // Arrange
+    const sql = "CREATE TABLE Users (Id INT)";
+
+    // Act
+    const diagnostics = lintSql(sql);
+
+    // Assert
+    expect(
+      diagnostics.some(
+        (diag) => diag.severity === "error" && diag.message.includes("Not Supported"),
+      ),
+    ).toBe(true);
+  });
+
+  test("lintSql_WithExecKeyword_ReturnsErrorDiagnostic", () => {
+    // Arrange
+    const sql = "EXEC sp_procedure @param = 'value'";
+
+    // Act
+    const diagnostics = lintSql(sql);
+
+    // Assert
+    expect(
+      diagnostics.some(
+        (diag) => diag.severity === "error" && diag.message.includes("Not Supported"),
+      ),
+    ).toBe(true);
+  });
+
+  test("lintSql_WithGrantKeyword_ReturnsErrorDiagnostic", () => {
+    // Arrange
+    const sql = "GRANT SELECT ON Users TO Role";
+
+    // Act
+    const diagnostics = lintSql(sql);
+
+    // Assert
+    expect(
+      diagnostics.some(
+        (diag) => diag.severity === "error" && diag.message.includes("Not Supported"),
+      ),
+    ).toBe(true);
+  });
+
+  test("lintSql_WithCursorKeyword_ReturnsErrorDiagnostic", () => {
+    // Arrange
+    const sql = "DECLARE myCursor CURSOR FOR SELECT * FROM Users";
+
+    // Act
+    const diagnostics = lintSql(sql);
+
+    // Assert
+    expect(
+      diagnostics.some(
+        (diag) => diag.severity === "error" && diag.message.includes("Not Supported"),
+      ),
+    ).toBe(true);
+  });
+
+  test("lintSql_WithBackupKeyword_ReturnsErrorDiagnostic", () => {
+    // Arrange
+    const sql = "BACKUP DATABASE MyDB TO DISK = 'backup.bak'";
+
+    // Act
+    const diagnostics = lintSql(sql);
+
+    // Assert
+    expect(
+      diagnostics.some(
+        (diag) => diag.severity === "error" && diag.message.includes("Not Supported"),
+      ),
+    ).toBe(true);
+  });
+
+  test("lintSql_WithIfKeyword_ReturnsErrorDiagnostic", () => {
+    // Arrange
+    const sql = "IF @count > 0 BEGIN SELECT * FROM Users END";
+
+    // Act
+    const diagnostics = lintSql(sql);
+
+    // Assert
+    expect(
+      diagnostics.some(
+        (diag) => diag.severity === "error" && diag.message.includes("Variables"),
+      ),
+    ).toBe(true);
+  });
+
+  test("lintSql_WithTryCatchKeywords_ReturnsErrorDiagnostic", () => {
+    // Arrange
+    const sql = "BEGIN TRY SELECT * FROM Users END TRY BEGIN CATCH END CATCH";
+
+    // Act
+    const diagnostics = lintSql(sql);
+
+    // Assert
+    expect(
+      diagnostics.some(
+        (diag) => diag.severity === "error" && diag.message.includes("Variables"),
+      ),
+    ).toBe(true);
+  });
+
+  test("lintSql_WithCteColumnSyntax_ReturnsErrorDiagnostic", () => {
+    // Arrange
+    const sql = "WITH cte (col1, col2) AS (SELECT Id, Name FROM Users) SELECT * FROM cte";
+
+    // Act
+    const diagnostics = lintSql(sql);
+
+    // Assert
+    expect(
+      diagnostics.some(
+        (diag) => diag.severity === "error" && diag.message.includes("CTEs are not supported"),
+      ),
+    ).toBe(true);
+  });
+
+  test("lintSql_WithMultiCte_ReturnsErrorDiagnostic", () => {
+    // Arrange
+    const sql =
+      "WITH cte1 AS (SELECT Id FROM Users), cte2 AS (SELECT Id FROM Orders) SELECT * FROM cte1 JOIN cte2";
+
+    // Act
+    const diagnostics = lintSql(sql);
+
+    // Assert
+    expect(
+      diagnostics.some(
+        (diag) => diag.severity === "error" && diag.message.includes("CTEs are not supported"),
+      ),
+    ).toBe(true);
+  });
+
+  test("lintSql_WithLimitKeyword_ReturnsErrorDiagnostic", () => {
+    // Arrange
+    const sql = "SELECT * FROM Users LIMIT 10";
+
+    // Act
+    const diagnostics = lintSql(sql);
+
+    // Assert
+    expect(
+      diagnostics.some(
+        (diag) =>
+          diag.severity === "error" &&
+          diag.message.includes("LIMIT is not supported") &&
+          diag.message.includes("Use TOP instead"),
+      ),
+    ).toBe(true);
+  });
+
+  test("lintSql_WithOffsetFetchPagination_ReturnsErrorDiagnostic", () => {
+    // Arrange
+    const sql = "SELECT * FROM Users ORDER BY Id OFFSET 10 ROWS FETCH NEXT 20 ROWS ONLY";
+
+    // Act
+    const diagnostics = lintSql(sql);
+
+    // Assert
+    expect(
+      diagnostics.some(
+        (diag) =>
+          diag.severity === "error" &&
+          diag.message.includes("OFFSET/FETCH pagination is not supported") &&
+          diag.message.includes("Use TOP"),
+      ),
+    ).toBe(true);
+  });
+
+  // Task Group 3: New Linting Rules tests
+  test("lintSql_WithUnsupportedFunction_ReturnsWarningDiagnostic", () => {
+    // Arrange
+    const sql = "SELECT string_agg(Name, ',') FROM [Users]";
+
+    // Act
+    const diagnostics = lintSql(sql);
+
+    // Assert
+    expect(
+      diagnostics.some(
+        (diag) =>
+          diag.severity === "warning" &&
+          diag.message.includes("may not be supported in Marketing Cloud SQL"),
+      ),
+    ).toBe(true);
+  });
+
+  test("lintSql_WithMultipleUnsupportedFunctions_ReturnsMultipleWarnings", () => {
+    // Arrange
+    const sql = "SELECT try_convert(INT, Value), json_modify(Data, '$.key', 'val') FROM [Table]";
+
+    // Act
+    const diagnostics = lintSql(sql);
+
+    // Assert
+    const unsupportedWarnings = diagnostics.filter(
+      (diag) =>
+        diag.severity === "warning" &&
+        diag.message.includes("may not be supported"),
+    );
+    expect(unsupportedWarnings.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("lintSql_WithSupportedJsonFunctions_DoesNotWarn", () => {
+    // Arrange
+    const sql = "SELECT json_value(Data, '$.name'), json_query(Data, '$.items') FROM [Table]";
+
+    // Act
+    const diagnostics = lintSql(sql);
+
+    // Assert
+    expect(
+      diagnostics.some((diag) => diag.message.includes("may not be supported")),
+    ).toBe(false);
+  });
+
+  test("lintSql_WithAggregateWithoutGroupBy_ReturnsErrorDiagnostic", () => {
+    // Arrange
+    const sql = "SELECT Region, COUNT(*) FROM [Sales]";
+
+    // Act
+    const diagnostics = lintSql(sql);
+
+    // Assert
+    expect(
+      diagnostics.some(
+        (diag) =>
+          diag.severity === "error" &&
+          diag.message.includes("must appear in GROUP BY clause"),
+      ),
+    ).toBe(true);
+  });
+
+  test("lintSql_WithAggregateOnly_DoesNotWarn", () => {
+    // Arrange
+    const sql = "SELECT COUNT(*) FROM [Table]";
+
+    // Act
+    const diagnostics = lintSql(sql);
+
+    // Assert
+    expect(
+      diagnostics.some((diag) => diag.message.includes("GROUP BY")),
+    ).toBe(false);
+  });
+
+  test("lintSql_WithProperGroupBy_DoesNotWarn", () => {
+    // Arrange
+    const sql = "SELECT Region, COUNT(*) FROM [Table] GROUP BY Region";
+
+    // Act
+    const diagnostics = lintSql(sql);
+
+    // Assert
+    expect(
+      diagnostics.some((diag) => diag.message.includes("GROUP BY")),
+    ).toBe(false);
+  });
+
+  test("lintSql_WithCountDistinct_IsAggregated", () => {
+    // Arrange
+    const sql = "SELECT COUNT(DISTINCT Region) FROM [Table]";
+
+    // Act
+    const diagnostics = lintSql(sql);
+
+    // Assert
+    expect(
+      diagnostics.some((diag) => diag.message.includes("GROUP BY")),
+    ).toBe(false);
+  });
+
+  test("lintSql_WithSelectStarAndAggregate_ReturnsErrorDiagnostic", () => {
+    // Arrange
+    const sql = "SELECT *, COUNT(*) FROM [Table]";
+
+    // Act
+    const diagnostics = lintSql(sql);
+
+    // Assert
+    expect(
+      diagnostics.some(
+        (diag) =>
+          diag.severity === "error" &&
+          diag.message.includes("must appear in GROUP BY clause"),
+      ),
+    ).toBe(true);
+  });
 });

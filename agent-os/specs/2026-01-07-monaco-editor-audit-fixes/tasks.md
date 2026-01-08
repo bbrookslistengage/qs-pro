@@ -15,37 +15,37 @@ This spec addresses critical UX and SFMC compliance issues from a security/UX au
 
 This foundational refactor must happen first since all subsequent linting changes will use the new modular structure.
 
-- [ ] 1.0 Complete linter modularization
-  - [ ] 1.1 Write 4-6 focused tests for modular linter infrastructure
+- [x] 1.0 Complete linter modularization
+  - [x] 1.1 Write 4-6 focused tests for modular linter infrastructure
     - Test `LintRule` interface contract
     - Test rule aggregation in `lintSql` entry point
     - Test context object construction with tokens and dataExtensions
     - Test backwards compatibility of `sql-lint.ts` re-export
-  - [ ] 1.2 Create `sql-lint/` directory structure
+  - [x] 1.2 Create `sql-lint/` directory structure
     - Create `apps/web/src/features/editor-workspace/utils/sql-lint/`
     - Create subdirectories: `rules/`, `utils/`
-  - [ ] 1.3 Create `types.ts` with interfaces
+  - [x] 1.3 Create `types.ts` with interfaces
     - Define `LintContext` interface: `{ sql: string; tokens: SqlToken[]; dataExtensions?: DataExtension[] }`
     - Define `LintRule` interface: `{ id: string; name: string; check: (context: LintContext) => SqlDiagnostic[] }`
     - Export `SqlDiagnostic` and severity types
-  - [ ] 1.4 Create `utils/tokenizer.ts`
+  - [x] 1.4 Create `utils/tokenizer.ts`
     - Move shared tokenization utilities from `sql-context.ts`
     - Export `tokenizeSql` function for rule usage
-  - [ ] 1.5 Extract existing rules to individual files
+  - [x] 1.5 Extract existing rules to individual files
     - `rules/prohibited-keywords.ts` - DML/DDL/procedural detection
     - `rules/cte-detection.ts` - WITH...AS detection
     - `rules/select-clause.ts` - Empty SELECT, literal aliases
     - `rules/unbracketed-names.ts` - Space in DE names
     - `rules/ambiguous-fields.ts` - Unqualified fields in JOINs
-  - [ ] 1.6 Create `sql-lint/index.ts` entry point
+  - [x] 1.6 Create `sql-lint/index.ts` entry point
     - Import all rules
     - Create `rules` array
     - Implement `lintSql` function that aggregates rule results
     - Re-export types
-  - [ ] 1.7 Update original `sql-lint.ts` for backwards compatibility
+  - [x] 1.7 Update original `sql-lint.ts` for backwards compatibility
     - Re-export everything from `sql-lint/index.ts`
     - Ensure existing imports continue to work
-  - [ ] 1.8 Ensure linter infrastructure tests pass
+  - [x] 1.8 Ensure linter infrastructure tests pass
     - Run tests from 1.1
     - Run existing `sql-lint.test.ts` to verify no regressions
 
@@ -63,40 +63,40 @@ This foundational refactor must happen first since all subsequent linting change
 **Dependencies:** Task Group 1
 **Specialization:** TypeScript/SQL Parsing
 
-- [ ] 2.0 Complete SFMC compliance rules
-  - [ ] 2.1 Write 6-8 focused tests for compliance rules
+- [x] 2.0 Complete SFMC compliance rules
+  - [x] 2.1 Write 6-8 focused tests for compliance rules
     - Test new prohibited keywords: `CREATE`, `EXEC`, `GRANT`, `BEGIN`, `CURSOR`, `BACKUP`
     - Test new procedural keywords: `IF`, `ELSE`, `TRY`, `CATCH`, `WAITFOR`
     - Test CTE with column syntax: `WITH cte (col1, col2) AS ...`
     - Test multi-CTE: `WITH cte1 AS (...), cte2 AS (...)`
     - Test LIMIT keyword detection and error message
     - Test OFFSET/FETCH pagination detection
-  - [ ] 2.2 Extend `PROHIBITED_KEYWORDS` set in `prohibited-keywords.ts`
+  - [x] 2.2 Extend `PROHIBITED_KEYWORDS` set in `prohibited-keywords.ts`
     - Add: `create`, `exec`, `execute`, `grant`, `revoke`
     - Add: `begin`, `commit`, `rollback`, `savepoint`
     - Add: `cursor`, `fetch`, `open`, `close`, `deallocate`
     - Add: `backup`, `restore`, `kill`
-  - [ ] 2.3 Extend `PROCEDURAL_KEYWORDS` set
+  - [x] 2.3 Extend `PROCEDURAL_KEYWORDS` set
     - Add: `if`, `else`, `return`, `throw`
     - Add: `try`, `catch`, `waitfor`, `raiserror`
-  - [ ] 2.4 Create `rules/limit-prohibition.ts`
+  - [x] 2.4 Create `rules/limit-prohibition.ts`
     - Detect `LIMIT` keyword usage
     - Error severity (blocks RUN)
     - Message: "LIMIT is not supported in Marketing Cloud SQL. Use TOP instead."
-  - [ ] 2.5 Create `rules/offset-fetch-prohibition.ts`
+  - [x] 2.5 Create `rules/offset-fetch-prohibition.ts`
     - Detect `OFFSET...FETCH` pagination pattern
     - Detect `OFFSET` followed by `FETCH NEXT` or `FETCH FIRST`
     - Error severity (blocks RUN)
     - Message: "OFFSET/FETCH pagination is not supported in Marketing Cloud SQL. Use TOP for row limiting."
-  - [ ] 2.6 Improve CTE detection in `cte-detection.ts`
+  - [x] 2.6 Improve CTE detection in `cte-detection.ts`
     - Upgrade severity from `warning` to `error`
     - Improve regex to catch `WITH cte_name (columns) AS ...`
     - Improve regex to catch multi-CTE: `WITH cte1 AS (...), cte2 AS (...)`
     - Message: "CTEs are not supported in Marketing Cloud SQL. Use subqueries instead."
-  - [ ] 2.7 Register new rules in `sql-lint/index.ts`
+  - [x] 2.7 Register new rules in `sql-lint/index.ts`
     - Add `limitProhibitionRule`
     - Add `offsetFetchProhibitionRule`
-  - [ ] 2.8 Ensure compliance rule tests pass
+  - [x] 2.8 Ensure compliance rule tests pass
     - Run tests from 2.1
     - Verify error severities block RUN button
 
@@ -112,8 +112,8 @@ This foundational refactor must happen first since all subsequent linting change
 **Dependencies:** Task Group 1
 **Specialization:** TypeScript/SQL Parsing
 
-- [ ] 3.0 Complete new linting rules
-  - [ ] 3.1 Write 6-8 focused tests for new rules
+- [x] 3.0 Complete new linting rules
+  - [x] 3.1 Write 6-8 focused tests for new rules
     - Test unsupported function warnings: `string_agg`, `try_convert`, `json_modify`
     - Test supported functions don't warn: `json_value`, `json_query`
     - Test aggregate without GROUP BY: `SELECT Region, COUNT(*) FROM [Table]`
@@ -121,25 +121,25 @@ This foundational refactor must happen first since all subsequent linting change
     - Test proper GROUP BY doesn't warn: `SELECT Region, COUNT(*) FROM [Table] GROUP BY Region`
     - Test edge case: `COUNT(DISTINCT x)` is aggregated
     - Test edge case: `SELECT *, COUNT(x)` should warn
-  - [ ] 3.2 Create `rules/unsupported-functions.ts`
+  - [x] 3.2 Create `rules/unsupported-functions.ts`
     - Define unsupported functions list: `string_agg`, `string_split`, `json_modify`, `openjson`, `isjson`, `try_convert`, `try_cast`, `try_parse`
     - Use `warning` severity
     - Message: "This function may not be supported in Marketing Cloud SQL"
     - Note: Do NOT flag `json_value` or `json_query` (supported)
-  - [ ] 3.3 Create `rules/aggregate-grouping.ts`
+  - [x] 3.3 Create `rules/aggregate-grouping.ts`
     - Detect SELECT with aggregate functions (COUNT, SUM, AVG, MIN, MAX)
     - Check for GROUP BY clause when aggregates detected
     - Use `error` severity (SFMC rejects at runtime)
     - Message: `Column "{fieldName}" must appear in GROUP BY clause or be used in an aggregate function`
-  - [ ] 3.4 Handle aggregate rule edge cases
+  - [x] 3.4 Handle aggregate rule edge cases
     - `COUNT(DISTINCT x)` - column is aggregated
     - `UPPER(x)` without GROUP BY - should warn
     - Subquery aggregates don't affect outer scope
     - Literal values don't need grouping: `SELECT 'Total', COUNT(*)`
-  - [ ] 3.5 Register new rules in `sql-lint/index.ts`
+  - [x] 3.5 Register new rules in `sql-lint/index.ts`
     - Add `unsupportedFunctionsRule`
     - Add `aggregateGroupingRule`
-  - [ ] 3.6 Ensure new rule tests pass
+  - [x] 3.6 Ensure new rule tests pass
     - Run tests from 3.1
     - Verify warning vs error severities correct
 
@@ -201,28 +201,28 @@ This foundational refactor must happen first since all subsequent linting change
 **Dependencies:** None (can run parallel with Task Groups 2-4)
 **Specialization:** TypeScript/React Hooks
 
-- [ ] 5.0 Complete performance fixes
-  - [ ] 5.1 Write 4-6 focused tests for performance fixes
+- [x] 5.0 Complete performance fixes
+  - [x] 5.1 Write 4-6 focused tests for performance fixes
     - Test debounced decoration updates (150ms)
     - Test async field fetching with cancellation
     - Test no UI flicker during fast typing
     - Test stale closure fix for `getJoinSuggestions`
-  - [ ] 5.2 Create or verify `useDebouncedValue` hook
+  - [x] 5.2 Create or verify `useDebouncedValue` hook
     - Check `apps/web/src/hooks/` for existing implementation
     - If not present, create with standard debounce pattern
     - Support configurable delay (default 150ms)
-  - [ ] 5.3 Implement debounced decoration updates
+  - [x] 5.3 Implement debounced decoration updates
     - Apply 150ms debounce to decoration updates
     - Target `useEffect` at lines 645-695 in `MonacoQueryEditor.tsx`
     - Debounce `extractTableReferences` and `extractSelectFieldRanges` calls
-  - [ ] 5.4 Fix async field fetching race condition
+  - [x] 5.4 Fix async field fetching race condition
     - Implement AbortController pattern for cancellation
     - Or use debouncing to prevent rapid sequential requests
     - Prevent UI flicker when user types faster than network responses
-  - [ ] 5.5 Fix stale closure in inline completion provider
+  - [x] 5.5 Fix stale closure in inline completion provider
     - Add `getJoinSuggestions` to dependency array in `handleEditorMount` useCallback
     - Reference line 610-618 in `MonacoQueryEditor.tsx`
-  - [ ] 5.6 Ensure performance tests pass
+  - [x] 5.6 Ensure performance tests pass
     - Run tests from 5.1
     - Manual verification with large SQL files
 

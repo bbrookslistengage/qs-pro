@@ -104,25 +104,31 @@ const PremiumPopoverContent = React.forwardRef<
   const tierLabel = tier === "enterprise" ? "Enterprise" : "Pro";
   const isPro = tier === "pro";
 
-  // Option 1: Prismatic Floating Icon Theme
+  // Option 3: Holographic Lens Theme (Refined & Theme Aware)
   const theme = isPro
     ? {
-        // Pro: Energetic Orange/Pink
-        wrapper: "border-pro-badge-bg/10 shadow-[0_20px_40px_-12px_var(--color-pro-shadow)]",
-        spotlight: "bg-pro-badge-bg", // Used in opacity layer
-        icon: "text-pro-badge-bg drop-shadow-[0_4px_12px_rgba(255,159,28,0.4)]", // Orange glow
+        // Pro: Orange
+        wrapper: "border-pro-badge-bg/20 shadow-xl shadow-pro-badge-bg/5 dark:shadow-[0_0_50px_-15px_var(--color-pro-shadow)] bg-white/95 dark:bg-[#0a0a0a]/95",
+        lensRing: "border-pro-badge-bg/30 bg-pro-badge-bg/5 dark:bg-pro-badge-bg/10",
+        lensGlow: "shadow-[0_0_20px_var(--color-pro-badge-bg)]",
+        icon: "text-pro-badge-bg drop-shadow-[0_2px_8px_rgba(255,159,28,0.25)] dark:drop-shadow-[0_0_12px_var(--color-pro-badge-bg)]",
         title: "text-foreground",
         tierText: "text-pro-badge-bg",
-        button: "bg-gradient-to-r from-pro-badge-bg to-pro-badge-accent text-white shadow-lg shadow-pro-badge-bg/25 hover:shadow-pro-badge-bg/40",
+        shimmer: "via-pro-badge-bg/10 dark:via-pro-badge-bg/20",
+        descBorder: "from-pro-badge-bg/50 to-transparent",
+        button: "bg-pro-badge-bg/5 hover:bg-pro-badge-bg/15 border border-pro-badge-bg/20 text-pro-badge-bg transition-all hover:shadow-[0_0_15px_-5px_var(--color-pro-badge-bg)]",
       }
     : {
-        // Enterprise: Regal Purple/Gold
-        wrapper: "border-enterprise-badge-accent/20 shadow-[0_20px_40px_-12px_var(--color-enterprise-shadow)]",
-        spotlight: "bg-enterprise-badge-accent", // Lighter purple for glow
-        icon: "text-enterprise-badge-icon drop-shadow-[0_4px_12px_rgba(252,211,77,0.4)]", // Gold glow
+        // Enterprise: Purple
+        wrapper: "border-enterprise-badge-accent/20 shadow-xl shadow-enterprise-badge-accent/5 dark:shadow-[0_0_50px_-15px_var(--color-enterprise-shadow)] bg-white/95 dark:bg-[#050505]/95",
+        lensRing: "border-enterprise-badge-accent/30 bg-enterprise-badge-accent/5 dark:bg-enterprise-badge-accent/10",
+        lensGlow: "shadow-[0_0_20px_var(--color-enterprise-badge-accent)]",
+        icon: "text-enterprise-badge-icon drop-shadow-[0_2px_8px_rgba(124,58,237,0.25)] dark:drop-shadow-[0_0_15px_var(--color-enterprise-badge-accent)]",
         title: "text-foreground",
         tierText: "text-enterprise-badge-accent",
-        button: "bg-gradient-to-r from-enterprise-badge-bg to-enterprise-badge-accent text-white shadow-lg shadow-enterprise-badge-bg/25 hover:shadow-enterprise-badge-bg/40",
+        shimmer: "via-enterprise-badge-accent/10 dark:via-enterprise-badge-accent/20",
+        descBorder: "from-enterprise-badge-accent/50 to-transparent",
+        button: "bg-enterprise-badge-accent/5 hover:bg-enterprise-badge-accent/15 border border-enterprise-badge-accent/20 text-enterprise-badge-accent transition-all hover:shadow-[0_0_15px_-5px_var(--color-enterprise-badge-accent)]",
       };
 
   return (
@@ -139,86 +145,93 @@ const PremiumPopoverContent = React.forwardRef<
           {...props}
         >
           <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: 4 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 4 }}
-            transition={{
-              type: "spring",
-              stiffness: 400,
-              damping: 30,
-            }}
+            initial={{ opacity: 0, scale: 0.95, filter: "blur(8px)" }}
+            animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+            exit={{ opacity: 0, scale: 0.95, filter: "blur(8px)" }}
+            transition={{ type: "spring", stiffness: 350, damping: 25 }}
             className={cn(
-              "z-[9999] w-[320px] overflow-hidden rounded-2xl border bg-card/95 p-0 backdrop-blur-2xl outline-none",
+              "group/card relative z-[9999] w-[340px] overflow-hidden rounded-xl border p-0 backdrop-blur-3xl outline-none",
               theme.wrapper
             )}
           >
-            {/* --- Prismatic Spotlight Effect --- */}
-            {/* A large, soft gradient orb positioned behind the icon area */}
-            <div 
+            {/* --- Recurring Holographic Shimmer --- */}
+            <motion.div
+              initial={{ x: "-200%" }}
+              animate={{ x: "200%" }}
+              transition={{ 
+                duration: 2, 
+                ease: "easeInOut", 
+                repeat: Infinity, 
+                repeatDelay: 4 
+              }}
               className={cn(
-                "absolute -left-16 -top-16 h-48 w-48 rounded-full blur-3xl opacity-15 pointer-events-none",
-                theme.spotlight
-              )} 
+                "absolute inset-0 z-0 bg-gradient-to-r from-transparent to-transparent -skew-x-12 opacity-30 pointer-events-none",
+                theme.shimmer
+              )}
             />
-            
-            {/* Secondary subtle light leak from bottom right */}
-            <div className={cn(
-              "absolute -bottom-10 -right-10 h-32 w-32 rounded-full blur-2xl opacity-5 pointer-events-none",
-              theme.spotlight
-            )} />
 
-            {/* Subtle Watermark - Top Right Filler */}
-            <div className="absolute -right-6 -top-6 pointer-events-none select-none opacity-[0.03]">
-              <CrownStar
-                weight="Duotone"
-                className={cn(
-                  "h-40 w-40 -rotate-12 transform-gpu",
-                  isPro ? "text-pro-badge-bg" : "text-enterprise-badge-icon"
-                )}
-              />
-            </div>
+            {/* Grid Pattern Background (Adaptive Contrast) */}
+             <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.03)_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
 
-            <div className="relative p-6 flex flex-col">
+            <div className="relative z-10 p-5 flex flex-col gap-5">
               
-              {/* Header: Tier Label & Close/Action Area */}
-              <div className="flex items-center justify-between mb-4">
-                 <span className={cn(
-                  "font-display text-[10px] font-black uppercase tracking-widest opacity-80",
-                  theme.tierText
-                )}>
-                  {tierLabel} Access
-                </span>
-                {/* Optional: We could add a close button here if needed, but per "Membership Card" style, we usually keep it clean */}
-              </div>
-
-              {/* Hero: The Floating Prismatic Icon */}
-              <div className="relative mb-6 flex justify-start">
-                 <motion.div
-                    animate={{ 
-                      y: [0, -6, 0],
-                      rotate: [0, 1, 0, -1, 0]
-                    }}
-                    transition={{
-                      duration: 5,
-                      repeat: Infinity,
-                      ease: "easeInOut"
-                    }}
-                 >
-                    <CrownStar 
-                      weight="BoldDuotone" 
-                      className={cn("h-14 w-14 transition-all duration-300", theme.icon)} 
+              <div className="flex items-start gap-5">
+                {/* --- The "Reactor Core" Lens (Simplified) --- */}
+                <div className="relative flex h-16 w-16 shrink-0 items-center justify-center">
+                    
+                    {/* 1. Static Outer Ring (Subtle Pulse) */}
+                    <motion.div 
+                      animate={{ opacity: [0.8, 1, 0.8], scale: [1, 1.02, 1] }}
+                      transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                      className={cn(
+                        "absolute inset-0 rounded-full border", 
+                        theme.lensRing
+                      )} 
                     />
-                 </motion.div>
+                    
+                    {/* 2. Inner Glow Pulse */}
+                    <motion.div
+                        animate={{ scale: [0.85, 1, 0.85], opacity: [0.3, 0.6, 0.3] }}
+                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                        className={cn(
+                            "absolute inset-0 rounded-full blur-xl bg-current opacity-20", 
+                            isPro ? "text-pro-badge-bg" : "text-enterprise-badge-accent"
+                        )}
+                    />
+
+                    {/* 3. Floating Icon */}
+                    <motion.div
+                        animate={{ y: [-3, 3, -3] }}
+                        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                    >
+                        <CrownStar 
+                            weight="BoldDuotone" 
+                            className={cn("h-7 w-7 relative z-10", theme.icon)} 
+                        />
+                    </motion.div>
+                </div>
+
+                <div className="flex flex-col pt-1">
+                    <span className={cn(
+                        "font-display text-[10px] font-black uppercase tracking-widest mb-1.5 opacity-90",
+                        theme.tierText
+                    )}>
+                        {tierLabel}
+                    </span>
+                    <h4 className={cn("font-display text-lg font-bold tracking-tight leading-tight", theme.title)}>
+                        {title}
+                    </h4>
+                </div>
               </div>
 
-              {/* Content Block */}
-              <div className="space-y-2 mb-6">
-                <h4 className={cn("font-display text-lg font-bold tracking-tight", theme.title)}>
-                  {title}
-                </h4>
-                <p className="text-sm text-muted-foreground leading-relaxed font-medium">
-                  {description}
-                </p>
+              {/* --- System Output Description --- */}
+              <div className="relative pl-3 py-1">
+                  {/* Gradient Left Border */}
+                  <div className={cn("absolute left-0 top-0 bottom-0 w-[2px] bg-gradient-to-b", theme.descBorder)} />
+                  
+                  <p className="text-xs text-muted-foreground font-mono leading-relaxed opacity-90">
+                    {description}
+                  </p>
               </div>
 
               {/* CTA Button */}
@@ -226,24 +239,14 @@ const PremiumPopoverContent = React.forwardRef<
                 <button
                   onClick={onCtaClick}
                   className={cn(
-                    "group relative w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold transition-all duration-300",
-                    "hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]",
+                    "relative w-full overflow-hidden flex items-center justify-center gap-2 rounded py-3 text-xs font-bold uppercase tracking-widest transition-all duration-300",
                     theme.button
                   )}
                 >
                   <span className="relative z-10 flex items-center gap-2">
-                    {ctaLabel}
-                    <motion.span
-                      animate={{ x: [0, 3, 0] }}
-                      transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-                    >
-                      <CrownStar weight="Bold" className="h-4 w-4" />
-                    </motion.span>
+                    Initialize Upgrade
+                    <CrownStar weight="Bold" className="h-3 w-3" />
                   </span>
-                  {/* Internal Shimmer */}
-                  <div className="absolute inset-0 rounded-xl overflow-hidden">
-                    <div className="absolute top-0 left-[-100%] h-full w-1/2 -skew-x-12 bg-white/20 blur-md transition-all duration-700 group-hover:left-[200%]" />
-                  </div>
                 </button>
               )}
             </div>

@@ -142,15 +142,35 @@ const PremiumPopoverContent = React.forwardRef<
       {/* Ambient Spotlight */}
       <div className={cn("absolute inset-0 pointer-events-none", theme.spotlight)} />
 
+      {/* Subtle Background Depth Element */}
+      <div className="absolute -right-10 -top-10 pointer-events-none select-none">
+        <CrownStar 
+          weight="Duotone" 
+          className={cn(
+            "h-48 w-48 opacity-[0.03] rotate-12 transform-gpu", 
+            isPro ? "text-pro-badge-bg" : "text-enterprise-badge-accent"
+          )} 
+        />
+      </div>
+
       <div className="relative p-6 flex flex-col gap-5">
         
         {/* Top Row: Icon & Tier Label */}
         <div className="flex items-start justify-between">
-          <div className={cn(
-            "flex h-12 w-12 items-center justify-center rounded-xl",
-            theme.iconWrapper
-          )}>
-            <CrownStar weight="BoldDuotone" className="h-6 w-6" />
+          <div className="relative">
+            {/* Dynamic Back Layer */}
+            <div className={cn(
+              "absolute inset-0 rounded-2xl rotate-6 scale-90 opacity-60 transition-transform duration-500 group-hover:rotate-12",
+              theme.iconWrapper
+            )} />
+            
+            {/* Main Icon Layer */}
+            <div className={cn(
+              "relative flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 ring-1 ring-black/5 backdrop-blur-sm",
+              theme.iconWrapper
+            )}>
+              <CrownStar weight="BoldDuotone" className="h-6 w-6 relative z-10" />
+            </div>
           </div>
           
           <span className={cn(

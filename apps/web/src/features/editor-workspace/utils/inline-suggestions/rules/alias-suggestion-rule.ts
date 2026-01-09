@@ -2,7 +2,7 @@ import type { InlineSuggestionRule } from "../types";
 import { generateSmartAlias } from "../../alias-generator";
 
 /**
- * Rule: After completing a table name in JOIN clause, suggest " AS {alias}"
+ * Rule: After completing a table name in FROM or JOIN clause, suggest " AS {alias}"
  */
 export const aliasSuggestionRule: InlineSuggestionRule = {
   id: "alias-suggestion",
@@ -10,12 +10,12 @@ export const aliasSuggestionRule: InlineSuggestionRule = {
   matches(ctx) {
     const { sqlContext, sql, cursorIndex } = ctx;
 
-    // Must be after JOIN keyword (not FROM)
-    if (sqlContext.lastKeyword !== "join") {
+    // Must be after FROM or JOIN keyword
+    if (sqlContext.lastKeyword !== "join" && sqlContext.lastKeyword !== "from") {
       return false;
     }
 
-    // Must have a table after JOIN
+    // Must have a table after FROM/JOIN
     if (!sqlContext.hasFromJoinTable) {
       return false;
     }
@@ -25,9 +25,14 @@ export const aliasSuggestionRule: InlineSuggestionRule = {
       return false;
     }
 
-    // Check if ON keyword already follows
+    // Check if ON keyword already follows (for JOIN context)
     const textAfter = sql.slice(cursorIndex, cursorIndex + 10);
     if (/^\s*on\b/i.test(textAfter)) {
+      return false;
+    }
+
+    // Check if WHERE/GROUP/ORDER already follows (for FROM context)
+    if (/^\s*(where|group|order|having)\b/i.test(textAfter)) {
       return false;
     }
 

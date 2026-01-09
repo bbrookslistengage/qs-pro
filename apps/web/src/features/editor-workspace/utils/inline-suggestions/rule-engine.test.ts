@@ -51,9 +51,16 @@ describe("evaluateInlineSuggestions", () => {
     expect(suggestion).toBeNull();
   });
 
-  test("afterFrom_ReturnsNull", async () => {
-    // No suggestions after FROM table (only after JOIN)
+  test("afterFromTableNoAlias_ReturnsAliasSuggestion", async () => {
+    // Alias suggestions now work after both FROM and JOIN tables
     const ctx = buildContext("SELECT * FROM [Orders] ");
+    const suggestion = await evaluateInlineSuggestions(ctx);
+    expect(suggestion?.text).toBe(" AS o");
+  });
+
+  test("afterFromTableWithAlias_ReturnsNull", async () => {
+    // No suggestions when table already has an alias
+    const ctx = buildContext("SELECT * FROM [Orders] o ");
     const suggestion = await evaluateInlineSuggestions(ctx);
     expect(suggestion).toBeNull();
   });

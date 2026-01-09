@@ -31,15 +31,43 @@ describe("aliasSuggestionRule", () => {
     expect(aliasSuggestionRule.matches(ctx)).toBe(false);
   });
 
-  test("matches_AfterFromTable_ReturnsFalse", () => {
-    // Only suggest aliases after JOIN, not FROM
+  test("matches_AfterFromTableNoAlias_ReturnsTrue", () => {
+    // Should suggest aliases after FROM tables too
     const ctx = buildContext("SELECT * FROM [Orders] ");
+    expect(aliasSuggestionRule.matches(ctx)).toBe(true);
+  });
+
+  test("matches_AfterFromTableWithWhereFollowing_ReturnsFalse", () => {
+    // This tests cursor position before existing WHERE
+    // We need to position cursor after table but before WHERE
+    const fullSql = "SELECT * FROM [Orders] WHERE x = 1";
+    const cursorIndex = "SELECT * FROM [Orders] ".length;
+    const sqlContext = getSqlCursorContext(fullSql, cursorIndex);
+    const ctx = {
+      sql: fullSql,
+      cursorIndex,
+      sqlContext,
+      tablesInScope: sqlContext.tablesInScope,
+      existingAliases: new Set<string>(),
+      getFieldsForTable: async () => [],
+    };
+    expect(aliasSuggestionRule.matches(ctx)).toBe(false);
+  });
+
+  test("matches_AfterFromTableWithAlias_ReturnsFalse", () => {
+    const ctx = buildContext("SELECT * FROM [Orders] o ");
     expect(aliasSuggestionRule.matches(ctx)).toBe(false);
   });
 
   test("matches_WhenOnAlreadyPresent_ReturnsFalse", () => {
     const ctx = buildContext("SELECT * FROM [A] JOIN [B] ON ");
     expect(aliasSuggestionRule.matches(ctx)).toBe(false);
+  });
+
+  test("getSuggestion_AfterFromTable_GeneratesAlias", async () => {
+    const ctx = buildContext("SELECT * FROM [CustomerOrders] ");
+    const suggestion = await aliasSuggestionRule.getSuggestion(ctx);
+    expect(suggestion?.text).toBe(" AS co");
   });
 
   test("getSuggestion_GeneratesSmartAlias_CamelCase", async () => {

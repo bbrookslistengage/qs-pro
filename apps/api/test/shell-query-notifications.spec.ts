@@ -1,6 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { HttpStatus, HttpException } from '@nestjs/common';
-import request from 'supertest';
 import {
   FastifyAdapter,
   NestFastifyApplication,
@@ -54,11 +53,13 @@ describe('Shell Query Notifications & Results (e2e)', () => {
         items: [{ id: 1 }],
       });
 
-      const res = await request(app.getHttpServer())
-        .get('/runs/run-1/results?page=1')
-        .expect(200);
+      const res = await app.inject({
+        method: 'GET',
+        url: '/runs/run-1/results?page=1',
+      });
 
-      expect(res.body).toEqual({ items: [{ id: 1 }] });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ items: [{ id: 1 }] });
       expect(mockShellQueryService.getResults).toHaveBeenCalledWith(
         'run-1',
         'tenant-1',
@@ -69,20 +70,22 @@ describe('Shell Query Notifications & Results (e2e)', () => {
     });
 
     it('should return 400 for invalid page', async () => {
-      await request(app.getHttpServer())
-        .get('/runs/run-1/results?page=0')
-        .expect(400);
+      const res = await app.inject({
+        method: 'GET',
+        url: '/runs/run-1/results?page=0',
+      });
+      expect(res.statusCode).toBe(400);
     });
 
     it('should return 400 for page > 50', async () => {
-      await request(app.getHttpServer())
-        .get('/runs/run-1/results?page=51')
-        .expect(400)
-        .expect((res) => {
-          expect(res.body.message).toContain(
-            'Page number exceeds maximum of 50',
-          );
-        });
+      const res = await app.inject({
+        method: 'GET',
+        url: '/runs/run-1/results?page=51',
+      });
+      expect(res.statusCode).toBe(400);
+      expect(String((res.json() as { message?: unknown }).message)).toContain(
+        'Page number exceeds maximum of 50',
+      );
     });
 
     it('should return 409 when job still running', async () => {
@@ -90,12 +93,14 @@ describe('Shell Query Notifications & Results (e2e)', () => {
         new HttpException('Run is still running', HttpStatus.CONFLICT),
       );
 
-      await request(app.getHttpServer())
-        .get('/runs/run-1/results?page=1')
-        .expect(409)
-        .expect((res) => {
-          expect(res.body.message).toContain('Run is still running');
-        });
+      const res = await app.inject({
+        method: 'GET',
+        url: '/runs/run-1/results?page=1',
+      });
+      expect(res.statusCode).toBe(409);
+      expect(String((res.json() as { message?: unknown }).message)).toContain(
+        'Run is still running',
+      );
     });
 
     it('should return 404 when run not found', async () => {
@@ -103,12 +108,14 @@ describe('Shell Query Notifications & Results (e2e)', () => {
         new HttpException('Run not found', HttpStatus.NOT_FOUND),
       );
 
-      await request(app.getHttpServer())
-        .get('/runs/run-1/results?page=1')
-        .expect(404)
-        .expect((res) => {
-          expect(res.body.message).toContain('Run not found');
-        });
+      const res = await app.inject({
+        method: 'GET',
+        url: '/runs/run-1/results?page=1',
+      });
+      expect(res.statusCode).toBe(404);
+      expect(String((res.json() as { message?: unknown }).message)).toContain(
+        'Run not found',
+      );
     });
 
     it('should return 409 when job failed', async () => {
@@ -119,12 +126,14 @@ describe('Shell Query Notifications & Results (e2e)', () => {
         ),
       );
 
-      await request(app.getHttpServer())
-        .get('/runs/run-1/results?page=1')
-        .expect(409)
-        .expect((res) => {
-          expect(res.body.message).toContain('Run failed');
-        });
+      const res = await app.inject({
+        method: 'GET',
+        url: '/runs/run-1/results?page=1',
+      });
+      expect(res.statusCode).toBe(409);
+      expect(String((res.json() as { message?: unknown }).message)).toContain(
+        'Run failed',
+      );
     });
   });
 
@@ -132,14 +141,22 @@ describe('Shell Query Notifications & Results (e2e)', () => {
     it('should require authentication and ownership', async () => {
       mockShellQueryService.getRun.mockResolvedValue(null);
 
-      await request(app.getHttpServer()).get('/runs/run-1/events').expect(400);
+      const res = await app.inject({
+        method: 'GET',
+        url: '/runs/run-1/events',
+      });
+      expect(res.statusCode).toBe(400);
     });
 
     it('should enforce rate limiting', async () => {
       mockShellQueryService.getRun.mockResolvedValue({ id: 'run-1' });
       mockRedis.incr.mockResolvedValue(6); // Exceed limit
 
-      await request(app.getHttpServer()).get('/runs/run-1/events').expect(429);
+      const res = await app.inject({
+        method: 'GET',
+        url: '/runs/run-1/events',
+      });
+      expect(res.statusCode).toBe(429);
 
       expect(mockRedis.decr).toHaveBeenCalled();
     });

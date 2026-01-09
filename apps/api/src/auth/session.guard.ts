@@ -19,7 +19,14 @@ export class SessionGuard implements CanActivate {
     const tenantId = session.get('tenantId');
     const mid = session.get('mid');
 
-    if (!userId || !tenantId || !mid) {
+    if (
+      typeof userId !== 'string' ||
+      typeof tenantId !== 'string' ||
+      typeof mid !== 'string' ||
+      !userId ||
+      !tenantId ||
+      !mid
+    ) {
       throw new UnauthorizedException('Not authenticated');
     }
 

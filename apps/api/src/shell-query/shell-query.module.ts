@@ -5,6 +5,7 @@ import { ShellQueryController } from './shell-query.controller';
 import { DatabaseModule } from '../database/database.module';
 import { MceModule } from '../mce/mce.module';
 import { DrizzleTenantRepository } from '@qs-pro/database';
+import { CsrfGuard } from '../auth/csrf.guard';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { DrizzleTenantRepository } from '@qs-pro/database';
   controllers: [ShellQueryController],
   providers: [
     ShellQueryService,
+    CsrfGuard,
     {
       provide: 'TENANT_REPOSITORY',
       useFactory: (db: any) => new DrizzleTenantRepository(db),

@@ -12,11 +12,39 @@ import { Logger } from '@nestjs/common';
 import { createDatabaseFromClient } from '@qs-pro/database';
 import type { Sql } from 'postgres';
 import { getDbFromContext, runWithDbContext } from './database/db-context';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 
 type Session = {
   get(key: string): unknown;
   set(key: string, value: unknown): void;
   delete(): void;
+};
+
+const setSecurityHeaders = (reply: FastifyReply, cookieSecure: boolean) => {
+  reply.header('X-Content-Type-Options', 'nosniff');
+  reply.header('Referrer-Policy', 'no-referrer');
+  reply.header(
+    'Permissions-Policy',
+    'geolocation=(), microphone=(), camera=()',
+  );
+
+  // The app is intended to be embedded inside Salesforce Marketing Cloud Engagement.
+  reply.header(
+    'Content-Security-Policy',
+    [
+      "frame-ancestors 'self' https://*.exacttarget.com https://*.marketingcloudapps.com",
+      "base-uri 'self'",
+      "object-src 'none'",
+    ].join('; '),
+  );
+
+  // Prefer setting HSTS at the edge, but this is still safe when HTTPS is enforced.
+  if (cookieSecure) {
+    reply.header(
+      'Strict-Transport-Security',
+      'max-age=31536000; includeSubDomains',
+    );
+  }
 };
 
 async function bootstrap() {
@@ -48,6 +76,18 @@ async function bootstrap() {
       'SESSION_SECRET and SESSION_SALT are required; set them in the repo root `.env`.',
     );
     throw new Error('Missing session configuration');
+  }
+
+  if (sessionSecret.length < 32) {
+    logger.error(
+      'SESSION_SECRET must be at least 32 characters (use `npx --yes @fastify/secure-session` or a secret manager).',
+    );
+    throw new Error('Invalid session configuration');
+  }
+
+  if (sessionSalt.length < 16) {
+    logger.error('SESSION_SALT must be at least 16 characters.');
+    throw new Error('Invalid session configuration');
   }
 
   const cookieSecureRaw = configService.get<string>('COOKIE_SECURE');
@@ -92,6 +132,13 @@ async function bootstrap() {
     );
     throw new Error('Invalid cookie configuration');
   }
+
+  adapter
+    .getInstance()
+    .addHook('onSend', (req: FastifyRequest, reply: FastifyReply, _payload, done) => {
+      setSecurityHeaders(reply, cookieSecure);
+      done();
+    });
 
   await app.register(secureSession, {
     secret: sessionSecret,

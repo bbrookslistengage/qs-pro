@@ -24,6 +24,15 @@ const server = setupServer(
       token_type: 'Bearer',
     });
   }),
+  http.get('https://test-tssd.auth.marketingcloudapis.com/v2/userinfo', () => {
+    return HttpResponse.json({
+      sub: 'sf-user-123',
+      enterprise_id: 'eid-123',
+      member_id: 'mid-123',
+      email: 'user@example.com',
+      name: 'Example User',
+    });
+  }),
 );
 
 describe('Auth (e2e)', () => {
@@ -174,6 +183,6 @@ describe('Auth (e2e)', () => {
       .set('Cookie', cookie)
       .expect(200);
 
-    expect(response.body.access_token).toBe('e2e-access-token');
+    expect(response.body.ok).toBe(true);
   });
 });

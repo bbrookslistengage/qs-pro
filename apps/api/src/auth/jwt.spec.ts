@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import * as jose from 'jose';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { RlsContextService } from '../database/rls-context.service';
+import { SeatLimitService } from '../features/seat-limit.service';
 
 describe('AuthService JWT Verification', () => {
   let service: AuthService;
@@ -38,6 +39,12 @@ describe('AuthService JWT Verification', () => {
                 fn: () => Promise<unknown>,
               ) => fn(),
             ),
+          },
+        },
+        {
+          provide: SeatLimitService,
+          useValue: {
+            checkSeatLimit: vi.fn().mockResolvedValue(undefined),
           },
         },
       ],

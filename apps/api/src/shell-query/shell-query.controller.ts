@@ -17,6 +17,7 @@ import {
 } from '@nestjs/common';
 import { ShellQueryService } from './shell-query.service';
 import { SessionGuard } from '../auth/session.guard';
+import { CsrfGuard } from '../auth/csrf.guard';
 import type { UserSession } from '../common/decorators/current-user.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { z } from 'zod';
@@ -28,7 +29,7 @@ const createRunSchema = z.object({
 });
 
 @Controller('runs')
-@UseGuards(SessionGuard)
+@UseGuards(SessionGuard, CsrfGuard)
 export class ShellQueryController {
   constructor(
     private readonly shellQueryService: ShellQueryService,

@@ -106,11 +106,10 @@ describe('AuthService', () => {
         {
           provide: 'USER_REPOSITORY',
           useValue: {
-            upsert: vi.fn().mockResolvedValue({
+            upsert: vi.fn().mockImplementation(async (values) => ({
               id: 'u-1',
-              sfUserId: 'sf-1',
-              tenantId: 't-1',
-            }),
+              ...(values as Record<string, unknown>),
+            })),
             findBySfUserId: vi.fn().mockResolvedValue({
               id: 'u-1',
               sfUserId: 'sf-1',
@@ -179,13 +178,13 @@ describe('AuthService', () => {
     const result = await service.handleCallback(
       'test-tssd',
       'valid-code',
-      'sf-1',
+      'sf-sub',
       '12345',
       undefined,
       undefined,
-      'mid-1',
+      'mid-123',
     );
-    expect(result.user.sfUserId).toBe('sf-1');
+    expect(result.user.sfUserId).toBe('sf-sub');
     expect(vi.mocked(tenantRepo.upsert)).toHaveBeenCalled();
     expect(vi.mocked(userRepo.upsert)).toHaveBeenCalled();
     expect(vi.mocked(credRepo.upsert)).toHaveBeenCalled();

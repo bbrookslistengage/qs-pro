@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import request from 'supertest';
 import {
   FastifyAdapter,
   NestFastifyApplication,
@@ -128,23 +127,30 @@ describe('Shell Query Producer (e2e)', () => {
     it('should return 201 and runId on success', async () => {
       mockDb.setWhereResult([{ count: 0 }]);
 
-      return request(app.getHttpServer())
-        .post('/runs')
-        .send({ sqlText: 'SELECT 1', snippetName: 'Test' })
-        .expect(201)
-        .expect((res) => {
-          expect(res.body.runId).toBeDefined();
-          expect(res.body.status).toBe('queued');
-        });
+      const res = await app.inject({
+        method: 'POST',
+        url: '/runs',
+        headers: { 'x-csrf-token': 'csrf-test' },
+        payload: { sqlText: 'SELECT 1', snippetName: 'Test' },
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.json()).toEqual(
+        expect.objectContaining({ runId: expect.any(String), status: 'queued' }),
+      );
     });
 
     it('should return 429 when rate limit exceeded', async () => {
       mockDb.setWhereResult([{ count: 10 }]);
 
-      return request(app.getHttpServer())
-        .post('/runs')
-        .send({ sqlText: 'SELECT 1' })
-        .expect(429);
+      const res = await app.inject({
+        method: 'POST',
+        url: '/runs',
+        headers: { 'x-csrf-token': 'csrf-test' },
+        payload: { sqlText: 'SELECT 1' },
+      });
+
+      expect(res.statusCode).toBe(429);
     });
   });
 });

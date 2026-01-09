@@ -30,6 +30,7 @@ Sessions are handled by `@fastify/secure-session` in `apps/api/src/main.ts`.
   - `userId` (internal DB user id)
   - `tenantId` (internal DB tenant id)
   - `mid` (Business Unit context)
+  - `csrfToken` (per-session token required on state-changing requests)
 - Authorization:
   - `apps/api/src/auth/session.guard.ts` enforces presence of `userId`, `tenantId`, and `mid` and attaches `{ userId, tenantId, mid }` onto `request.user`.
 
@@ -156,6 +157,13 @@ In some MCE environments, the OAuth redirect may return to the app root (`/`) wi
 - Protected by `SessionGuard`; it does not accept `tenantId`/`userId`/`mid` from the browser.
 - The backend loads the encrypted refresh token from DB (under RLS), decrypts it with `ENCRYPTION_KEY`, and exchanges it for a new access token when needed.
 - Response is `{ ok: true }` (the browser does not need the token); the frontend calls this endpoint for “silent refresh” on 401s and then retries (see `apps/web/src/services/api.ts`).
+
+## CSRF Protection (SameSite=None)
+
+Because this app is embedded in an iframe, cookies must use `SameSite=None`, which means the API must implement explicit CSRF defenses for state-changing endpoints.
+
+- The API issues a per-session `csrfToken` stored in the secure session and returned from `GET /api/auth/me` as `csrfToken`.
+- State-changing endpoints (e.g. `POST /api/runs/*`) require the `x-csrf-token` header to match the session token (enforced by `apps/api/src/auth/csrf.guard.ts`).
 
 ## Why This Is Secure (What We Rely On)
 

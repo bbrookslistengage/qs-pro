@@ -46,6 +46,15 @@ export class AuthController {
     private configService: ConfigService,
   ) {}
 
+  private ensureCsrfToken(session: SecureSession): string {
+    const existing = session.get('csrfToken');
+    if (typeof existing === 'string' && existing) return existing;
+
+    const token = randomBytes(32).toString('base64url');
+    session.set('csrfToken', token);
+    return token;
+  }
+
   @Post('login')
   @Redirect()
   async loginPost(
@@ -69,6 +78,7 @@ export class AuthController {
     try {
       const { user, tenant, mid } = await this.authService.handleJwtLogin(jwt);
 
+      this.ensureCsrfToken(req.session);
       req.session.set('userId', user.id);
       req.session.set('tenantId', tenant.id);
       req.session.set('mid', mid);
@@ -118,7 +128,8 @@ export class AuthController {
       };
     }
 
-    return { user, tenant };
+    const csrfToken = req.session ? this.ensureCsrfToken(req.session) : null;
+    return { user, tenant, csrfToken };
   }
 
   @Get('login')
@@ -195,6 +206,7 @@ export class AuthController {
       }
 
       const nonce = randomBytes(16).toString('base64url');
+      this.ensureCsrfToken(session);
       const state = this.encodeOAuthState({ tssd: resolvedTssd, nonce });
       session.set('oauth_state_nonce', nonce);
       session.set('oauth_state_tssd', resolvedTssd);
@@ -241,6 +253,7 @@ export class AuthController {
       mid,
     );
 
+    this.ensureCsrfToken(req.session);
     req.session.set('userId', result.user.id);
     req.session.set('tenantId', result.tenant.id);
     req.session.set('mid', result.mid);

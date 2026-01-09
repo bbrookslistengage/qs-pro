@@ -90,10 +90,26 @@ export function createShellQueryServiceStub() {
 
 // Session guard mock factory
 export function createSessionGuardMock(userSession = createMockUserSession()) {
+  const sessionData: Record<string, unknown> = {
+    userId: userSession.userId,
+    tenantId: userSession.tenantId,
+    mid: userSession.mid,
+    csrfToken: 'csrf-test',
+  };
+
   return {
     canActivate: (context: ExecutionContext) => {
       const req = context.switchToHttp().getRequest();
       req.user = userSession;
+      req.session = {
+        get: (key: string) => sessionData[key],
+        set: (key: string, value: unknown) => {
+          sessionData[key] = value;
+        },
+        delete: () => {
+          for (const key of Object.keys(sessionData)) delete sessionData[key];
+        },
+      };
       return true;
     },
   };

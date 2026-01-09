@@ -362,63 +362,68 @@ export class AuthService {
       mid,
     );
 
-    // 2. Discover missing info if necessary
-    let effectiveSfUserId = sfUserId;
-    let effectiveEid = eid || embeddedEid;
-    let effectiveEmail = email;
-    let effectiveName = name;
-    let effectiveMid = mid;
+    // 2. Bind the session identity to the OAuth token via userinfo.
+    const info = await this.getUserInfo(tssd, tokenData.access_token);
 
-    if (!effectiveSfUserId || !effectiveEid || !effectiveMid) {
-      const info = await this.getUserInfo(tssd, tokenData.access_token);
-      if (!info?.sub && !info?.user_id && !info?.user?.sub) {
-        this.logger.warn('Userinfo response missing user identifiers', {
-          keys: Object.keys(info ?? {}),
-          userKeys: Object.keys(info?.user ?? {}),
-          orgKeys: Object.keys(info?.organization ?? {}),
-        });
-      }
-      effectiveSfUserId =
-        effectiveSfUserId ||
-        this.coerceId(info.sub) ||
-        this.coerceId(info.user_id) ||
-        this.coerceId(info.user?.sub) ||
-        this.coerceId(info.user?.id) ||
-        this.coerceId(info.user?.user_id) ||
-        this.extractIdFromObject(info.user, [
-          'userId',
-          'userID',
-          'memberId',
-          'member_id',
-        ]);
-      effectiveEid =
-        effectiveEid ||
-        this.coerceId(info.enterprise_id) ||
-        this.coerceId(info.organization?.enterprise_id) ||
-        this.coerceId(info.organization?.id) ||
-        this.coerceId(info.organization?.org_id) ||
-        this.extractIdFromObject(info.organization, [
-          'enterpriseId',
-          'enterpriseID',
-          'orgId',
-          'orgID',
-          'eid',
-        ]);
-      effectiveEmail = effectiveEmail || info.email || info.user?.email;
-      effectiveName =
-        effectiveName || info.name || info.user?.name || info.user?.full_name;
-      effectiveMid =
-        effectiveMid ||
-        this.coerceId(info.member_id) ||
-        this.coerceId(info.user?.member_id) ||
-        this.coerceId(info.organization?.member_id) ||
-        this.extractIdFromObject(info.user, ['mid', 'member_id', 'memberId']) ||
-        this.extractIdFromObject(info.organization, [
-          'mid',
-          'member_id',
-          'memberId',
-        ]);
+    if (!info?.sub && !info?.user_id && !info?.user?.sub) {
+      this.logger.warn('Userinfo response missing user identifiers', {
+        keys: Object.keys(info ?? {}),
+        userKeys: Object.keys(info?.user ?? {}),
+        orgKeys: Object.keys(info?.organization ?? {}),
+      });
     }
+
+    const derivedSfUserId =
+      this.coerceId(info.sub) ||
+      this.coerceId(info.user_id) ||
+      this.coerceId(info.user?.sub) ||
+      this.coerceId(info.user?.id) ||
+      this.coerceId(info.user?.user_id) ||
+      this.extractIdFromObject(info.user, [
+        'userId',
+        'userID',
+        'memberId',
+        'member_id',
+      ]);
+    const derivedEid =
+      this.coerceId(info.enterprise_id) ||
+      this.coerceId(info.organization?.enterprise_id) ||
+      this.coerceId(info.organization?.id) ||
+      this.coerceId(info.organization?.org_id) ||
+      this.extractIdFromObject(info.organization, [
+        'enterpriseId',
+        'enterpriseID',
+        'orgId',
+        'orgID',
+        'eid',
+      ]);
+    const derivedMid =
+      this.coerceId(info.member_id) ||
+      this.coerceId(info.user?.member_id) ||
+      this.coerceId(info.organization?.member_id) ||
+      this.extractIdFromObject(info.user, ['mid', 'member_id', 'memberId']) ||
+      this.extractIdFromObject(info.organization, ['mid', 'member_id', 'memberId']);
+
+    const providedSfUserId = this.coerceId(sfUserId);
+    const providedEid = this.coerceId(eid) || this.coerceId(embeddedEid);
+    const providedMid = this.coerceId(mid);
+
+    if (providedSfUserId && derivedSfUserId && providedSfUserId !== derivedSfUserId) {
+      throw new UnauthorizedException('OAuth identity mismatch');
+    }
+    if (providedEid && derivedEid && providedEid !== derivedEid) {
+      throw new UnauthorizedException('OAuth identity mismatch');
+    }
+    if (providedMid && derivedMid && providedMid !== derivedMid) {
+      throw new UnauthorizedException('OAuth identity mismatch');
+    }
+
+    const effectiveSfUserId = derivedSfUserId || providedSfUserId;
+    const effectiveEid = derivedEid || providedEid;
+    const effectiveMid = derivedMid || providedMid;
+    const effectiveEmail = info.email || info.user?.email || email;
+    const effectiveName =
+      info.name || info.user?.name || info.user?.full_name || name;
 
     if (!effectiveSfUserId || !effectiveEid || !effectiveMid) {
       throw new UnauthorizedException(

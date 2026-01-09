@@ -7,7 +7,6 @@ import {
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { v4 as uuidv4 } from 'uuid';
 import { RlsContextService } from '../database/rls-context.service';
 import { shellQueryRuns } from '@qs-pro/database';
 import { eq, and, notInArray, count } from 'drizzle-orm';
@@ -38,7 +37,7 @@ export class ShellQueryService {
     sqlText: string,
     snippetName?: string,
   ): Promise<string> {
-    const runId = uuidv4();
+    const runId = crypto.randomUUID();
     const sqlTextHash = crypto
       .createHash('sha256')
       .update(sqlText)

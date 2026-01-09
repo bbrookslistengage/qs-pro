@@ -18,7 +18,13 @@ const getThemeBase = () => {
 
 export const getEditorOptions =
   (): editor.IStandaloneEditorConstructionOptions => ({
-    minimap: { enabled: false },
+    minimap: { enabled: true },
+    // Prevent hover tooltips from being clipped by toolbar on first lines
+    fixedOverflowWidgets: true,
+    // Prevent find/replace widget from pushing content down
+    find: {
+      addExtraSpaceOnTop: false,
+    },
     scrollBeyondLastLine: false,
     lineNumbers: "on",
     rulers: [100],

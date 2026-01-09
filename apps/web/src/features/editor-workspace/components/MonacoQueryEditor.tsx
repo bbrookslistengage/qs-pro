@@ -647,6 +647,23 @@ export function MonacoQueryEditor({
           { open: '"', close: '"' },
           { open: "/*", close: "*/" },
         ],
+        onEnterRules: [
+          // After SELECT/FROM/WHERE/JOIN - indent next line
+          {
+            beforeText: /^\s*(SELECT|FROM|WHERE|AND|OR|JOIN|LEFT\s+JOIN|RIGHT\s+JOIN|INNER\s+JOIN|FULL\s+JOIN|GROUP\s+BY|ORDER\s+BY|HAVING)\b.*$/i,
+            action: { indentAction: monacoInstance.languages.IndentAction.Indent }
+          },
+          // Before major clauses - outdent to match SELECT level
+          {
+            beforeText: /^\s*$/,
+            afterText: /^\s*(FROM|WHERE|GROUP\s+BY|ORDER\s+BY|HAVING)\b/i,
+            action: { indentAction: monacoInstance.languages.IndentAction.Outdent }
+          }
+        ],
+        indentationRules: {
+          increaseIndentPattern: /^\s*(SELECT|FROM|WHERE|CASE)\b/i,
+          decreaseIndentPattern: /^\s*(END|FROM|WHERE|GROUP|ORDER)\b/i
+        }
       });
 
       autoBracketDisposableRef.current?.dispose();

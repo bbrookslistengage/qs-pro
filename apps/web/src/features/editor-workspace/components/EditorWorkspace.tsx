@@ -455,7 +455,7 @@ export function EditorWorkspace({
             {/* Editor Area with Vertical Tabs */}
             <div className="flex-1 flex min-h-0">
               {/* Monaco Editor Pane */}
-              <div className="flex-1 relative bg-background/50 overflow-hidden font-mono">
+              <div className="flex-1 relative bg-background/50 font-mono">
                 <MonacoQueryEditor
                   value={activeTab?.content ?? ""}
                   onChange={handleEditorChange}
@@ -746,6 +746,7 @@ function ToolbarButton({
         <Tooltip.Content
           className="bg-foreground text-background text-[10px] px-2 py-1 rounded shadow-md z-50 font-bold uppercase tracking-tight"
           sideOffset={5}
+          collisionPadding={10}
         >
           {label}
           <Tooltip.Arrow className="fill-foreground" />

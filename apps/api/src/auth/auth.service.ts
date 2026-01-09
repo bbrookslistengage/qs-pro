@@ -10,6 +10,7 @@ import axios from 'axios';
 import * as jose from 'jose';
 import { encrypt, decrypt } from '@qs-pro/database';
 import { RlsContextService } from '../database/rls-context.service';
+import { SeatLimitService } from '../features/seat-limit.service';
 import type {
   ITenantRepository,
   IUserRepository,
@@ -43,6 +44,7 @@ export class AuthService {
     @Inject('USER_REPOSITORY') private userRepo: IUserRepository,
     @Inject('CREDENTIALS_REPOSITORY') private credRepo: ICredentialsRepository,
     private readonly rlsContext: RlsContextService,
+    private readonly seatLimitService: SeatLimitService,
   ) {}
 
   async verifyMceJwt(jwt: string) {
@@ -152,6 +154,14 @@ export class AuthService {
 
     // JIT Provisioning
     const tenant = await this.tenantRepo.upsert({ eid, tssd });
+
+    // Check if user exists
+    const existingUser = await this.userRepo.findBySfUserId(sfUserId);
+
+    // If user doesn't exist, check seat limit before creating
+    if (!existingUser) {
+      await this.seatLimitService.checkSeatLimit(tenant.id);
+    }
 
     // MCE JWT doesn't always have email/name. We can fetch it if needed or leave it.
     // For now, we'll try to use what's in handleCallback if we had a code,
@@ -418,6 +428,14 @@ export class AuthService {
 
     // 3. Ensure tenant exists
     const tenant = await this.tenantRepo.upsert({ eid: effectiveEid, tssd });
+
+    // Check if user exists
+    const existingUser = await this.userRepo.findBySfUserId(effectiveSfUserId);
+
+    // If user doesn't exist, check seat limit before creating
+    if (!existingUser) {
+      await this.seatLimitService.checkSeatLimit(tenant.id);
+    }
 
     // 4. Ensure user exists
     const user = await this.userRepo.upsert({

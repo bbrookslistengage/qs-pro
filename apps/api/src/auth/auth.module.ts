@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { DatabaseModule } from '../database/database.module';
+import { FeaturesModule } from '../features/features.module';
 import {
   DrizzleTenantRepository,
   DrizzleUserRepository,
@@ -9,7 +10,7 @@ import {
 } from '@qs-pro/database';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, FeaturesModule],
   controllers: [AuthController],
   providers: [
     AuthService,

@@ -13,12 +13,13 @@ import {
   beforeEach,
   vi,
 } from 'vitest';
-import {
+import type {
   ITenantRepository,
   IUserRepository,
   ICredentialsRepository,
 } from '@qs-pro/database';
 import { RlsContextService } from '../database/rls-context.service';
+import { SeatLimitService } from '../features/seat-limit.service';
 
 const server = setupServer(
   http.post(
@@ -139,6 +140,12 @@ describe('AuthService', () => {
                 fn: () => Promise<unknown>,
               ) => fn(),
             ),
+          },
+        },
+        {
+          provide: SeatLimitService,
+          useValue: {
+            checkSeatLimit: vi.fn().mockResolvedValue(undefined),
           },
         },
       ],

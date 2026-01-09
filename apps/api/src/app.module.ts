@@ -8,6 +8,7 @@ import { DatabaseModule } from './database/database.module';
 import { MceModule } from './mce/mce.module';
 import { RedisModule } from './redis/redis.module';
 import { ShellQueryModule } from './shell-query/shell-query.module';
+import { FeaturesModule } from './features/features.module';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 import path from 'node:path';
 
@@ -26,6 +27,7 @@ import path from 'node:path';
     MceModule,
     RedisModule,
     ShellQueryModule,
+    FeaturesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

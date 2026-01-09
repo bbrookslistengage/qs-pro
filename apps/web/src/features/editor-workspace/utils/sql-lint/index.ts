@@ -9,6 +9,8 @@ import { limitProhibitionRule } from "./rules/limit-prohibition";
 import { offsetFetchProhibitionRule } from "./rules/offset-fetch-prohibition";
 import { unsupportedFunctionsRule } from "./rules/unsupported-functions";
 import { aggregateGroupingRule } from "./rules/aggregate-grouping";
+import { commaValidationRule } from "./rules/comma-validation";
+import { aliasInClauseRule } from "./rules/alias-in-clause";
 
 export type {
   SqlDiagnostic,
@@ -34,6 +36,8 @@ const rules = [
   offsetFetchProhibitionRule,
   unsupportedFunctionsRule,
   aggregateGroupingRule,
+  commaValidationRule,
+  aliasInClauseRule,
 ];
 
 /**

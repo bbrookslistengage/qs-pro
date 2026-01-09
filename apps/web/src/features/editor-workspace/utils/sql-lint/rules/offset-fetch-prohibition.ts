@@ -1,5 +1,6 @@
 import type { LintRule, LintContext, SqlDiagnostic } from "../types";
 import { createDiagnostic, isWordChar } from "../utils/helpers";
+import { MC } from "@/constants/marketing-cloud";
 
 const getOffsetFetchProhibitionDiagnostics = (sql: string): SqlDiagnostic[] => {
   const diagnostics: SqlDiagnostic[] = [];
@@ -103,7 +104,7 @@ const getOffsetFetchProhibitionDiagnostics = (sql: string): SqlDiagnostic[] => {
         if (/\bFETCH\s+(NEXT|FIRST)\b/i.test(rest)) {
           diagnostics.push(
             createDiagnostic(
-              "OFFSET/FETCH pagination is not supported in Marketing Cloud SQL. Use TOP for row limiting.",
+              `OFFSET/FETCH pagination is not supported in ${MC.SHORT}. There is no direct equivalent — use TOP for simple row limiting, or filter by a unique key for manual pagination.`,
               "error",
               start,
               end,

@@ -1,5 +1,6 @@
 import type { LintRule, LintContext, SqlDiagnostic } from "../types";
 import { createDiagnostic, isWordChar } from "../utils/helpers";
+import { MC } from "@/constants/marketing-cloud";
 
 /**
  * SQL aggregate functions that require GROUP BY when mixed with non-aggregated columns.
@@ -438,7 +439,7 @@ const getAggregateGroupingDiagnostics = (sql: string): SqlDiagnostic[] => {
     for (const col of nonAggregatedColumns) {
       diagnostics.push(
         createDiagnostic(
-          `Column "${col.name}" must appear in GROUP BY clause or be used in an aggregate function`,
+          `Non-aggregated field "${col.name}" must appear in GROUP BY or be wrapped in an aggregate function. Example: \`GROUP BY ${col.name}\` or \`MAX(${col.name})\`.`,
           "error",
           col.startIndex,
           col.endIndex,
@@ -456,7 +457,7 @@ const getAggregateGroupingDiagnostics = (sql: string): SqlDiagnostic[] => {
       if (colNameLower === "*") {
         diagnostics.push(
           createDiagnostic(
-            `Column "${col.name}" must appear in GROUP BY clause or be used in an aggregate function`,
+            `Non-aggregated field "${col.name}" must appear in GROUP BY or be wrapped in an aggregate function. Example: \`GROUP BY ${col.name}\` or \`MAX(${col.name})\`.`,
             "error",
             col.startIndex,
             col.endIndex,
@@ -482,7 +483,7 @@ const getAggregateGroupingDiagnostics = (sql: string): SqlDiagnostic[] => {
       if (!isGrouped) {
         diagnostics.push(
           createDiagnostic(
-            `Column "${col.name}" must appear in GROUP BY clause or be used in an aggregate function`,
+            `Non-aggregated field "${col.name}" must appear in GROUP BY or be wrapped in an aggregate function. Example: \`GROUP BY ${col.name}\` or \`MAX(${col.name})\`.`,
             "error",
             col.startIndex,
             col.endIndex,

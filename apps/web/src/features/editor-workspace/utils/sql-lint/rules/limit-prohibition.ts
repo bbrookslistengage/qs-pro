@@ -1,5 +1,6 @@
 import type { LintRule, LintContext, SqlDiagnostic } from "../types";
 import { createDiagnostic, isWordChar } from "../utils/helpers";
+import { MC } from "@/constants/marketing-cloud";
 
 const getLimitProhibitionDiagnostics = (sql: string): SqlDiagnostic[] => {
   const diagnostics: SqlDiagnostic[] = [];
@@ -101,7 +102,7 @@ const getLimitProhibitionDiagnostics = (sql: string): SqlDiagnostic[] => {
       if (word === "limit") {
         diagnostics.push(
           createDiagnostic(
-            "LIMIT is not supported in Marketing Cloud SQL. Use TOP instead.",
+            `LIMIT is not supported in ${MC.SHORT}. Use TOP after SELECT instead. Example: \`SELECT TOP 10 * FROM [Table]\` (not \`SELECT * FROM [Table] LIMIT 10\`).`,
             "error",
             start,
             end,

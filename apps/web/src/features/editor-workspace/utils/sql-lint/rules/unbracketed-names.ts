@@ -1,6 +1,7 @@
 import type { LintRule, LintContext, SqlDiagnostic } from "../types";
 import { createDiagnostic } from "../utils/helpers";
 import { extractTableReferences } from "../../sql-context";
+import { MC } from "@/constants/marketing-cloud";
 
 const getUnbracketedSpaceWarnings = (
   sql: string,
@@ -31,7 +32,7 @@ const getUnbracketedSpaceWarnings = (
     .filter(({ candidate }) => spaceNames.has(candidate))
     .map(({ reference }) =>
       createDiagnostic(
-        "Data Extension names with spaces must be wrapped in brackets.",
+        "Data Extension names with spaces must be wrapped in brackets. Example: `FROM [My Data Extension]` instead of `FROM My Data Extension`.",
         "warning",
         reference.startIndex,
         reference.endIndex,

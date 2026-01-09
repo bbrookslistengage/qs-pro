@@ -12,7 +12,7 @@ describe("sql lint", () => {
 
     // Assert
     expect(
-      diagnostics.some((diag) => diag.message.includes("Not Supported")),
+      diagnostics.some((diag) => diag.message.includes("not supported")),
     ).toBe(true);
   });
 
@@ -35,7 +35,7 @@ describe("sql lint", () => {
     const diagnostics = lintSql(sql);
 
     // Assert
-    expect(diagnostics.some((diag) => diag.message.includes("CTEs"))).toBe(
+    expect(diagnostics.some((diag) => diag.message.includes("Common Table Expressions"))).toBe(
       true,
     );
   });
@@ -166,7 +166,7 @@ describe("sql lint", () => {
 
     // Assert
     expect(
-      diagnostics.some((diag) => diag.message.includes("Ambiguous field")),
+      diagnostics.some((diag) => diag.message.includes("exists in multiple tables")),
     ).toBe(true);
   });
 
@@ -214,7 +214,7 @@ describe("sql lint", () => {
 
     // Assert
     expect(
-      diagnostics.some((diag) => diag.message.includes("Ambiguous field")),
+      diagnostics.some((diag) => diag.message.includes("exists in multiple tables")),
     ).toBe(false);
   });
 
@@ -272,7 +272,7 @@ describe("sql lint", () => {
 
     // Assert
     expect(
-      diagnostics.some((diag) => diag.message.includes("Ambiguous field")),
+      diagnostics.some((diag) => diag.message.includes("exists in multiple tables")),
     ).toBe(true);
   });
 
@@ -288,7 +288,7 @@ describe("sql lint", () => {
     expect(
       diagnostics.some(
         (diag) =>
-          diag.severity === "error" && diag.message.includes("Not Supported"),
+          diag.severity === "error" && diag.message.includes("not supported"),
       ),
     ).toBe(true);
   });
@@ -304,7 +304,7 @@ describe("sql lint", () => {
     expect(
       diagnostics.some(
         (diag) =>
-          diag.severity === "error" && diag.message.includes("Not Supported"),
+          diag.severity === "error" && diag.message.includes("not supported"),
       ),
     ).toBe(true);
   });
@@ -320,7 +320,7 @@ describe("sql lint", () => {
     expect(
       diagnostics.some(
         (diag) =>
-          diag.severity === "error" && diag.message.includes("Not Supported"),
+          diag.severity === "error" && diag.message.includes("not supported"),
       ),
     ).toBe(true);
   });
@@ -336,7 +336,7 @@ describe("sql lint", () => {
     expect(
       diagnostics.some(
         (diag) =>
-          diag.severity === "error" && diag.message.includes("Not Supported"),
+          diag.severity === "error" && diag.message.includes("not supported"),
       ),
     ).toBe(true);
   });
@@ -352,7 +352,7 @@ describe("sql lint", () => {
     expect(
       diagnostics.some(
         (diag) =>
-          diag.severity === "error" && diag.message.includes("Not Supported"),
+          diag.severity === "error" && diag.message.includes("not supported"),
       ),
     ).toBe(true);
   });
@@ -402,7 +402,7 @@ describe("sql lint", () => {
       diagnostics.some(
         (diag) =>
           diag.severity === "error" &&
-          diag.message.includes("CTEs are not supported"),
+          diag.message.includes("Common Table Expressions"),
       ),
     ).toBe(true);
   });
@@ -420,7 +420,7 @@ describe("sql lint", () => {
       diagnostics.some(
         (diag) =>
           diag.severity === "error" &&
-          diag.message.includes("CTEs are not supported"),
+          diag.message.includes("Common Table Expressions"),
       ),
     ).toBe(true);
   });
@@ -438,7 +438,7 @@ describe("sql lint", () => {
         (diag) =>
           diag.severity === "error" &&
           diag.message.includes("LIMIT is not supported") &&
-          diag.message.includes("Use TOP instead"),
+          diag.message.includes("Use TOP"),
       ),
     ).toBe(true);
   });
@@ -457,7 +457,7 @@ describe("sql lint", () => {
         (diag) =>
           diag.severity === "error" &&
           diag.message.includes("OFFSET/FETCH pagination is not supported") &&
-          diag.message.includes("Use TOP"),
+          diag.message.includes("use TOP"),
       ),
     ).toBe(true);
   });
@@ -475,7 +475,7 @@ describe("sql lint", () => {
       diagnostics.some(
         (diag) =>
           diag.severity === "warning" &&
-          diag.message.includes("may not be supported in Marketing Cloud SQL"),
+          diag.message.includes("not available in MCE"),
       ),
     ).toBe(true);
   });
@@ -492,7 +492,7 @@ describe("sql lint", () => {
     const unsupportedWarnings = diagnostics.filter(
       (diag) =>
         diag.severity === "warning" &&
-        diag.message.includes("may not be supported"),
+        diag.message.includes("not available in MCE"),
     );
     expect(unsupportedWarnings.length).toBeGreaterThanOrEqual(2);
   });
@@ -507,7 +507,7 @@ describe("sql lint", () => {
 
     // Assert
     expect(
-      diagnostics.some((diag) => diag.message.includes("may not be supported")),
+      diagnostics.some((diag) => diag.message.includes("not available in MCE")),
     ).toBe(false);
   });
 
@@ -523,7 +523,7 @@ describe("sql lint", () => {
       diagnostics.some(
         (diag) =>
           diag.severity === "error" &&
-          diag.message.includes("must appear in GROUP BY clause"),
+          diag.message.includes("must appear in GROUP BY"),
       ),
     ).toBe(true);
   });
@@ -579,7 +579,7 @@ describe("sql lint", () => {
       diagnostics.some(
         (diag) =>
           diag.severity === "error" &&
-          diag.message.includes("must appear in GROUP BY clause"),
+          diag.message.includes("must appear in GROUP BY"),
       ),
     ).toBe(true);
   });
@@ -623,12 +623,12 @@ describe("sql lint", () => {
     // Unsupported function warning
     expect(
       warningDiagnostics.some((d) =>
-        d.message.includes("may not be supported"),
+        d.message.includes("not available in MCE"),
       ),
     ).toBe(true);
     // Aggregate GROUP BY error
     expect(
-      errorDiagnostics.some((d) => d.message.includes("GROUP BY clause")),
+      errorDiagnostics.some((d) => d.message.includes("GROUP BY")),
     ).toBe(true);
     // LIMIT error
     expect(
@@ -658,7 +658,7 @@ describe("sql lint", () => {
       WHERE a.Region IN ('North', 'South')
         AND a.CreatedDate >= DATEADD(month, -6, GETDATE())
       GROUP BY a.Region, a.Category, json_value(a.Metadata, '$.status')
-      ORDER BY TotalAmount DESC
+      ORDER BY SUM(a.Amount) DESC
     `;
     const dataExtensions: DataExtension[] = [
       {
@@ -776,22 +776,16 @@ describe("sql lint", () => {
         sql: "WITH cte AS (SELECT Id FROM Users) SELECT * FROM cte",
         expectError: true,
       },
-      { sql: "SELECT * FROM #TempTable", expectWarning: true },
+      { sql: "SELECT * FROM #TempTable", expectError: true },
       { sql: "DECLARE @count INT", expectError: true },
     ];
 
     // Act & Assert
-    testCases.forEach(({ sql, expectError, expectWarning }) => {
+    testCases.forEach(({ sql, expectError }) => {
       const diagnostics = lintSql(sql);
 
       if (expectError) {
         expect(diagnostics.some((diag) => diag.severity === "error")).toBe(
-          true,
-        );
-      }
-
-      if (expectWarning) {
-        expect(diagnostics.some((diag) => diag.severity === "warning")).toBe(
           true,
         );
       }
@@ -826,7 +820,7 @@ describe("sql lint", () => {
 
     // Assert - Should detect try_convert even when nested
     expect(
-      diagnostics.some((diag) => diag.message.includes("may not be supported")),
+      diagnostics.some((diag) => diag.message.includes("not available in MCE")),
     ).toBe(true);
   });
 
@@ -850,7 +844,7 @@ describe("sql lint", () => {
     // Test prohibited keywords (CREATE)
     const sql1 = "CREATE TABLE temp (id INT)";
     const diag1 = lintSql(sql1);
-    expect(diag1.some((diag) => diag.message.includes("Not Supported"))).toBe(
+    expect(diag1.some((diag) => diag.message.includes("read-only"))).toBe(
       true,
     );
 
@@ -859,20 +853,20 @@ describe("sql lint", () => {
       "WITH cte (col1) AS (SELECT Region FROM [Data]) SELECT * FROM cte";
     const diag2 = lintSql(sql2);
     expect(
-      diag2.some((diag) => diag.message.includes("CTEs are not supported")),
+      diag2.some((diag) => diag.message.includes("Common Table Expressions")),
     ).toBe(true);
 
     // Test unsupported functions
     const sql3 = "SELECT try_cast(Value AS INT) FROM [Data]";
     const diag3 = lintSql(sql3);
     expect(
-      diag3.some((diag) => diag.message.includes("may not be supported")),
+      diag3.some((diag) => diag.message.includes("not available in MCE")),
     ).toBe(true);
 
     // Test aggregate grouping
     const sql4 = "SELECT Region, COUNT(*) FROM [Data]";
     const diag4 = lintSql(sql4);
-    expect(diag4.some((diag) => diag.message.includes("GROUP BY clause"))).toBe(
+    expect(diag4.some((diag) => diag.message.includes("GROUP BY"))).toBe(
       true,
     );
 

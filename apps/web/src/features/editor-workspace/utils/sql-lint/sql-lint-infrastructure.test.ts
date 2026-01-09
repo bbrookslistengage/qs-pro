@@ -54,7 +54,7 @@ describe("linter infrastructure", () => {
     // Assert
     expect(diagnostics.length).toBeGreaterThan(0);
     expect(
-      diagnostics.some((diag) => diag.message.includes("Not Supported")),
+      diagnostics.some((diag) => diag.message.includes("read-only")),
     ).toBe(true);
   });
 

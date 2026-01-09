@@ -1,5 +1,6 @@
 import type { LintRule, LintContext, SqlDiagnostic } from "../types";
 import { createDiagnostic, isWordChar } from "../utils/helpers";
+import { MC } from "@/constants/marketing-cloud";
 
 const getCteDetectionDiagnostics = (sql: string): SqlDiagnostic[] => {
   const diagnostics: SqlDiagnostic[] = [];
@@ -107,7 +108,7 @@ const getCteDetectionDiagnostics = (sql: string): SqlDiagnostic[] => {
         if (/\s*\w+\s*(\([^)]*\))?\s*AS\s*\(/i.test(rest)) {
           diagnostics.push(
             createDiagnostic(
-              "CTEs are not supported in Marketing Cloud SQL. Use subqueries instead.",
+              `WITH (Common Table Expressions) is not supported in ${MC.SHORT}. Use a subquery instead. Example: \`SELECT * FROM (SELECT ... ) AS sub\` instead of \`WITH sub AS (SELECT ...) SELECT * FROM sub\`.`,
               "error",
               start,
               end,

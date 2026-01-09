@@ -2,6 +2,7 @@ import type { LintRule, LintContext, SqlDiagnostic } from "../types";
 import type { SqlToken } from "../../sql-context";
 import { createDiagnostic } from "../utils/helpers";
 import { extractTableReferences } from "../../sql-context";
+import { MC } from "@/constants/marketing-cloud";
 
 const normalizeIdentifier = (value: string) => {
   return value
@@ -102,7 +103,7 @@ const getAmbiguousFieldDiagnostics = (
     .filter((token) => ambiguousFields.has(normalizeIdentifier(token.value)))
     .map((token) =>
       createDiagnostic(
-        `Ambiguous field "${token.value}" across multiple Data Extensions. Add table aliases and qualify fields.`,
+        `Field "${token.value}" exists in multiple tables — ${MC.SHORT} requires disambiguation. Add table aliases and prefix the field. Example: \`SELECT a.${token.value} FROM [Table1] a JOIN [Table2] b ON ...\`.`,
         "error",
         token.startIndex,
         token.endIndex,

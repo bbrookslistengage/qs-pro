@@ -1,20 +1,44 @@
 import type { LintRule, LintContext, SqlDiagnostic } from "../types";
 import { createDiagnostic, isWordChar } from "../utils/helpers";
+import { MC } from "@/constants/marketing-cloud";
 
-const PROHIBITED_KEYWORDS = new Set([
+// DML keywords that are prohibited (read-only SQL)
+const DML_KEYWORDS = new Set([
+  "insert",
   "update",
   "delete",
-  "insert",
-  "drop",
-  "alter",
-  "truncate",
   "merge",
-  "create",
+  "truncate",
+]);
+
+// Procedural/control flow keywords that are prohibited
+const PROCEDURAL_KEYWORDS = new Set([
+  "declare",
+  "set",
+  "while",
+  "if",
+  "begin",
+  "end",
   "exec",
   "execute",
+  "print",
+  "raiserror",
+  "throw",
+  "try",
+  "catch",
+  "goto",
+  "return",
+  "break",
+  "continue",
+]);
+
+// DDL and other prohibited keywords
+const DDL_KEYWORDS = new Set([
+  "drop",
+  "alter",
+  "create",
   "grant",
   "revoke",
-  "begin",
   "commit",
   "rollback",
   "savepoint",
@@ -26,22 +50,9 @@ const PROHIBITED_KEYWORDS = new Set([
   "backup",
   "restore",
   "kill",
-]);
-
-const PROCEDURAL_KEYWORDS = new Set([
-  "declare",
-  "set",
-  "while",
-  "print",
   "go",
-  "if",
   "else",
-  "return",
-  "throw",
-  "try",
-  "catch",
   "waitfor",
-  "raiserror",
 ]);
 
 const getKeywordDiagnostics = (sql: string): SqlDiagnostic[] => {
@@ -142,8 +153,8 @@ const getKeywordDiagnostics = (sql: string): SqlDiagnostic[] => {
       if (end > start + 1) {
         diagnostics.push(
           createDiagnostic(
-            "Temp tables and CTEs are not officially supported and may cause failures. Use subqueries instead.",
-            "warning",
+            `Temp tables (#table) are not supported in ${MC.SHORT}. Use a subquery instead. Example: \`SELECT * FROM (SELECT ... ) AS temp\`.`,
+            "error",
             start,
             end,
           ),
@@ -161,10 +172,10 @@ const getKeywordDiagnostics = (sql: string): SqlDiagnostic[] => {
       }
       const word = sql.slice(start, end).toLowerCase();
 
-      if (PROHIBITED_KEYWORDS.has(word)) {
+      if (DML_KEYWORDS.has(word)) {
         diagnostics.push(
           createDiagnostic(
-            "Not Supported: SFMC SQL only supports SELECT. Use the 'Run to Target' wizard for updates.",
+            `${MC.SHORT} SQL is read-only — INSERT, UPDATE, DELETE are not supported. To modify data, use the Query Activity's 'Overwrite' or 'Update' data action, or the ${MC.SHORT} UI.`,
             "error",
             start,
             end,
@@ -173,7 +184,16 @@ const getKeywordDiagnostics = (sql: string): SqlDiagnostic[] => {
       } else if (PROCEDURAL_KEYWORDS.has(word)) {
         diagnostics.push(
           createDiagnostic(
-            "Variables and loops are not supported in Marketing Cloud.",
+            `Variables and procedural logic (DECLARE, SET, WHILE, IF) are not supported in ${MC.SHORT}. Write pure SELECT queries only.`,
+            "error",
+            start,
+            end,
+          ),
+        );
+      } else if (DDL_KEYWORDS.has(word)) {
+        diagnostics.push(
+          createDiagnostic(
+            `${MC.SHORT} SQL is read-only — DDL statements (CREATE, DROP, ALTER) are not supported.`,
             "error",
             start,
             end,

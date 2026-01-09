@@ -1,20 +1,21 @@
 import type { LintRule, LintContext, SqlDiagnostic } from "../types";
 import { createDiagnostic, isWordChar } from "../utils/helpers";
+import { MC } from "@/constants/marketing-cloud";
 
 /**
  * List of functions that may not be supported in Marketing Cloud SQL.
  * Note: json_value and json_query ARE supported (SQL Server 2016).
  */
-const UNSUPPORTED_FUNCTIONS = new Set([
-  "string_agg",
-  "string_split",
-  "json_modify",
-  "openjson",
-  "isjson",
-  "try_convert",
-  "try_cast",
-  "try_parse",
-]);
+const UNSUPPORTED_FUNCTIONS: Record<string, string | null> = {
+  string_agg: null,
+  string_split: null,
+  json_modify: null,
+  openjson: null,
+  isjson: null,
+  try_convert: "Use CONVERT() instead",
+  try_cast: "Use CAST() instead",
+  try_parse: null,
+};
 
 const getUnsupportedFunctionDiagnostics = (sql: string): SqlDiagnostic[] => {
   const diagnostics: SqlDiagnostic[] = [];
@@ -128,14 +129,13 @@ const getUnsupportedFunctionDiagnostics = (sql: string): SqlDiagnostic[] => {
 
       // Check if followed by opening parenthesis (indicates function call)
       if (checkIndex < sql.length && sql[checkIndex] === "(") {
-        if (UNSUPPORTED_FUNCTIONS.has(word)) {
+        const alternative = UNSUPPORTED_FUNCTIONS[word];
+        if (alternative !== undefined) {
+          const message = alternative
+            ? `${word.toUpperCase()}() is not available in ${MC.SHORT}. ${alternative}`
+            : `${word.toUpperCase()}() is not available in ${MC.SHORT}. There is no direct equivalent.`;
           diagnostics.push(
-            createDiagnostic(
-              "This function may not be supported in Marketing Cloud SQL",
-              "warning",
-              start,
-              end,
-            ),
+            createDiagnostic(message, "warning", start, end),
           );
         }
       }

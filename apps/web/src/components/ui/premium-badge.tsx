@@ -150,7 +150,7 @@ const PremiumPopoverContent = React.forwardRef<
             "flex h-12 w-12 items-center justify-center rounded-xl",
             theme.iconWrapper
           )}>
-            <CrownStar weight="Fill" className="h-6 w-6" />
+            <CrownStar weight="BoldDuotone" className="h-6 w-6" />
           </div>
           
           <span className={cn(

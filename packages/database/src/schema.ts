@@ -16,13 +16,34 @@ export const tenants = pgTable("tenants", {
   id: uuid("id").defaultRandom().primaryKey(),
   eid: varchar("eid").notNull().unique(), // Enterprise ID
   tssd: varchar("tssd").notNull(), // Tenant Specific Subdomain
+  subscriptionTier: varchar("subscription_tier")
+    .$type<"free" | "pro" | "enterprise">()
+    .default("free")
+    .notNull(),
+  seatLimit: integer("seat_limit"), // null = unlimited
   installedAt: timestamp("installed_at").defaultNow(),
 });
 
-// 2. Users (The actual seat)
+export const tenantFeatureOverrides = pgTable(
+  "tenant_feature_overrides",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .references(() => tenants.id)
+      .notNull(),
+    featureKey: varchar("feature_key").notNull(),
+    enabled: boolean("enabled").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    unq: unique().on(t.tenantId, t.featureKey),
+    tenantIdIdx: index("tenant_feature_overrides_tenant_id_idx").on(t.tenantId),
+  }),
+);
+
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
-  sfUserId: varchar("sf_user_id").notNull().unique(), // From MCE ID Token
+  sfUserId: varchar("sf_user_id").notNull().unique(),
   tenantId: uuid("tenant_id").references(() => tenants.id),
   email: varchar("email"),
   name: varchar("name"),
@@ -143,3 +164,10 @@ export const insertShellQueryRunSchema = createInsertSchema(shellQueryRuns);
 
 export const selectTenantSettingsSchema = createSelectSchema(tenantSettings);
 export const insertTenantSettingsSchema = createInsertSchema(tenantSettings);
+
+export const selectTenantFeatureOverrideSchema = createSelectSchema(
+  tenantFeatureOverrides,
+);
+export const insertTenantFeatureOverrideSchema = createInsertSchema(
+  tenantFeatureOverrides,
+);

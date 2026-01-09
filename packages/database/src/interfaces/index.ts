@@ -1,4 +1,4 @@
-import { tenants, users, credentials } from "../schema";
+import { tenants, users, credentials, tenantFeatureOverrides } from "../schema";
 
 export type Tenant = typeof tenants.$inferSelect;
 export type NewTenant = typeof tenants.$inferInsert;
@@ -9,10 +9,15 @@ export type NewUser = typeof users.$inferInsert;
 export type Credential = typeof credentials.$inferSelect;
 export type NewCredential = typeof credentials.$inferInsert;
 
+export type TenantFeatureOverride = typeof tenantFeatureOverrides.$inferSelect;
+export type NewTenantFeatureOverride =
+  typeof tenantFeatureOverrides.$inferInsert;
+
 export interface ITenantRepository {
   findById(id: string): Promise<Tenant | undefined>;
   findByEid(eid: string): Promise<Tenant | undefined>;
   upsert(tenant: NewTenant): Promise<Tenant>;
+  countUsersByTenantId(tenantId: string): Promise<number>;
 }
 
 export interface IUserRepository {
@@ -28,4 +33,8 @@ export interface ICredentialsRepository {
     mid: string,
   ): Promise<Credential | undefined>;
   upsert(credential: NewCredential): Promise<Credential>;
+}
+
+export interface IFeatureOverrideRepository {
+  findByTenantId(tenantId: string): Promise<TenantFeatureOverride[]>;
 }

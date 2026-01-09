@@ -1,16 +1,18 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, count } from "drizzle-orm";
 import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import { tenants, users, credentials } from "../schema";
+import { tenants, users, credentials, tenantFeatureOverrides } from "../schema";
 import {
   ITenantRepository,
   IUserRepository,
   ICredentialsRepository,
+  IFeatureOverrideRepository,
   Tenant,
   NewTenant,
   User,
   NewUser,
   Credential,
   NewCredential,
+  TenantFeatureOverride,
 } from "../interfaces";
 
 export class DrizzleTenantRepository implements ITenantRepository {
@@ -42,6 +44,14 @@ export class DrizzleTenantRepository implements ITenantRepository {
       })
       .returning();
     return result;
+  }
+
+  async countUsersByTenantId(tenantId: string): Promise<number> {
+    const [result] = await this.db
+      .select({ count: count() })
+      .from(users)
+      .where(eq(users.tenantId, tenantId));
+    return result?.count ?? 0;
   }
 }
 
@@ -118,5 +128,18 @@ export class DrizzleCredentialsRepository implements ICredentialsRepository {
       })
       .returning();
     return result;
+  }
+}
+
+export class DrizzleFeatureOverrideRepository
+  implements IFeatureOverrideRepository
+{
+  constructor(private db: PostgresJsDatabase) {}
+
+  async findByTenantId(tenantId: string): Promise<TenantFeatureOverride[]> {
+    return this.db
+      .select()
+      .from(tenantFeatureOverrides)
+      .where(eq(tenantFeatureOverrides.tenantId, tenantId));
   }
 }

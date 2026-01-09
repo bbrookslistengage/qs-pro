@@ -23,15 +23,16 @@ Standardize data-access boundaries across web and API so all web HTTP flows thro
 
 **Web: Hooks own mapping/normalization**
 - Hooks remain responsible for mapping server DTOs into UI-friendly types (e.g., the existing mapping approach in `apps/web/src/features/editor-workspace/hooks/use-metadata.ts`).
-- TanStack Query caching should key off stable query keys and cache raw DTO responses where practical.
+- TanStack Query caching should key off stable query keys and cache raw DTO responses; mapping should happen via hook-level selectors or mapping functions, not in service modules.
 
 **Web: Eliminate ad-hoc fetch/axios in production code**
 - Replace `fetch()` calls in hooks/components with service module calls.
 - Replace raw `axios` usage in `apps/web/src/App.tsx` with service module calls using the shared client.
-- Verification/dev tooling pages may be exceptions but should be clearly labeled and isolated; prefer using the shared client even there.
+- Verification/dev tooling pages may be exceptions but must be isolated to `apps/web/src/features/verification/*` and clearly labeled; prefer using the shared client even there.
 
 **Web: CSRF header posture**
 - Do not introduce automatic `x-csrf-token` header attachment until there is a clearly defined backend-issued and enforced CSRF contract.
+  - Note: a guard exists at `apps/api/src/auth/csrf.guard.ts`, but the client contract for issuing/storing tokens is not yet standardized.
 
 **Web: Tests for refactors**
 - Update/add tests where patterns already exist (e.g., hook tests) to reflect the new service-module integration without changing user-visible behavior.
@@ -55,6 +56,20 @@ Standardize data-access boundaries across web and API so all web HTTP flows thro
 **API: Keep controller validation thin**
 - Controller responsibilities remain request parsing/validation (Zod/guards), routing, and response formatting.
 - Orchestration/business logic resides in services/providers; DB access resides in repositories.
+
+## Definition of Done
+
+**Web**
+- All production code under `apps/web/src` routes `/api/*` calls through `apps/web/src/services/api.ts`.
+- No direct `fetch()` or raw `axios` calls remain in hooks/components/pages (exceptions only in `apps/web/src/features/verification/*`).
+- Feature service modules exist under `apps/web/src/services/` and return raw DTOs (no UI mapping).
+- Feature hooks call service modules and own query keys + mapping/normalization.
+- Existing tests for touched hooks/components are updated to match the new boundaries.
+
+**API**
+- `apps/api/src/shell-query` has a repository interface + injected implementation and no longer performs direct Drizzle queries inside services/controllers.
+- SSE streaming lifecycle (rate limit + Redis subscription) is owned by a dedicated service/provider and the controller remains thin.
+- SSE protocol stability preserved (route shape, keys, limits, channel names).
 
 ## Visual Design
 No visual assets provided.

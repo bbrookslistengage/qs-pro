@@ -37,7 +37,7 @@
 - Follow Conventional Commits with optional scopes, e.g. `feat(web): add auth UI` or `fix(auth): handle redirect`.
 - PRs should include: a short summary, test notes (commands run), and linked issues.
 - Include screenshots or recordings for UI changes in `apps/web`.
-- absolutely no mention of phases, tasks, or specs or anything like it. Just what was done and why.
+- absolutely no mention of phases, tasks, or specs or anything like it IN COMMIT MESSAGES. Just what was done and why.
 
 ## Agent-Specific Instructions
 - Use `agent-os/standards/` for detailed conventions.

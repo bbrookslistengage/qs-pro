@@ -46,6 +46,17 @@ export class AuthController {
     private configService: ConfigService,
   ) {}
 
+  private clearAuthSession(session: SecureSession | undefined): void {
+    if (!session) return;
+    session.set('userId', undefined);
+    session.set('tenantId', undefined);
+    session.set('mid', undefined);
+    session.set('csrfToken', undefined);
+    session.set('oauth_state_nonce', undefined);
+    session.set('oauth_state_tssd', undefined);
+    session.set('oauth_state_created_at', undefined);
+  }
+
   private ensureCsrfToken(session: SecureSession): string {
     const existing = session.get('csrfToken');
     if (typeof existing === 'string' && existing) return existing;
@@ -111,7 +122,8 @@ export class AuthController {
     const tenant = await this.authService.findTenantById(userSession.tenantId);
 
     if (!user || !tenant) {
-      throw new UnauthorizedException('User or Tenant not found');
+      req.session?.delete();
+      throw new UnauthorizedException('Not authenticated');
     }
 
     try {
@@ -159,15 +171,7 @@ export class AuthController {
     const userId = session?.get('userId');
     const tenantId = session?.get('tenantId');
     const mid = session?.get('mid');
-    const hasSession =
-      typeof userId === 'string' &&
-      typeof tenantId === 'string' &&
-      typeof mid === 'string';
     const resolvedTssd = this.resolveAuthTssd(tssd);
-
-    if (hasSession) {
-      return { url: '/', statusCode: 302 };
-    }
 
     try {
       // If we have a legacy/partial session (missing MID), clear it so we don't loop on `/api/auth/me`.
@@ -177,11 +181,28 @@ export class AuthController {
         typeof tenantId === 'string' &&
         typeof mid !== 'string'
       ) {
-        session.delete();
+        this.clearAuthSession(session);
       }
 
       if (!session) {
         throw new InternalServerErrorException('Session not available');
+      }
+
+      if (
+        typeof userId === 'string' &&
+        typeof tenantId === 'string' &&
+        typeof mid === 'string'
+      ) {
+        const [existingUser, existingTenant] = await Promise.all([
+          this.authService.findUserById(userId),
+          this.authService.findTenantById(tenantId),
+        ]);
+
+        if (existingUser && existingTenant) {
+          return { url: '/', statusCode: 302 };
+        }
+
+        this.clearAuthSession(session);
       }
 
       if (jwt) {

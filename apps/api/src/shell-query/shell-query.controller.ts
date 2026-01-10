@@ -3,7 +3,6 @@ import {
   Post,
   Body,
   UseGuards,
-  Request,
   InternalServerErrorException,
   BadRequestException,
   HttpCode,
@@ -16,25 +15,30 @@ import {
   Query,
 } from '@nestjs/common';
 import { ShellQueryService } from './shell-query.service';
+import { ShellQuerySseService } from './shell-query-sse.service';
 import { SessionGuard } from '../auth/session.guard';
 import { CsrfGuard } from '../auth/csrf.guard';
 import type { UserSession } from '../common/decorators/current-user.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { z } from 'zod';
-import { Observable, fromEvent, map, filter, finalize } from 'rxjs';
+import type { Observable } from 'rxjs';
 
 const createRunSchema = z.object({
   sqlText: z.string().min(1, 'SQL text is required'),
   snippetName: z.string().optional(),
 });
 
+type TenantRepository = {
+  findById(tenantId: string): Promise<{ eid: string } | null>;
+};
+
 @Controller('runs')
 @UseGuards(SessionGuard, CsrfGuard)
 export class ShellQueryController {
   constructor(
     private readonly shellQueryService: ShellQueryService,
-    @Inject('TENANT_REPOSITORY') private tenantRepo: any,
-    @Inject('REDIS_CLIENT') private readonly redis: any,
+    private readonly shellQuerySse: ShellQuerySseService,
+    @Inject('TENANT_REPOSITORY') private tenantRepo: TenantRepository,
   ) {}
 
   @Post()
@@ -67,11 +71,13 @@ export class ShellQueryController {
       );
 
       return { runId, status: 'queued' };
-    } catch (error: any) {
-      if (error.message.includes('Rate limit')) {
+    } catch (error: unknown) {
+      if (error instanceof Error && error.message.includes('Rate limit')) {
         throw new HttpException(error.message, HttpStatus.TOO_MANY_REQUESTS);
       }
-      throw new InternalServerErrorException(error.message);
+      throw new InternalServerErrorException(
+        error instanceof Error ? error.message : 'Unknown error',
+      );
     }
   }
 
@@ -86,39 +92,7 @@ export class ShellQueryController {
       throw new BadRequestException('Run not found or unauthorized');
     }
 
-    // 2. Rate limiting (max 5 simultaneous SSE per user)
-    const limitKey = `sse-limit:${user.userId}`;
-    const currentConnections = await this.redis.incr(limitKey);
-    await this.redis.expire(limitKey, 3600); // 1 hour TTL
-
-    if (currentConnections > 5) {
-      await this.redis.decr(limitKey);
-      throw new HttpException(
-        'Too many active connections',
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
-
-    let subRedis: any;
-    try {
-      const channel = `run-status:${runId}`;
-      subRedis = this.redis.duplicate();
-      await subRedis.subscribe(channel);
-
-      return fromEvent<[string, string]>(subRedis, 'message').pipe(
-        filter(([receivedChannel]) => channel === receivedChannel),
-        map(([, message]) => {
-          return { data: JSON.parse(message) } as MessageEvent;
-        }),
-        finalize(() => {
-          subRedis.quit().catch(() => {});
-          this.redis.decr(limitKey).catch(() => {});
-        }),
-      );
-    } catch (error) {
-      await this.redis.decr(limitKey);
-      throw error;
-    }
+    return this.shellQuerySse.streamRunEvents(runId, user.userId);
   }
 
   @Get(':runId/results')

@@ -7,11 +7,9 @@ import {
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { RlsContextService } from '../database/rls-context.service';
-import { shellQueryRuns } from '@qs-pro/database';
-import { eq, and, notInArray, count } from 'drizzle-orm';
 import * as crypto from 'crypto';
 import { MceBridgeService } from '../mce/mce-bridge.service';
+import type { ShellQueryRunRepository } from './shell-query-run.repository';
 
 export interface ShellQueryContext {
   tenantId: string;
@@ -27,9 +25,9 @@ export class ShellQueryService {
 
   constructor(
     @InjectQueue('shell-query') private shellQueryQueue: Queue,
-    private rlsContext: RlsContextService,
-    @Inject('DATABASE') private db: any,
     private mceBridge: MceBridgeService,
+    @Inject('SHELL_QUERY_RUN_REPOSITORY')
+    private readonly runRepo: ShellQueryRunRepository,
   ) {}
 
   async createRun(
@@ -44,7 +42,7 @@ export class ShellQueryService {
       .digest('hex');
 
     // 1. Check Rate Limit
-    const activeRuns = await this.countActiveRuns(context.userId);
+    const activeRuns = await this.runRepo.countActiveRuns(context.userId);
     if (activeRuns >= 10) {
       throw new Error(
         'Rate limit exceeded: Max 10 concurrent shell queries per user.',
@@ -52,21 +50,15 @@ export class ShellQueryService {
     }
 
     // 2. Persist initial state to DB
-    await this.rlsContext.runWithTenantContext(
-      context.tenantId,
-      context.mid,
-      async () => {
-        await this.db.insert(shellQueryRuns).values({
-          id: runId,
-          tenantId: context.tenantId,
-          userId: context.userId,
-          mid: context.mid,
-          snippetName,
-          sqlTextHash,
-          status: 'queued',
-        });
-      },
-    );
+    await this.runRepo.createRun({
+      id: runId,
+      tenantId: context.tenantId,
+      userId: context.userId,
+      mid: context.mid,
+      snippetName,
+      sqlTextHash,
+      status: 'queued',
+    });
 
     // 3. Add to Queue
     await this.shellQueryQueue.add(
@@ -97,17 +89,7 @@ export class ShellQueryService {
   }
 
   async getRun(runId: string, tenantId: string) {
-    const results = await this.db
-      .select()
-      .from(shellQueryRuns)
-      .where(
-        and(
-          eq(shellQueryRuns.id, runId),
-          eq(shellQueryRuns.tenantId, tenantId),
-        ),
-      );
-
-    return results[0];
+    return this.runRepo.findRun(runId, tenantId);
   }
 
   async getResults(
@@ -170,27 +152,8 @@ export class ShellQueryService {
       };
     }
 
-    await this.rlsContext.runWithTenantContext(tenantId, run.mid, async () => {
-      await this.db
-        .update(shellQueryRuns)
-        .set({ status: 'canceled', completedAt: new Date() })
-        .where(eq(shellQueryRuns.id, runId));
-    });
+    await this.runRepo.markCanceled(runId, tenantId, run.mid);
 
     return { status: 'canceled', runId };
-  }
-
-  private async countActiveRuns(userId: string): Promise<number> {
-    const result = await this.db
-      .select({ count: count() })
-      .from(shellQueryRuns)
-      .where(
-        and(
-          eq(shellQueryRuns.userId, userId),
-          notInArray(shellQueryRuns.status, ['ready', 'failed', 'canceled']),
-        ),
-      );
-
-    return result[0]?.count || 0;
   }
 }

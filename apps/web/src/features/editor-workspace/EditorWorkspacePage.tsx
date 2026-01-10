@@ -1,6 +1,11 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { EditorWorkspace } from "@/features/editor-workspace/components/EditorWorkspace";
-import { useMetadata } from "@/features/editor-workspace/hooks/use-metadata";
+import {
+  metadataQueryKeys,
+  useMetadata,
+} from "@/features/editor-workspace/hooks/use-metadata";
 import type { ExecutionResult } from "@/features/editor-workspace/types";
 import { useAuthStore } from "@/store/auth-store";
 
@@ -16,6 +21,7 @@ const emptyExecutionResult: ExecutionResult = {
 
 export function EditorWorkspacePage() {
   const { tenant } = useAuthStore();
+  const queryClient = useQueryClient();
   const {
     folders,
     dataExtensions,
@@ -26,6 +32,35 @@ export function EditorWorkspacePage() {
   const [executionResult, setExecutionResult] =
     useState<ExecutionResult>(emptyExecutionResult);
 
+  const errorKey = useMemo(() => {
+    if (!error) return null;
+    const status = error.status ? String(error.status) : "";
+    const path = error.path ?? "";
+    return `${error.kind}:${status}:${path}:${error.title}:${error.description ?? ""}`;
+  }, [error]);
+
+  const lastToastedErrorKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!errorKey || !error) return;
+    if (lastToastedErrorKeyRef.current === errorKey) return;
+    lastToastedErrorKeyRef.current = errorKey;
+
+    toast.error(error.title, {
+      description: error.description,
+      action: {
+        label: "Retry",
+        onClick: () => {
+          void queryClient.resetQueries({ queryKey: metadataQueryKeys.all });
+          void queryClient.invalidateQueries({
+            queryKey: metadataQueryKeys.all,
+            refetchType: "active",
+          });
+        },
+      },
+    });
+  }, [error, errorKey, queryClient]);
+
   const handlePageChange = (page: number) => {
     setExecutionResult((prev) => ({
       ...prev,
@@ -35,14 +70,9 @@ export function EditorWorkspacePage() {
 
   return (
     <div className="flex flex-1 flex-col min-h-0">
-      {error ? (
-        <div className="border-b border-error/20 bg-error/10 px-4 py-2 text-xs text-error">
-          {error}
-        </div>
-      ) : null}
       {isLoading ? (
         <div className="border-b border-border bg-card/50 px-4 py-2 text-xs text-muted-foreground">
-          Loading metadata...
+          Loading Data Extension metadata...
         </div>
       ) : null}
       <EditorWorkspace

@@ -7,6 +7,7 @@ import {
   useDataExtensionFields,
   useDataExtensions,
   useMetadataFolders,
+  useMetadata,
 } from "@/features/editor-workspace/hooks/use-metadata";
 
 vi.mock("@/services/metadata", () => ({
@@ -136,5 +137,33 @@ describe("use-metadata hooks", () => {
       expect(cachedResult.current.isSuccess).toBe(true);
     });
     expect(getFieldsMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("useMetadata_prefetchesDataExtensions_afterFoldersLoad", async () => {
+    const queryClient = createQueryClient();
+    const wrapper = createWrapper(queryClient);
+    const getFoldersMock = vi.mocked(metadataService.getFolders);
+    const getDataExtensionsMock = vi.mocked(metadataService.getDataExtensions);
+
+    getFoldersMock.mockResolvedValueOnce([{ ID: 10, Name: "Root", ParentFolder: null }]);
+    getDataExtensionsMock.mockResolvedValueOnce([
+      { CustomerKey: "DE_Alpha", Name: "Alpha", CategoryID: 200 },
+    ]);
+
+    const { result } = renderHook(
+      () => useMetadata({ tenantId: "tenant-1", eid: "eid-1" }),
+      { wrapper },
+    );
+
+    await waitFor(() => {
+      expect(result.current.folders.length).toBe(1);
+    });
+
+    await waitFor(() => {
+      expect(result.current.dataExtensions.length).toBe(1);
+    });
+
+    expect(getDataExtensionsMock).toHaveBeenCalledWith("eid-1");
+    expect(result.current.error).toBeNull();
   });
 });

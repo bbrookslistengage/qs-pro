@@ -5,6 +5,7 @@ import {
   useQueryClient,
   type UseQueryOptions,
 } from "@tanstack/react-query";
+import axios from "axios";
 import type {
   DataExtension,
   DataExtensionField,
@@ -25,7 +26,15 @@ interface MetadataState {
   dataExtensions: DataExtension[];
   isLoading: boolean;
   isDataExtensionsFetching: boolean;
-  error: string | null;
+  error: MetadataLoadError | null;
+}
+
+export interface MetadataLoadError {
+  kind: "folders" | "dataExtensions";
+  title: string;
+  description?: string;
+  status?: number;
+  path?: string;
 }
 
 interface DataExtensionsParams {
@@ -167,15 +176,79 @@ type DataFolderResponse = DataFolderResponseDto;
 type DataExtensionResponse = DataExtensionResponseDto;
 type DataExtensionFieldResponse = DataExtensionFieldResponseDto;
 
+const formatErrorDescription = (error: unknown) => {
+  if (!axios.isAxiosError(error)) {
+    return error instanceof Error ? error.message : "Unknown error";
+  }
+
+  const status = error.response?.status;
+  const responseData = error.response?.data as
+    | {
+        path?: string;
+        message?: unknown;
+      }
+    | undefined;
+
+  const path =
+    typeof responseData?.path === "string" ? responseData.path : undefined;
+
+  const message =
+    typeof responseData?.message === "string"
+      ? responseData.message
+      : responseData?.message
+        ? JSON.stringify(responseData.message)
+        : error.message;
+
+  const statusText =
+    typeof status === "number" ? `HTTP ${status}` : "Request failed";
+
+  return path ? `${statusText} • ${path} — ${message}` : `${statusText} — ${message}`;
+};
+
+const buildMetadataError = (
+  kind: MetadataLoadError["kind"],
+  error: unknown,
+): MetadataLoadError => {
+  const title =
+    kind === "folders"
+      ? "Couldn’t load Data Extension folders"
+      : "Couldn’t load Data Extensions";
+
+  if (!axios.isAxiosError(error)) {
+    return { kind, title, description: formatErrorDescription(error) };
+  }
+
+  const status = error.response?.status;
+  const responseData = error.response?.data as { path?: string } | undefined;
+  const path =
+    typeof responseData?.path === "string" ? responseData.path : undefined;
+
+  return {
+    kind,
+    title,
+    description: formatErrorDescription(error),
+    status,
+    path,
+  };
+};
+
+const fetchFolders = async (eid?: string): Promise<Folder[]> => {
+  const data = await getFolders(eid);
+  return mapFolders(Array.isArray(data) ? data : []);
+};
+
+const fetchDataExtensions = async (eid?: string): Promise<DataExtension[]> => {
+  if (!eid) return [];
+  const data = await getDataExtensions(eid);
+  return mapDataExtensions(Array.isArray(data) ? data : []);
+};
+
 const getFoldersQueryOptions = (
   tenantId?: string | null,
   eid?: string,
 ): UseQueryOptions<Folder[], Error> => ({
   queryKey: metadataQueryKeys.folders(tenantId, eid),
-  queryFn: async () => {
-    const data = await getFolders(eid);
-    return mapFolders(Array.isArray(data) ? data : []);
-  },
+  queryFn: () => fetchFolders(eid),
   staleTime: METADATA_STALE_TIME_MS,
   gcTime: METADATA_GC_TIME_MS,
   retry: false,
@@ -187,11 +260,7 @@ const getDataExtensionsQueryOptions = (
   eid?: string,
 ): UseQueryOptions<DataExtension[], Error> => ({
   queryKey: metadataQueryKeys.dataExtensions(tenantId, eid),
-  queryFn: async () => {
-    if (!eid) return [];
-    const data = await getDataExtensions(eid);
-    return mapDataExtensions(Array.isArray(data) ? data : []);
-  },
+  queryFn: () => fetchDataExtensions(eid),
   staleTime: METADATA_STALE_TIME_MS,
   gcTime: METADATA_GC_TIME_MS,
   retry: false,
@@ -289,9 +358,10 @@ export function useMetadata({
       queryKey: metadataQueryKeys.dataExtensions(tenantId, eid),
     }) > 0;
 
-  const error =
-    folderQuery.error || dataExtensionsQuery.error
-      ? "Unable to load metadata."
+  const error = folderQuery.error
+    ? buildMetadataError("folders", folderQuery.error)
+    : dataExtensionsQuery.error
+      ? buildMetadataError("dataExtensions", dataExtensionsQuery.error)
       : null;
 
   return {

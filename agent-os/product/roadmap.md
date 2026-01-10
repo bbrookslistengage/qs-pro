@@ -4,7 +4,31 @@ This roadmap outlines the development phases for Query++ (QS Pro), progressing f
 
 **Key Principle:** Security and observability infrastructure is built in Phase 1 so that all subsequent features are instrumented from the start—no painful retrofits.
 
-**Checklist mapping:** Roadmap items reference section numbers in `docs/security-review-materials/APPEXCHANGE-SECURITY-REVIEW-CHECKLIST.md` (example: “Checklist: 6” = Authentication and Session Management).
+**Checklist mapping:** Roadmap items reference section numbers in `docs/security-review-materials/APPEXCHANGE-SECURITY-REVIEW-CHECKLIST.md` (example: "Checklist: 6" = Authentication and Session Management).
+
+---
+
+## Changelog
+
+| Date | Change |
+|------|--------|
+| 2026-01-10 | Added feature tier definitions (Core/Pro/Enterprise) based on brainstorming session. Added version control and promotion features. Reorganized Phase 3 to align with tier structure. |
+
+---
+
+## Feature Tiers
+
+Features are organized into three tiers based on target buyer and value proposition:
+
+| Tier | Target Buyer | Value Proposition |
+|------|--------------|-------------------|
+| **Core/Free** | Individual developers, consultants | "Stop the bleeding" — modern editor experience that solves daily pain points |
+| **Pro** | Power users, individual architects | "Productivity + persistence" — version history, one-click deploy, efficiency tools |
+| **Enterprise** | Teams, agencies, global brands | "Governed promotion + collaboration" — QA→Prod workflow, team features, audit |
+
+See Phase 3 for detailed feature breakdowns by tier.
+
+---
 
 ## How to Read This
 
@@ -217,30 +241,150 @@ Team organization features for enterprises with multiple teams.
 
 Advanced features that differentiate Pro and Enterprise tiers. Built on top of core product and team infrastructure.
 
+> **Brainstorming references:**
+> - `docs/brainstorming/version-control/2026-01-09-query-version-control-two-way-sync-brainstorm.md`
+> - `docs/brainstorming/version-control/2026-01-10-query-version-control-mvp-promotion-and-governance-brainstorm.md`
+
+### Core/Free Tier Features
+
+These features ship in Phase 1 and are available to all users. Listed here for tier completeness.
+
+| Feature | Phase | Status |
+|---------|-------|--------|
+| Monaco editor + syntax highlighting | 1 | ✓ Complete |
+| DE/field autocomplete (from metadata cache) | 1 | ✓ Complete |
+| Data Views autocomplete + joins (hardcoded schemas) | 1 | ✓ Complete |
+| MCE-specific linting (MCE-SQL-REFERENCE aligned) | 1 | ✓ Complete |
+| Real-time result preview (Shell Query) | 1 | In progress |
+| Query prettify/format | 1 | Planned |
+| Import query content from Automation Studio | 1 | Planned |
+| Create target DE from query definition | 1 | Planned |
+| Silent auto-retry for transient MCE errors | 1 | Planned |
+| Keyboard shortcuts (Cmd+Enter, etc.) | 1 | Planned |
+
 ### Pro Tier Features
 
-Features for individual architects and power users.
+Features for individual architects and power users. Value prop: "Productivity + persistence."
+
+- [ ] **Sample Value Hover** — Quick field value lookup via API call. `S`
+  - Hover over field, click to fetch sample non-null value from DE
+  - Helps users remember what values exist in a field
+
+- [ ] **Smart Fix-It** — Auto-fix lint errors with one click. `M`
+  - Transform LIMIT → TOP
+  - Fix common MCE SQL dialect mistakes
+  - Suggest corrections inline in editor
+
+- [ ] **Personal Query Snippets** — Save/reuse SQL patterns (private to user). `M`
+  - CRUD for personal snippets
+  - Insert snippet into editor
+  - Not shared with team (workspace snippets are Enterprise)
+  - Checklist: 5 (Access control), 9 (Input validation)
+
+- [ ] **Multiple Editor Tabs** — Work on several queries simultaneously. `M`
+  - Tab management UI
+  - Unsaved changes indicators
+  - Tab persistence across sessions
+
+- [ ] **Performance Linting** — Warn on known slow query patterns. `L`
+  > See: `docs/epics/query-performance-analyzer.md`
+  - Detect non-SARGable patterns, large Data View joins
+  - Timeout risk warnings (30-minute limit)
+  - No actual performance data from MCE (not exposed)
+
+- [ ] **Query Execution History** — View past runs, durations, row counts. `M`
+  - Per-user history of query executions
+  - Filter by date, query, status
+  - Re-run from history
+
+- [ ] **Linear Version History + Rollback** — Never lose work, append-only history. `M`
+  - Every save creates immutable version
+  - View timeline of all changes with diff
+  - Rollback = create new version with old content (nothing deleted)
+  - Audit trail preserved
+
+- [ ] **Create Query Activity (One-Way Push)** — Deploy query to MCE as Query Activity. `M`
+  - One-click push to single MCE target
+  - Create associated target DE
+  - "Fire and forget" — no ongoing sync relationship
+  - Checklist: 5 (Authorization), 6 (CSRF), 9 (Input validation)
 
 - [ ] **Pre-Flight Query Validation** — Detect PK conflicts and nullability violations before saving to Target DEs. `M`
   - Schema validation against target DE structure
   - PK conflict detection
   - Nullability warnings
 
-- [ ] **Query Performance Analyzer** — Intelligence linter to detect timeout risks. `L`
-  > See: `docs/epics/query-performance-analyzer.md`
-  - SQL parser for join analysis
-  - Heuristics for "performance killers" (non-SARGable queries, missing indexes)
-  - Timeout risk warnings (30-minute limit detection)
-
 ### Enterprise Tier Features
 
-Features for global brands and agencies with team collaboration needs.
+Features for global brands and agencies with team collaboration needs. Value prop: "Governed promotion + collaboration."
 
-- [ ] **Team Snippet Libraries** — Full `teamSnippets` feature with workspace organization. `M`
-  - Shared snippet folders within workspaces
+#### Version Control & Promotion
+> See: `docs/brainstorming/version-control/2026-01-10-query-version-control-mvp-promotion-and-governance-brainstorm.md`
+
+- [ ] **Deploy Targets (QA + Prod)** — Distinct environments with own Query Activity + DE. `L`
+  - Each target has its own linked MCE artifacts
+  - Both exist concurrently (not renamed/swapped)
+  - UI shows: "QA pinned to vX", "Prod pinned to vY"
+  - Last publish metadata (timestamp + actor)
+
+- [ ] **Promotion Flow (QA → Prod)** — Governed promotion with diff and reason. `M`
+  - Choose version to promote (default: QA pinned version)
+  - Show diff versus currently pinned Prod version
+  - Require "Reason" for any Prod change
+  - Publish + verify (re-read remote to confirm)
+  - Checklist: 5 (Authorization), 12 (Audit logging)
+
+- [ ] **Drift Detection + Resolution** — Block publish until drift resolved. `M`
+  - Sync statuses: In sync / Q++ ahead / MCE ahead / Diverged
+  - If MCE edited outside Q++, block publish
+  - Resolution: Overwrite (push Q++) / Pull (bring MCE into Q++) / Cancel
+  - Pull creates new version + updates target pin
+  - Checklist: 12 (Audit logging)
+
+- [ ] **Selective Import** — Bring existing MCE Query Activities under Q++ management. `M`
+  - Guided import flow (filterable by BU, folder, last-modified, name)
+  - Strong framing: "Bring specific activities under management"
+  - Avoid bloat from "import everything"
+
+#### Collaboration & Organization
+
+- [ ] **Shared Team Snippets** — Workspace-scoped reusable patterns. `M`
+  - Extend snippets with `workspace_id`
+  - Visibility levels: private, workspace, tenant
   - Snippet permissions (view, edit, delete)
-  - Snippet usage analytics
   - Checklist: 5 (Broken access control), 12 (Audit logging)
+
+- [ ] **Environment Variables** — DE prefixes, date formats per environment. `M`
+  - Define variables per Deploy Target (QA/Prod)
+  - Variable substitution at publish time
+  - Examples: `{{DE_PREFIX}}`, `{{DATE_FORMAT}}`
+
+- [ ] **Dependency Mapping** — Show where queries exist in automations. `L`
+  - Link queries to Automation Studio automations
+  - Show "blast radius" of changes
+  - Read-only initially (no automation editing)
+
+#### Governance & Compliance
+
+- [ ] **RBAC for Deploy Permissions** — Control who can publish to Prod. `M`
+  - Layer Q++ permissions on top of MCE permissions
+  - Stricter-than-MCE controls for Prod publish
+  - Effective permission = Q++ policy AND MCE permission
+  - Checklist: 5 (Broken access control)
+
+- [ ] **Audit Logs (Viewer + Export)** — Who did what, when, why. `M`
+  - Filterable log viewer (by user, action, date range)
+  - CSV/JSON export capability
+  - Logs captured for all tiers; viewing is Enterprise-only
+  - Checklist: 12 (Audit logging)
+
+- [ ] **Advanced Audit & Compliance** — Enhanced audit for regulated industries. `M`
+  - Log streaming to external SIEM (Datadog, Splunk)
+  - Extended retention (1-2 years)
+  - Compliance report generation
+  - Checklist: 12 (Audit logging + monitoring), 13 (Enterprise security policies)
+
+#### Future Enterprise (Post-MVP, Customer Signal Needed)
 
 - [ ] **System Data View Scenario Builder** — Pre-built join templates for complex Data View queries. `M`
   - Journey/Click/Open flow templates
@@ -254,11 +398,10 @@ Features for global brands and agencies with team collaboration needs.
   - Shared folder support for cross-BU DEs
   - Checklist: 5 (Authorization), 6 (CSRF on state-changing operations), 9 (Outbound request safety)
 
-- [ ] **Advanced Audit & Compliance** — Enhanced audit capabilities for regulated industries. `M`
-  - Log streaming to external SIEM (Datadog, Splunk)
-  - Extended retention (1-2 years)
-  - Compliance report generation
-  - Checklist: 12 (Audit logging + monitoring), 13 (Enterprise security policies)
+- [ ] **Branching + Fork** — Safe experimentation with branch-to-query promotion. `L`
+  - Internal to Q++ (branches don't create MCE activities)
+  - Fork branch into new Managed Query with provenance
+  - Deferred until customer signal indicates need
 
 ---
 
@@ -343,3 +486,7 @@ Final hardening and compliance work before AppExchange submission. This starts a
 - **Feature flags:** All tier-specific features gated via `FeatureKey` system in `packages/shared-types/src/features.ts`.
 - **Audit logging:** Infrastructure in Phase 1; viewer UI in Phase 2. Logs captured for all tiers; viewing is enterprise-only.
 - **SQL guardrails:** All SQL linting/autocomplete behavior must align with `apps/web/src/features/editor-workspace/utils/sql-lint/MCE-SQL-REFERENCE.md`.
+- **Tier philosophy:** Core solves daily pain points (editor UX). Pro adds productivity + persistence (version history, one-way deploy). Enterprise adds governance + collaboration (QA→Prod promotion, team features, RBAC).
+- **Version control model:** Append-only history (Pro), Deploy Targets with promotion flow (Enterprise). See `docs/brainstorming/version-control/` for design details.
+- **Licensing model:** AppExchange org-level licensing (per-seat or per-org). Individual users cannot upgrade independently within a client org; the org admin controls seat assignment.
+- **MVP strategy:** Phased launch (Option C) — ship Core + key Enterprise features, add remaining based on customer demand. Avoid over-building before validation.

@@ -1,31 +1,24 @@
-import axios from "axios";
+import axios, { type AxiosRequestConfig } from "axios";
 import { useAuthStore } from "@/store/auth-store";
 import { toast } from "sonner";
 
+type RetriableRequestConfig = AxiosRequestConfig & { _retry?: boolean };
+
 const api = axios.create({
   baseURL: "/api",
-});
-
-api.interceptors.request.use((config) => {
-  const method = (config.method ?? "get").toLowerCase();
-  const isUnsafe =
-    method === "post" || method === "put" || method === "patch" || method === "delete";
-  if (!isUnsafe) return config;
-
-  const csrfToken = useAuthStore.getState().csrfToken;
-  if (!csrfToken) return config;
-
-  config.headers = config.headers ?? {};
-  config.headers["x-csrf-token"] = csrfToken;
-  return config;
+  withCredentials: true,
 });
 
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config;
+    const originalRequest = error.config as RetriableRequestConfig | undefined;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry
+    ) {
       originalRequest._retry = true;
 
       const { user, tenant, logout } = useAuthStore.getState();
@@ -33,7 +26,7 @@ api.interceptors.response.use(
       if (user && tenant) {
         try {
           // Attempt silent refresh
-          await axios.get("/auth/refresh", { baseURL: "/api" });
+          await api.get("/auth/refresh", { _retry: true } as RetriableRequestConfig);
 
           // Retry the original request
           return api(originalRequest);

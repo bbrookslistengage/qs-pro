@@ -1,5 +1,6 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import type { TenantFeatures } from "@qs-pro/shared-types";
+import { getTenantFeatures } from "@/services/features";
 
 export const featuresQueryKeys = {
   all: ["features"] as const,
@@ -7,20 +8,12 @@ export const featuresQueryKeys = {
     [...featuresQueryKeys.all, "tenant", tenantId ?? "unknown"] as const,
 };
 
-const fetchTenantFeatures = async (): Promise<TenantFeatures> => {
-  const response = await fetch("/api/features", { credentials: "include" });
-  if (!response.ok) {
-    throw new Error("Failed to fetch tenant features");
-  }
-  return response.json() as Promise<TenantFeatures>;
-};
-
 export function useTenantFeatures(
   tenantId?: string | null,
 ): UseQueryResult<TenantFeatures, Error> {
   return useQuery({
     queryKey: featuresQueryKeys.tenant(tenantId),
-    queryFn: fetchTenantFeatures,
+    queryFn: getTenantFeatures,
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: false,
   });

@@ -11,26 +11,14 @@ import type {
   Folder,
   SFMCFieldType,
 } from "@/features/editor-workspace/types";
-
-interface DataFolderResponse {
-  ID?: string | number;
-  Name?: string;
-  ParentFolder?: { ID?: string | number } | null;
-}
-
-interface DataExtensionResponse {
-  CustomerKey?: string;
-  Name?: string;
-  CategoryID?: string | number;
-}
-
-interface DataExtensionFieldResponse {
-  Name?: string;
-  FieldType?: string;
-  MaxLength?: number | string;
-  IsPrimaryKey?: boolean | string;
-  IsRequired?: boolean | string;
-}
+import {
+  getDataExtensions,
+  getFields,
+  getFolders,
+  type DataExtensionFieldResponseDto,
+  type DataExtensionResponseDto,
+  type DataFolderResponseDto,
+} from "@/services/metadata";
 
 interface MetadataState {
   folders: Folder[];
@@ -175,36 +163,19 @@ const mapFields = (raw: DataExtensionFieldResponse[]): DataExtensionField[] => {
     .filter((field): field is DataExtensionField => Boolean(field));
 };
 
-const fetchJson = async <T>(url: string): Promise<T> => {
-  const response = await fetch(url, { credentials: "include" });
-  if (!response.ok) {
-    throw new Error("Metadata request failed");
-  }
-  return response.json() as Promise<T>;
-};
-
-const fetchDataExtensions = async (eid?: string) => {
-  if (!eid) return [];
-  const data = await fetchJson<DataExtensionResponse[]>(
-    `/api/metadata/data-extensions?eid=${encodeURIComponent(eid)}`,
-  );
-  return mapDataExtensions(Array.isArray(data) ? data : []);
-};
-
-const fetchFolders = async (eid?: string) => {
-  const query = eid ? `?eid=${encodeURIComponent(eid)}` : "";
-  const data = await fetchJson<DataFolderResponse[]>(
-    `/api/metadata/folders${query}`,
-  );
-  return mapFolders(Array.isArray(data) ? data : []);
-};
+type DataFolderResponse = DataFolderResponseDto;
+type DataExtensionResponse = DataExtensionResponseDto;
+type DataExtensionFieldResponse = DataExtensionFieldResponseDto;
 
 const getFoldersQueryOptions = (
   tenantId?: string | null,
   eid?: string,
 ): UseQueryOptions<Folder[], Error> => ({
   queryKey: metadataQueryKeys.folders(tenantId, eid),
-  queryFn: () => fetchFolders(eid),
+  queryFn: async () => {
+    const data = await getFolders(eid);
+    return mapFolders(Array.isArray(data) ? data : []);
+  },
   staleTime: METADATA_STALE_TIME_MS,
   gcTime: METADATA_GC_TIME_MS,
   retry: false,
@@ -216,7 +187,11 @@ const getDataExtensionsQueryOptions = (
   eid?: string,
 ): UseQueryOptions<DataExtension[], Error> => ({
   queryKey: metadataQueryKeys.dataExtensions(tenantId, eid),
-  queryFn: () => fetchDataExtensions(eid),
+  queryFn: async () => {
+    if (!eid) return [];
+    const data = await getDataExtensions(eid);
+    return mapDataExtensions(Array.isArray(data) ? data : []);
+  },
   staleTime: METADATA_STALE_TIME_MS,
   gcTime: METADATA_GC_TIME_MS,
   retry: false,
@@ -230,9 +205,7 @@ export const buildFieldsQueryOptions = (
   queryKey: metadataQueryKeys.fields(tenantId, customerKey),
   queryFn: async () => {
     if (!customerKey) return [];
-    const data = await fetchJson<DataExtensionFieldResponse[]>(
-      `/api/metadata/fields?key=${encodeURIComponent(customerKey)}`,
-    );
+    const data = await getFields(customerKey);
     return mapFields(Array.isArray(data) ? data : []);
   },
   staleTime: METADATA_STALE_TIME_MS,

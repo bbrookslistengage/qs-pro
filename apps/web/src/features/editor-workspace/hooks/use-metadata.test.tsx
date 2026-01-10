@@ -2,11 +2,18 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as metadataService from "@/services/metadata";
 import {
   useDataExtensionFields,
   useDataExtensions,
   useMetadataFolders,
 } from "@/features/editor-workspace/hooks/use-metadata";
+
+vi.mock("@/services/metadata", () => ({
+  getFolders: vi.fn(),
+  getDataExtensions: vi.fn(),
+  getFields: vi.fn(),
+}));
 
 const createWrapper = (queryClient: QueryClient) => {
   return function Wrapper({ children }: { children: ReactNode }) {
@@ -32,14 +39,11 @@ describe("use-metadata hooks", () => {
     // Arrange
     const queryClient = createQueryClient();
     const wrapper = createWrapper(queryClient);
-    const fetchMock = vi.fn().mockResolvedValueOnce({
-      ok: true,
-      json: async () => [
-        { ID: 10, Name: "Root", ParentFolder: null },
-        { ID: 11, Name: "Child", ParentFolder: { ID: 10 } },
-      ],
-    });
-    vi.stubGlobal("fetch", fetchMock);
+    const getFoldersMock = vi.mocked(metadataService.getFolders);
+    getFoldersMock.mockResolvedValueOnce([
+      { ID: 10, Name: "Root", ParentFolder: null },
+      { ID: 11, Name: "Child", ParentFolder: { ID: 10 } },
+    ]);
 
     // Act
     const { result } = renderHook(
@@ -53,10 +57,7 @@ describe("use-metadata hooks", () => {
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/metadata/folders?eid=eid-1",
-      expect.any(Object),
-    );
+    expect(getFoldersMock).toHaveBeenCalledWith("eid-1");
     expect(result.current.data).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: "10", name: "Root", parentId: null }),
@@ -69,13 +70,10 @@ describe("use-metadata hooks", () => {
     // Arrange
     const queryClient = createQueryClient();
     const wrapper = createWrapper(queryClient);
-    const fetchMock = vi.fn().mockResolvedValueOnce({
-      ok: true,
-      json: async () => [
-        { CustomerKey: "DE_Alpha", Name: "Alpha", CategoryID: 200 },
-      ],
-    });
-    vi.stubGlobal("fetch", fetchMock);
+    const getDataExtensionsMock = vi.mocked(metadataService.getDataExtensions);
+    getDataExtensionsMock.mockResolvedValueOnce([
+      { CustomerKey: "DE_Alpha", Name: "Alpha", CategoryID: 200 },
+    ]);
 
     // Act
     const { result } = renderHook(
@@ -87,6 +85,7 @@ describe("use-metadata hooks", () => {
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
+    expect(getDataExtensionsMock).toHaveBeenCalledWith("123");
     expect(result.current.data).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -103,14 +102,11 @@ describe("use-metadata hooks", () => {
     // Arrange
     const queryClient = createQueryClient();
     const wrapper = createWrapper(queryClient);
-    const fetchMock = vi.fn().mockResolvedValueOnce({
-      ok: true,
-      json: async () => [
-        { Name: "EmailAddress", FieldType: "Text", IsRequired: true },
-        { Name: "CreatedDate", FieldType: "Date", IsRequired: false },
-      ],
-    });
-    vi.stubGlobal("fetch", fetchMock);
+    const getFieldsMock = vi.mocked(metadataService.getFields);
+    getFieldsMock.mockResolvedValueOnce([
+      { Name: "EmailAddress", FieldType: "Text", IsRequired: true },
+      { Name: "CreatedDate", FieldType: "Date", IsRequired: false },
+    ]);
 
     // Act
     const { result } = renderHook(
@@ -139,6 +135,6 @@ describe("use-metadata hooks", () => {
     await waitFor(() => {
       expect(cachedResult.current.isSuccess).toBe(true);
     });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getFieldsMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -6,10 +6,29 @@ import { AppShell } from "@/components/app-shell";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { consumeEmbeddedJwt } from "@/services/embedded-jwt";
-import axios from "axios";
+import { getMe, loginWithJwt } from "@/services/auth";
 
 function isProbablyJwt(candidate: string): boolean {
   return /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(candidate);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getHttpStatus(error: unknown): number | null {
+  if (!isRecord(error)) return null;
+  const response = error.response;
+  if (!isRecord(response)) return null;
+  const status = response.status;
+  return typeof status === "number" ? status : null;
+}
+
+function getHttpData(error: unknown): unknown {
+  if (!isRecord(error)) return undefined;
+  const response = error.response;
+  if (!isRecord(response)) return undefined;
+  return response.data;
 }
 
 function App() {
@@ -34,42 +53,43 @@ function App() {
 
     const checkAuth = async (): Promise<void> => {
       try {
-        const response = await axios.get("/api/auth/me");
+        const response = await getMe();
         if (cancelled) return;
-        setAuth(response.data.user, response.data.tenant, response.data.csrfToken);
+        setAuth(response.user, response.tenant, response.csrfToken);
       } catch (err) {
         if (cancelled) return;
-        if (axios.isAxiosError(err)) {
-          if (
-            err.response?.status === 401 &&
-            typeof err.response?.data === "object" &&
-            err.response?.data !== null &&
-            "reason" in err.response.data &&
-            (err.response.data as { reason?: unknown }).reason === "reauth_required"
-          ) {
-            logout();
-            setShowLaunchHelp(true);
+        const status = getHttpStatus(err);
+        const data = getHttpData(err);
+        if (
+          status === 401 &&
+          isRecord(data) &&
+          data.reason === "reauth_required"
+        ) {
+          logout();
+          setShowLaunchHelp(true);
+          return;
+        }
+        if (status === 401) {
+          logout();
+          if (isEmbedded && !oauthRedirectAttempted) {
+            setOauthRedirectAttempted(true);
+            window.location.assign("/api/auth/login");
             return;
           }
-          if (err.response?.status === 401) {
-            logout();
-            if (isEmbedded && !oauthRedirectAttempted) {
-              setOauthRedirectAttempted(true);
-              window.location.assign("/api/auth/login");
-              return;
-            }
-            if (isEmbedded && attempt < maxAttempts) {
-              attempt += 1;
-              const delayMs = Math.min(1000 * attempt, 5000);
-              window.setTimeout(() => {
-                void checkAuth();
-              }, delayMs);
-              return;
-            }
-            setShowLaunchHelp(true);
+          if (isEmbedded && attempt < maxAttempts) {
+            attempt += 1;
+            const delayMs = Math.min(1000 * attempt, 5000);
+            window.setTimeout(() => {
+              void checkAuth();
+            }, delayMs);
             return;
           }
-          setError(err.message || "Failed to connect to backend");
+          setShowLaunchHelp(true);
+          return;
+        }
+
+        if (isRecord(err) && typeof err.message === "string" && err.message) {
+          setError(err.message);
           return;
         }
         setError("Failed to connect to backend");
@@ -94,15 +114,11 @@ function App() {
       if (cancelled || loginInFlight) return;
       loginInFlight = true;
       try {
-        await axios.post(
-          "/api/auth/login",
-          { jwt },
-          { headers: { Accept: "application/json" } },
-        );
+        await loginWithJwt(jwt);
         if (cancelled) return;
-        const response = await axios.get("/api/auth/me");
+        const response = await getMe();
         if (cancelled) return;
-        setAuth(response.data.user, response.data.tenant, response.data.csrfToken);
+        setAuth(response.user, response.tenant, response.csrfToken);
       } catch {
         // Intentionally ignore; backend will reject invalid/expired JWTs.
       } finally {
@@ -110,7 +126,7 @@ function App() {
       }
     };
 
-    const handleMessage = (event: MessageEvent): void => {
+    const handleMessage = (_event: MessageEvent): void => {
       if (cancelled) return;
       const jwt = consumeEmbeddedJwt();
       if (jwt) void tryJwtLogin(jwt);

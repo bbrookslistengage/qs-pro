@@ -4,17 +4,17 @@ import {
   UnauthorizedException,
   Logger,
   InternalServerErrorException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
-import * as jose from 'jose';
-import { encrypt, decrypt } from '@qs-pro/database';
-import { RlsContextService } from '../database/rls-context.service';
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import axios from "axios";
+import * as jose from "jose";
+import { encrypt, decrypt } from "@qs-pro/database";
+import { RlsContextService } from "../database/rls-context.service";
 import type {
   ITenantRepository,
   IUserRepository,
   ICredentialsRepository,
-} from '@qs-pro/database';
+} from "@qs-pro/database";
 
 export interface MceTokenResponse {
   access_token: string;
@@ -33,32 +33,32 @@ export class AuthService {
     string,
     Promise<{ accessToken: string; tssd: string }>
   >();
-  private readonly allowedJwtAlgorithms: jose.JWTVerifyOptions['algorithms'] = [
-    'HS256',
+  private readonly allowedJwtAlgorithms: jose.JWTVerifyOptions["algorithms"] = [
+    "HS256",
   ];
 
   constructor(
     private configService: ConfigService,
-    @Inject('TENANT_REPOSITORY') private tenantRepo: ITenantRepository,
-    @Inject('USER_REPOSITORY') private userRepo: IUserRepository,
-    @Inject('CREDENTIALS_REPOSITORY') private credRepo: ICredentialsRepository,
+    @Inject("TENANT_REPOSITORY") private tenantRepo: ITenantRepository,
+    @Inject("USER_REPOSITORY") private userRepo: IUserRepository,
+    @Inject("CREDENTIALS_REPOSITORY") private credRepo: ICredentialsRepository,
     private readonly rlsContext: RlsContextService,
   ) {}
 
   async verifyMceJwt(jwt: string) {
-    const secret = this.configService.get<string>('MCE_JWT_SIGNING_SECRET');
+    const secret = this.configService.get<string>("MCE_JWT_SIGNING_SECRET");
     if (!secret) {
       throw new InternalServerErrorException(
-        'MCE_JWT_SIGNING_SECRET not configured',
+        "MCE_JWT_SIGNING_SECRET not configured",
       );
     }
 
     try {
       const encodedSecret = new TextEncoder().encode(secret);
       const issuer =
-        this.configService.get<string>('MCE_JWT_ISSUER') ?? undefined;
+        this.configService.get<string>("MCE_JWT_ISSUER") ?? undefined;
       const audience =
-        this.configService.get<string>('MCE_JWT_AUDIENCE') ?? undefined;
+        this.configService.get<string>("MCE_JWT_AUDIENCE") ?? undefined;
 
       const { payload } = await jose.jwtVerify(jwt, encodedSecret, {
         algorithms: this.allowedJwtAlgorithms,
@@ -74,7 +74,7 @@ export class AuthService {
       if (
         !tssd &&
         payload.application_context &&
-        typeof payload.application_context === 'object'
+        typeof payload.application_context === "object"
       ) {
         const appContext = payload.application_context as Record<
           string,
@@ -91,11 +91,11 @@ export class AuthService {
       }
 
       if (!sfUserId || !eid || !mid) {
-        throw new Error('JWT missing required identity claims');
+        throw new Error("JWT missing required identity claims");
       }
 
       if (!tssd) {
-        throw new Error('Could not determine TSSD from JWT');
+        throw new Error("Could not determine TSSD from JWT");
       }
 
       return {
@@ -106,10 +106,10 @@ export class AuthService {
       };
     } catch (error) {
       this.logger.error(
-        'JWT Verification failed',
+        "JWT Verification failed",
         error instanceof Error ? error.stack : error,
       );
-      throw new UnauthorizedException('Invalid MCE JWT');
+      throw new UnauthorizedException("Invalid MCE JWT");
     }
   }
 
@@ -117,28 +117,28 @@ export class AuthService {
     tssd: string,
     accountId?: string,
   ): Promise<MceTokenResponse> {
-    const clientId = this.configService.get<string>('MCE_CLIENT_ID');
-    const clientSecret = this.configService.get<string>('MCE_CLIENT_SECRET');
+    const clientId = this.configService.get<string>("MCE_CLIENT_ID");
+    const clientSecret = this.configService.get<string>("MCE_CLIENT_SECRET");
     const tokenUrl = `https://${tssd}.auth.marketingcloudapis.com/v2/token`;
 
     if (!clientId || !clientSecret) {
       throw new InternalServerErrorException(
-        'MCE client credentials not configured',
+        "MCE client credentials not configured",
       );
     }
 
     const body = new URLSearchParams({
-      grant_type: 'client_credentials',
+      grant_type: "client_credentials",
       client_id: clientId,
       client_secret: clientSecret,
     });
 
     if (accountId) {
-      body.set('account_id', accountId);
+      body.set("account_id", accountId);
     }
 
     const response = await axios.post<MceTokenResponse>(tokenUrl, body, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
     });
 
     return response.data;
@@ -175,11 +175,11 @@ export class AuthService {
   }
 
   getAuthUrl(tssd: string, state: string): string {
-    const clientId = this.configService.get<string>('MCE_CLIENT_ID');
+    const clientId = this.configService.get<string>("MCE_CLIENT_ID");
     const redirectUri =
-      this.configService.get<string>('MCE_REDIRECT_URI') || '';
+      this.configService.get<string>("MCE_REDIRECT_URI") || "";
     if (!clientId || !redirectUri) {
-      throw new InternalServerErrorException('MCE OAuth config not complete');
+      throw new InternalServerErrorException("MCE OAuth config not complete");
     }
     return `https://${tssd}.auth.marketingcloudapis.com/v2/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`;
   }
@@ -190,14 +190,14 @@ export class AuthService {
     fallbackCode?: string,
     accountId?: string,
   ): Promise<MceTokenResponse> {
-    const clientId = this.configService.get<string>('MCE_CLIENT_ID');
-    const clientSecret = this.configService.get<string>('MCE_CLIENT_SECRET');
-    const redirectUri = this.configService.get<string>('MCE_REDIRECT_URI');
+    const clientId = this.configService.get<string>("MCE_CLIENT_ID");
+    const clientSecret = this.configService.get<string>("MCE_CLIENT_SECRET");
+    const redirectUri = this.configService.get<string>("MCE_REDIRECT_URI");
 
     const tokenUrl = `https://${tssd}.auth.marketingcloudapis.com/v2/token`;
 
     if (!clientId || !clientSecret || !redirectUri) {
-      throw new InternalServerErrorException('MCE OAuth config not complete');
+      throw new InternalServerErrorException("MCE OAuth config not complete");
     }
 
     const codes =
@@ -205,7 +205,7 @@ export class AuthService {
 
     for (const attemptCode of codes) {
       const body = new URLSearchParams({
-        grant_type: 'authorization_code',
+        grant_type: "authorization_code",
         code: attemptCode,
         client_id: clientId,
         client_secret: clientSecret,
@@ -213,33 +213,33 @@ export class AuthService {
       });
 
       if (accountId) {
-        body.set('account_id', accountId);
+        body.set("account_id", accountId);
       }
 
       try {
         const response = await axios.post<MceTokenResponse>(tokenUrl, body, {
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
         });
         return response.data;
       } catch (error) {
         const errorCode = this.getOAuthErrorCode(error);
         const isLastAttempt = attemptCode === codes[codes.length - 1];
 
-        if (!isLastAttempt && errorCode === 'invalid_token') {
+        if (!isLastAttempt && errorCode === "invalid_token") {
           this.logger.warn(
-            'Auth code exchange failed, retrying with alternate code',
+            "Auth code exchange failed, retrying with alternate code",
           );
           continue;
         }
 
-        this.logTokenError('Auth code exchange failed', error);
+        this.logTokenError("Auth code exchange failed", error);
         throw new UnauthorizedException(
-          'Failed to exchange authorization code',
+          "Failed to exchange authorization code",
         );
       }
     }
 
-    throw new UnauthorizedException('Failed to exchange authorization code');
+    throw new UnauthorizedException("Failed to exchange authorization code");
   }
 
   async refreshToken(
@@ -269,9 +269,9 @@ export class AuthService {
     mid: string,
     tokenData: MceTokenResponse,
   ) {
-    const encryptionKey = this.configService.get<string>('ENCRYPTION_KEY');
+    const encryptionKey = this.configService.get<string>("ENCRYPTION_KEY");
     if (!encryptionKey) {
-      throw new InternalServerErrorException('ENCRYPTION_KEY not configured');
+      throw new InternalServerErrorException("ENCRYPTION_KEY not configured");
     }
     const encryptedAccessToken = encrypt(tokenData.access_token, encryptionKey);
     const encryptedRefreshToken = encrypt(
@@ -331,7 +331,7 @@ export class AuthService {
     if (!effectiveSfUserId || !effectiveEid || !effectiveMid) {
       const info = await this.getUserInfo(tssd, tokenData.access_token);
       if (!info?.sub && !info?.user_id && !info?.user?.sub) {
-        this.logger.warn('Userinfo response missing user identifiers', {
+        this.logger.warn("Userinfo response missing user identifiers", {
           keys: Object.keys(info ?? {}),
           userKeys: Object.keys(info?.user ?? {}),
           orgKeys: Object.keys(info?.organization ?? {}),
@@ -345,10 +345,10 @@ export class AuthService {
         this.coerceId(info.user?.id) ||
         this.coerceId(info.user?.user_id) ||
         this.extractIdFromObject(info.user, [
-          'userId',
-          'userID',
-          'memberId',
-          'member_id',
+          "userId",
+          "userID",
+          "memberId",
+          "member_id",
         ]);
       effectiveEid =
         effectiveEid ||
@@ -357,11 +357,11 @@ export class AuthService {
         this.coerceId(info.organization?.id) ||
         this.coerceId(info.organization?.org_id) ||
         this.extractIdFromObject(info.organization, [
-          'enterpriseId',
-          'enterpriseID',
-          'orgId',
-          'orgID',
-          'eid',
+          "enterpriseId",
+          "enterpriseID",
+          "orgId",
+          "orgID",
+          "eid",
         ]);
       effectiveEmail = effectiveEmail || info.email || info.user?.email;
       effectiveName =
@@ -371,17 +371,17 @@ export class AuthService {
         this.coerceId(info.member_id) ||
         this.coerceId(info.user?.member_id) ||
         this.coerceId(info.organization?.member_id) ||
-        this.extractIdFromObject(info.user, ['mid', 'member_id', 'memberId']) ||
+        this.extractIdFromObject(info.user, ["mid", "member_id", "memberId"]) ||
         this.extractIdFromObject(info.organization, [
-          'mid',
-          'member_id',
-          'memberId',
+          "mid",
+          "member_id",
+          "memberId",
         ]);
     }
 
     if (!effectiveSfUserId || !effectiveEid || !effectiveMid) {
       throw new UnauthorizedException(
-        'Could not determine MCE User ID, Enterprise ID, or MID',
+        "Could not determine MCE User ID, Enterprise ID, or MID",
       );
     }
 
@@ -413,7 +413,7 @@ export class AuthService {
       const direct = this.coerceId(value);
       if (direct) return direct;
 
-      if (value && typeof value === 'object') {
+      if (value && typeof value === "object") {
         const nested = value as Record<string, unknown>;
         const nestedId = this.coerceId(nested.id ?? nested.value);
         if (nestedId) return nestedId;
@@ -424,12 +424,12 @@ export class AuthService {
   }
 
   private coerceId(value: unknown): string | undefined {
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       const trimmed = value.trim();
       return trimmed ? trimmed : undefined;
     }
 
-    if (typeof value === 'number' && Number.isFinite(value)) {
+    if (typeof value === "number" && Number.isFinite(value)) {
       return String(value);
     }
 
@@ -439,12 +439,12 @@ export class AuthService {
   private extractAuthCode(
     code: string,
   ): { authCode: string; eid?: string } | undefined {
-    if (!code.includes('.')) return undefined;
-    const parts = code.split('.');
+    if (!code.includes(".")) return undefined;
+    const parts = code.split(".");
     if (parts.length < 2) return undefined;
 
     try {
-      const payloadJson = Buffer.from(parts[1], 'base64url').toString('utf8');
+      const payloadJson = Buffer.from(parts[1], "base64url").toString("utf8");
       const payload = JSON.parse(payloadJson) as {
         auth_code?: string;
         eid?: number | string;
@@ -456,7 +456,7 @@ export class AuthService {
       };
     } catch (error) {
       this.logger.debug(
-        'Failed to parse embedded auth code',
+        "Failed to parse embedded auth code",
         error instanceof Error ? error.stack : error,
       );
       return undefined;
@@ -468,7 +468,7 @@ export class AuthService {
       const status = error.response?.status;
       const data = error.response?.data;
       this.logger.error(
-        `${message} (${status ?? 'unknown status'})`,
+        `${message} (${status ?? "unknown status"})`,
         data ? JSON.stringify(data) : undefined,
       );
       return;
@@ -484,7 +484,7 @@ export class AuthService {
     if (!axios.isAxiosError(error)) return undefined;
 
     const data = error.response?.data;
-    if (!data || typeof data !== 'object') return undefined;
+    if (!data || typeof data !== "object") return undefined;
 
     const errorCode = (data as { error?: string }).error;
     return errorCode ? String(errorCode) : undefined;
@@ -500,56 +500,56 @@ export class AuthService {
       tenantId,
       mid,
     );
-    if (!creds) throw new UnauthorizedException('No credentials found');
+    if (!creds) throw new UnauthorizedException("No credentials found");
 
     const tenant = await this.tenantRepo.findById(tenantId);
-    if (!tenant) throw new UnauthorizedException('Tenant not found');
+    if (!tenant) throw new UnauthorizedException("Tenant not found");
 
     if (creds.accessToken && this.isAccessTokenValid(creds.expiresAt)) {
-      const encryptionKey = this.configService.get<string>('ENCRYPTION_KEY');
+      const encryptionKey = this.configService.get<string>("ENCRYPTION_KEY");
       if (!encryptionKey) {
-        throw new InternalServerErrorException('ENCRYPTION_KEY not configured');
+        throw new InternalServerErrorException("ENCRYPTION_KEY not configured");
       }
       const decryptedAccessToken = decrypt(creds.accessToken, encryptionKey);
       return { accessToken: decryptedAccessToken, tssd: tenant.tssd };
     }
 
-    const encryptionKey = this.configService.get<string>('ENCRYPTION_KEY');
+    const encryptionKey = this.configService.get<string>("ENCRYPTION_KEY");
     if (!encryptionKey) {
-      throw new InternalServerErrorException('ENCRYPTION_KEY not configured');
+      throw new InternalServerErrorException("ENCRYPTION_KEY not configured");
     }
 
     const decryptedRefreshToken = decrypt(creds.refreshToken, encryptionKey);
-    const clientId = this.configService.get<string>('MCE_CLIENT_ID');
-    const clientSecret = this.configService.get<string>('MCE_CLIENT_SECRET');
+    const clientId = this.configService.get<string>("MCE_CLIENT_ID");
+    const clientSecret = this.configService.get<string>("MCE_CLIENT_SECRET");
     const tokenUrl = `https://${tenant.tssd}.auth.marketingcloudapis.com/v2/token`;
 
     try {
       if (!clientId || !clientSecret) {
         throw new InternalServerErrorException(
-          'MCE client credentials not configured',
+          "MCE client credentials not configured",
         );
       }
 
       const body = new URLSearchParams({
-        grant_type: 'refresh_token',
+        grant_type: "refresh_token",
         refresh_token: decryptedRefreshToken,
         client_id: clientId,
         client_secret: clientSecret,
       });
 
-      body.set('account_id', mid);
+      body.set("account_id", mid);
 
       const response = await axios.post<MceTokenResponse>(tokenUrl, body, {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
       });
 
       const tokenData = response.data;
       await this.saveTokens(tenant.id, userId, mid, tokenData);
       return { accessToken: tokenData.access_token, tssd: tenant.tssd };
     } catch (error) {
-      this.logTokenError('Refresh token failed', error);
-      throw new UnauthorizedException('Failed to refresh token');
+      this.logTokenError("Refresh token failed", error);
+      throw new UnauthorizedException("Failed to refresh token");
     }
   }
 
@@ -566,12 +566,12 @@ export class AuthService {
   private assertValidTssd(value: string): string {
     const trimmed = value.trim();
     if (!trimmed) {
-      throw new Error('TSSD is empty');
+      throw new Error("TSSD is empty");
     }
 
     // Restrict to the expected stack subdomain format to prevent host injection.
     if (!/^[a-z0-9-]+$/i.test(trimmed)) {
-      throw new Error('TSSD has invalid format');
+      throw new Error("TSSD has invalid format");
     }
 
     return trimmed.toLowerCase();

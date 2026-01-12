@@ -5,8 +5,8 @@ import {
   HttpException,
   HttpStatus,
   Logger,
-} from '@nestjs/common';
-import { FastifyReply, FastifyRequest } from 'fastify';
+} from "@nestjs/common";
+import { FastifyReply, FastifyRequest } from "fastify";
 
 // Mock Sentry for now as we don't have the SDK installed yet
 const Sentry = {
@@ -21,7 +21,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
 
   private sanitizePath(url: string): string {
-    const idx = url.indexOf('?');
+    const idx = url.indexOf("?");
     return idx === -1 ? url : url.slice(0, idx);
   }
 
@@ -39,7 +39,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const message =
       exception instanceof HttpException
         ? exception.getResponse()
-        : 'Internal server error';
+        : "Internal server error";
 
     if (status >= 500) {
       this.logger.error(`[${status}] ${path}`, exception);

@@ -1,8 +1,8 @@
-import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import axios, { AxiosRequestConfig } from 'axios';
-import { AuthService } from '../auth/auth.service';
-import { parseSoapXml } from './soap-xml.util';
+import { Injectable, HttpException, HttpStatus } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import axios, { AxiosRequestConfig } from "axios";
+import { AuthService } from "../auth/auth.service";
+import { parseSoapXml } from "./soap-xml.util";
 
 export interface ProblemDetails {
   type: string;
@@ -10,7 +10,7 @@ export interface ProblemDetails {
   status: number;
   detail?: string;
   instance?: string;
-  [key: string]: any;
+  [key: string]: string | number | undefined;
 }
 
 @Injectable()
@@ -38,7 +38,7 @@ export class MceBridgeService {
   /**
    * Generic request wrapper handling token injection and error normalization
    */
-  async request<T = any>(
+  async request<T = unknown>(
     tenantId: string,
     userId: string,
     mid: string,
@@ -79,7 +79,7 @@ export class MceBridgeService {
     mid: string,
     soapBody: string,
     soapAction: string,
-  ): Promise<any> {
+  ): Promise<unknown> {
     try {
       const { accessToken, tssd } = await this.authService.refreshToken(
         tenantId,
@@ -91,17 +91,17 @@ export class MceBridgeService {
       const baseUrl = `https://${tssd}.soap.marketingcloudapis.com`;
 
       const response = await axios.request({
-        method: 'POST',
+        method: "POST",
         baseURL: baseUrl,
-        url: '/Service.asmx',
+        url: "/Service.asmx",
         headers: {
-          'Content-Type': 'text/xml',
+          "Content-Type": "text/xml",
           SOAPAction: soapAction,
         },
         data: envelope,
       });
 
-      return typeof response.data === 'string'
+      return typeof response.data === "string"
         ? parseSoapXml(response.data)
         : response.data;
     } catch (error) {
@@ -110,7 +110,7 @@ export class MceBridgeService {
     }
   }
 
-  private handleError(error: any): void {
+  private handleError(error: unknown): void {
     if (error instanceof HttpException) {
       throw error;
     }
@@ -120,10 +120,10 @@ export class MceBridgeService {
 
       const problem: ProblemDetails = {
         type: `https://httpstatuses.com/${status}`,
-        title: statusText || 'An error occurred',
+        title: statusText || "An error occurred",
         status: status,
         detail:
-          typeof data === 'string'
+          typeof data === "string"
             ? data
             : data?.message || JSON.stringify(data),
       };
@@ -133,10 +133,10 @@ export class MceBridgeService {
 
     // Non-Axios error or no response
     const problem: ProblemDetails = {
-      type: 'about:blank',
-      title: 'Internal Server Error',
+      type: "about:blank",
+      title: "Internal Server Error",
       status: HttpStatus.INTERNAL_SERVER_ERROR,
-      detail: error instanceof Error ? error.message : 'Unknown error',
+      detail: error instanceof Error ? error.message : "Unknown error",
     };
 
     throw new HttpException(problem, HttpStatus.INTERNAL_SERVER_ERROR);

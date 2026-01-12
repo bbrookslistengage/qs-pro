@@ -1,31 +1,33 @@
-import { Inject, Injectable, NestMiddleware } from '@nestjs/common';
-import type { FastifyReply, FastifyRequest } from 'fastify';
-import { runWithDbContext, getDbFromContext } from './db-context';
-import { createDatabaseFromClient } from '@qs-pro/database';
+import { Inject, Injectable, NestMiddleware } from "@nestjs/common";
+import type { FastifyReply, FastifyRequest } from "fastify";
+import { runWithDbContext, getDbFromContext } from "./db-context";
+import { createDatabaseFromClient, createSqlClient } from "@qs-pro/database";
 
 type SecureSession = {
   get(key: string): unknown;
 };
 
+type SqlClient = ReturnType<typeof createSqlClient>;
+
 @Injectable()
 export class RlsContextMiddleware implements NestMiddleware {
-  constructor(@Inject('SQL_CLIENT') private readonly sql: any) {}
+  constructor(@Inject("SQL_CLIENT") private readonly sql: SqlClient) {}
 
-  private makeDrizzleCompatibleSql(reserved: any): any {
+  private makeDrizzleCompatibleSql(reserved: SqlClient): SqlClient {
     // postgres.js `reserve()` returns a Sql tag function without `.options`, but
     // drizzle-orm's postgres-js driver expects `client.options.parsers` to exist.
     // Copy the base client options/parameters onto the reserved Sql tag.
-    if (!reserved || typeof reserved !== 'function') return reserved;
+    if (!reserved || typeof reserved !== "function") return reserved;
 
-    if (!('options' in reserved)) {
-      Object.defineProperty(reserved, 'options', {
+    if (!("options" in reserved)) {
+      Object.defineProperty(reserved, "options", {
         value: this.sql?.options,
         enumerable: false,
       });
     }
 
-    if (!('parameters' in reserved)) {
-      Object.defineProperty(reserved, 'parameters', {
+    if (!("parameters" in reserved)) {
+      Object.defineProperty(reserved, "parameters", {
         value: this.sql?.parameters,
         enumerable: false,
       });
@@ -44,10 +46,10 @@ export class RlsContextMiddleware implements NestMiddleware {
       return;
     }
 
-    const tenantId = req.session?.get('tenantId');
-    const mid = req.session?.get('mid');
+    const tenantId = req.session?.get("tenantId");
+    const mid = req.session?.get("mid");
 
-    if (typeof tenantId !== 'string' || typeof mid !== 'string') {
+    if (typeof tenantId !== "string" || typeof mid !== "string") {
       next();
       return;
     }
@@ -84,12 +86,12 @@ export class RlsContextMiddleware implements NestMiddleware {
       await reserved.release();
     };
 
-    res.raw.once('finish', () => void cleanup());
-    res.raw.once('close', () => void cleanup());
-    res.raw.once('error', () => void cleanup());
+    res.raw.once("finish", () => void cleanup());
+    res.raw.once("close", () => void cleanup());
+    res.raw.once("error", () => void cleanup());
 
     const db = createDatabaseFromClient(
-      this.makeDrizzleCompatibleSql(reserved),
+      this.makeDrizzleCompatibleSql(reserved as unknown as SqlClient),
     );
     runWithDbContext(db, next);
   }

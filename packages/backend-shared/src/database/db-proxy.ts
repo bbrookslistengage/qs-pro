@@ -1,4 +1,4 @@
-import { getDbFromContext } from './db-context';
+import { getDbFromContext } from "./db-context";
 
 /**
  * Creates a proxy that redirects all database calls to the request-scoped context
@@ -11,7 +11,7 @@ export function createDbProxy<T extends object>(defaultDb: T): T {
       const activeDb = (dbFromContext || target) as T;
       const value = Reflect.get(activeDb, property, activeDb);
 
-      if (typeof value === 'function') {
+      if (typeof value === "function") {
         return value.bind(activeDb);
       }
       return value;

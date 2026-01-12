@@ -3,7 +3,7 @@ import {
   ExecutionContext,
   Injectable,
   UnauthorizedException,
-} from '@nestjs/common';
+} from "@nestjs/common";
 
 @Injectable()
 export class SessionGuard implements CanActivate {
@@ -12,15 +12,15 @@ export class SessionGuard implements CanActivate {
     const session = request.session;
 
     if (!session) {
-      throw new UnauthorizedException('No session found');
+      throw new UnauthorizedException("No session found");
     }
 
-    const userId = session.get('userId');
-    const tenantId = session.get('tenantId');
-    const mid = session.get('mid');
+    const userId = session.get("userId");
+    const tenantId = session.get("tenantId");
+    const mid = session.get("mid");
 
     if (!userId || !tenantId || !mid) {
-      throw new UnauthorizedException('Not authenticated');
+      throw new UnauthorizedException("Not authenticated");
     }
 
     // Attach to request for use in controllers.

@@ -1,32 +1,32 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { createDatabaseFromClient } from '@qs-pro/database';
-import type { Sql } from 'postgres';
-import { runWithDbContext, getDbFromContext } from './db-context';
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { createDatabaseFromClient } from "@qs-pro/database";
+import type { Sql } from "postgres";
+import { runWithDbContext, getDbFromContext } from "./db-context";
 
 @Injectable()
 export class RlsContextService {
   private readonly logger = new Logger(RlsContextService.name);
 
-  constructor(@Inject('SQL_CLIENT') private readonly sql: Sql) {}
+  constructor(@Inject("SQL_CLIENT") private readonly sql: Sql) {}
 
   private makeDrizzleCompatibleSql(reserved: Sql): Sql {
     // postgres.js `reserve()` returns a Sql tag function without `.options`, but
     // drizzle-orm's postgres-js driver expects `client.options.parsers` to exist.
     // Copy the base client options/parameters onto the reserved Sql tag.
     const reservedWithMeta = reserved as Sql & {
-      options: Sql['options'];
-      parameters: Sql['parameters'];
+      options: Sql["options"];
+      parameters: Sql["parameters"];
     };
 
-    if (!('options' in reservedWithMeta)) {
-      Object.defineProperty(reservedWithMeta, 'options', {
+    if (!("options" in reservedWithMeta)) {
+      Object.defineProperty(reservedWithMeta, "options", {
         value: this.sql.options,
         enumerable: false,
       });
     }
 
-    if (!('parameters' in reservedWithMeta)) {
-      Object.defineProperty(reservedWithMeta, 'parameters', {
+    if (!("parameters" in reservedWithMeta)) {
+      Object.defineProperty(reservedWithMeta, "parameters", {
         value: this.sql.parameters,
         enumerable: false,
       });
@@ -59,7 +59,7 @@ export class RlsContextService {
       return await runWithDbContext(db, fn);
     } catch (error) {
       this.logger.error(
-        'Failed to run with tenant context',
+        "Failed to run with tenant context",
         error instanceof Error ? error.stack : String(error),
       );
       throw error;

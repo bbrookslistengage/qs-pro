@@ -1,7 +1,7 @@
-import { Injectable, Inject } from '@nestjs/common';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import * as cacheManager from 'cache-manager';
-import { MceBridgeService } from './mce-bridge.service';
+import { Injectable, Inject } from "@nestjs/common";
+import { CACHE_MANAGER } from "@nestjs/cache-manager";
+import * as cacheManager from "cache-manager";
+import { MceBridgeService } from "./mce-bridge.service";
 
 interface MceSoapFolder {
   ID: string | number;
@@ -68,7 +68,7 @@ export class MetadataService {
         <ClientID>${clientId}</ClientID>
       </ClientIDs>
     `
-      : '';
+      : "";
 
     let allFolders: MceSoapFolder[] = [];
     let continueRequest: string | null = null;
@@ -107,33 +107,37 @@ export class MetadataService {
         userId,
         mid,
         soapBody,
-        'Retrieve',
+        "Retrieve",
       )) as MceSoapResponse;
 
       const retrieveResponse = response?.Body?.RetrieveResponseMsg;
       const results = retrieveResponse?.Results || [];
-      const folders = (Array.isArray(results) ? results : [results]) as MceSoapFolder[];
+      const folders = (
+        Array.isArray(results) ? results : [results]
+      ) as MceSoapFolder[];
 
       allFolders = allFolders.concat(folders);
 
       const status = retrieveResponse?.OverallStatus;
       continueRequest =
-        status === 'MoreDataAvailable' ? retrieveResponse?.RequestID ?? null : null;
+        status === "MoreDataAvailable"
+          ? (retrieveResponse?.RequestID ?? null)
+          : null;
       page++;
     } while (continueRequest && page <= MAX_PAGES);
 
     if (!clientId) return allFolders;
 
     return allFolders.map((folder) => {
-      const name = typeof folder.Name === 'string' ? folder.Name : null;
+      const name = typeof folder.Name === "string" ? folder.Name : null;
       const rawParentId = folder?.ParentFolder?.ID ?? null;
       const parentId =
         rawParentId !== null && rawParentId !== undefined
           ? String(rawParentId).trim()
-          : '';
-      const isRoot = parentId === '' || parentId === '0';
-      if (isRoot && name && name.toLowerCase() === 'data extensions') {
-        return { ...folder, Name: 'Shared' };
+          : "";
+      const isRoot = parentId === "" || parentId === "0";
+      if (isRoot && name && name.toLowerCase() === "data extensions") {
+        return { ...folder, Name: "Shared" };
       }
       return folder;
     });
@@ -188,7 +192,7 @@ export class MetadataService {
         <ClientID>${clientId}</ClientID>
       </ClientIDs>
     `
-      : '';
+      : "";
 
     let allDEs: unknown[] = [];
     let continueRequest: string | null = null;
@@ -222,7 +226,7 @@ export class MetadataService {
         userId,
         mid,
         soapBody,
-        'Retrieve',
+        "Retrieve",
       )) as MceSoapResponse;
 
       const retrieveResponse = response?.Body?.RetrieveResponseMsg;
@@ -233,7 +237,9 @@ export class MetadataService {
 
       const status = retrieveResponse?.OverallStatus;
       continueRequest =
-        status === 'MoreDataAvailable' ? retrieveResponse?.RequestID ?? null : null;
+        status === "MoreDataAvailable"
+          ? (retrieveResponse?.RequestID ?? null)
+          : null;
       page++;
     } while (continueRequest && page <= MAX_PAGES);
 
@@ -273,7 +279,7 @@ export class MetadataService {
       userId,
       mid,
       soapBody,
-      'Retrieve',
+      "Retrieve",
     )) as MceSoapResponse;
     const results = response?.Body?.RetrieveResponseMsg?.Results || [];
     const fields = Array.isArray(results) ? results : [results];

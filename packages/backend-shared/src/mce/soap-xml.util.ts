@@ -19,18 +19,18 @@ export function parseSoapXml(xml: string): Record<string, unknown> {
 }
 
 function parseXml(xml: string): Record<string, unknown> {
-  const root: XmlNode = { name: 'root', children: [], text: '' };
+  const root: XmlNode = { name: "root", children: [], text: "" };
   const stack: XmlNode[] = [root];
   const tokenRegex = /<[^>]+>|[^<]+/g;
   let match: RegExpExecArray | null;
 
   while ((match = tokenRegex.exec(xml))) {
     const token = match[0];
-    if (token.startsWith('<?') || token.startsWith('<!--')) {
+    if (token.startsWith("<?") || token.startsWith("<!--")) {
       continue;
     }
 
-    if (token.startsWith('</')) {
+    if (token.startsWith("</")) {
       const node = stack.pop();
       if (node) {
         const parent = stack[stack.length - 1];
@@ -39,10 +39,10 @@ function parseXml(xml: string): Record<string, unknown> {
       continue;
     }
 
-    if (token.startsWith('<')) {
-      const selfClosing = token.endsWith('/>');
+    if (token.startsWith("<")) {
+      const selfClosing = token.endsWith("/>");
       const tagName = normalizeTagName(token);
-      const node: XmlNode = { name: tagName, children: [], text: '' };
+      const node: XmlNode = { name: tagName, children: [], text: "" };
 
       if (selfClosing) {
         const parent = stack[stack.length - 1];
@@ -87,17 +87,17 @@ function nodeToObject(node: XmlNode): Record<string, unknown> {
 }
 
 function normalizeTagName(token: string): string {
-  const tagBody = token.replace(/^<|\/?>$/g, '').trim();
+  const tagBody = token.replace(/^<|\/?>$/g, "").trim();
   const [rawName] = tagBody.split(/\s+/);
-  const name = rawName.replace(/^\/?/, '');
-  return name.includes(':') ? name.split(':').pop() || name : name;
+  const name = rawName.replace(/^\/?/, "");
+  return name.includes(":") ? name.split(":").pop() || name : name;
 }
 
 function decodeXml(value: string): string {
   return value
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, '&');
+    .replace(/&amp;/g, "&");
 }

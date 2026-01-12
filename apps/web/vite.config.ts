@@ -5,16 +5,34 @@ import path from "path";
 
 // https://vitejs.dev/config/
 
-export default defineConfig(() => {
-  const isPreviewMode = process.env.VITE_PREVIEW_MODE === "1";
+export default defineConfig(({ mode }) => {
+  const isPreviewMode = mode === "preview";
+  const srcRoot = path.resolve(__dirname, "./src");
+  const previewRoot = path.resolve(srcRoot, "./preview");
 
   return {
     plugins: [tailwindcss(), react()],
 
     resolve: {
-      alias: {
-        "@": path.resolve(__dirname, "./src"),
-      },
+      alias: [
+        ...(isPreviewMode
+          ? [
+              {
+                find: "@/App",
+                replacement: path.resolve(previewRoot, "App.tsx"),
+              },
+              {
+                find: "@/services/metadata",
+                replacement: path.resolve(previewRoot, "services/metadata.ts"),
+              },
+              {
+                find: "@/services/features",
+                replacement: path.resolve(previewRoot, "services/features.ts"),
+              },
+            ]
+          : []),
+        { find: "@", replacement: srcRoot },
+      ],
     },
 
     server: {
@@ -25,7 +43,11 @@ export default defineConfig(() => {
       ...(isPreviewMode
         ? {}
         : {
-            allowedHosts: ["dev.queryplusplus.app", ".loca.lt", ".ngrok-free.dev"],
+            allowedHosts: [
+              "dev.queryplusplus.app",
+              ".loca.lt",
+              ".ngrok-free.dev",
+            ],
             hmr: {
               protocol: "wss",
               host: "dev.queryplusplus.app",

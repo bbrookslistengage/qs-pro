@@ -18,7 +18,8 @@ const getThemeBase = () => {
 
 export const getEditorOptions =
   (): editor.IStandaloneEditorConstructionOptions => ({
-    minimap: { enabled: true },
+    minimap: { enabled: false },
+    suggestOnTriggerCharacters: true,
     // Prevent hover tooltips from being clipped by toolbar on first lines
     fixedOverflowWidgets: true,
     // Prevent find/replace widget from pushing content down
@@ -39,6 +40,7 @@ export const getEditorOptions =
       comments: false,
       strings: false,
     },
+    acceptSuggestionOnEnter: "smart",
     fontFamily: "var(--font-mono)",
     fontLigatures: false,
     renderLineHighlight: "line",

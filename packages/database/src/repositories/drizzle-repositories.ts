@@ -131,9 +131,7 @@ export class DrizzleCredentialsRepository implements ICredentialsRepository {
   }
 }
 
-export class DrizzleFeatureOverrideRepository
-  implements IFeatureOverrideRepository
-{
+export class DrizzleFeatureOverrideRepository implements IFeatureOverrideRepository {
   constructor(private db: PostgresJsDatabase) {}
 
   async findByTenantId(tenantId: string): Promise<TenantFeatureOverride[]> {

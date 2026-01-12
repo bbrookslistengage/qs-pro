@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { TIER_FEATURES, FeatureKey } from "../features";
+import { TIER_FEATURES } from "../features";
 
 describe("TIER_FEATURES inheritance", () => {
   it("pro tier includes all free tier features", () => {

@@ -19,6 +19,7 @@ export const FeatureKeySchema = z.enum([
   "auditLogs",
   "createDataExtension",
   "deployToAutomation",
+  "systemDataViews",
 ]);
 export type FeatureKey = z.infer<typeof FeatureKeySchema>;
 
@@ -32,7 +33,7 @@ export const ALL_FEATURE_KEYS = FeatureKeySchema.options;
  * Higher tiers inherit all features from lower tiers.
  */
 export const TIER_FEATURES: Record<SubscriptionTier, readonly FeatureKey[]> = {
-  free: ["basicLinting", "syntaxHighlighting"],
+  free: ["basicLinting", "syntaxHighlighting", "systemDataViews"],
   pro: [
     "basicLinting",
     "syntaxHighlighting",
@@ -40,6 +41,7 @@ export const TIER_FEATURES: Record<SubscriptionTier, readonly FeatureKey[]> = {
     "minimap",
     "advancedAutocomplete",
     "createDataExtension",
+    "systemDataViews",
   ],
   enterprise: [
     "basicLinting",
@@ -51,6 +53,7 @@ export const TIER_FEATURES: Record<SubscriptionTier, readonly FeatureKey[]> = {
     "teamSnippets",
     "auditLogs",
     "deployToAutomation",
+    "systemDataViews",
   ],
 } as const;
 

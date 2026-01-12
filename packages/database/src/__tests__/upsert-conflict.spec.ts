@@ -6,7 +6,7 @@ import {
   DrizzleTenantRepository,
   DrizzleUserRepository,
 } from "../repositories/drizzle-repositories";
-import { eq, inArray } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 
 // DATABASE_URL is loaded from root .env via vitest.setup.ts
 const connectionString = process.env.DATABASE_URL;

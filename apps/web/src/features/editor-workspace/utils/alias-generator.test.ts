@@ -18,8 +18,8 @@ describe("generateSmartAlias", () => {
     expect(generateSmartAlias("Orders", new Set(["o"]))).toBe("orde");
   });
 
-  test("appendsNumber_WhenMultipleCollisions", () => {
-    expect(generateSmartAlias("Orders", new Set(["o", "orde"]))).toBe("o2");
+  test("returnsNull_WhenAllOptionsCollide", () => {
+    expect(generateSmartAlias("Orders", new Set(["o", "orde"]))).toBeNull();
   });
 
   test("stripsBrackets_FromBracketedName", () => {
@@ -32,5 +32,17 @@ describe("generateSmartAlias", () => {
 
   test("handlesSpaceSeparated", () => {
     expect(generateSmartAlias("Order Details", new Set())).toBe("od");
+  });
+
+  test("capsInitialsAtThreeLetters_ForLongNames", () => {
+    expect(generateSmartAlias("IdMap_ContactKey_ContactID", new Set())).toBe(
+      "imc",
+    );
+  });
+
+  test("capsInitialsAtThreeLetters_ForManyWords", () => {
+    expect(
+      generateSmartAlias("Customer_Order_Details_History_Archive", new Set()),
+    ).toBe("cod");
   });
 });

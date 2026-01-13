@@ -94,12 +94,15 @@ export function EditorWorkspace({
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [resultsHeight, setResultsHeight] = useState(280);
   const [isResizingResults, setIsResizingResults] = useState(false);
+  const [cursorPosition, setCursorPosition] = useState<number | undefined>(
+    undefined,
+  );
   const workspaceRef = useRef<HTMLDivElement>(null);
 
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
   const sqlDiagnostics = useMemo(
-    () => lintSql(activeTab?.content ?? "", { dataExtensions }),
-    [activeTab?.content, dataExtensions],
+    () => lintSql(activeTab?.content ?? "", { dataExtensions, cursorPosition }),
+    [activeTab?.content, dataExtensions, cursorPosition],
   );
   const hasBlockingDiagnostics = sqlDiagnostics.length > 0;
   const blockingDiagnostic = useMemo(() => {
@@ -466,6 +469,7 @@ export function EditorWorkspace({
                   onChange={handleEditorChange}
                   onSave={handleSave}
                   onRunRequest={handleRunRequest}
+                  onCursorPositionChange={setCursorPosition}
                   diagnostics={sqlDiagnostics}
                   dataExtensions={dataExtensions}
                   folders={folders}

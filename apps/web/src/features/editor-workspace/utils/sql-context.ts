@@ -559,11 +559,68 @@ const getCurrentWord = (sql: string, cursorIndex: number) => {
 };
 
 const getAliasBeforeDot = (sql: string, cursorIndex: number) => {
-  const textBefore = sql.slice(0, cursorIndex);
-  const bracketMatch = /\[([^\]]+)\]\.$/.exec(textBefore);
-  if (bracketMatch) return bracketMatch[1];
-  const wordMatch = /([A-Za-z0-9_]+)\.$/.exec(textBefore);
-  const alias = wordMatch?.[1] ?? null;
+  // Support both `a.|` and `a.pa|` (typing after a dot), as Monaco can re-invoke
+  // completion providers while filtering.
+  //
+  // We intentionally only look for a dot within the current token (no whitespace)
+  // and ignore dots inside bracketed identifiers.
+  let bracketDepth = 0;
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let dotIndex = -1;
+
+  for (let i = cursorIndex - 1; i >= 0; i -= 1) {
+    const char = sql[i];
+    const prevChar = i > 0 ? sql[i - 1] : "";
+
+    // Skip if inside quotes (scanning backwards)
+    if (!inDoubleQuote && char === "'" && prevChar !== "'") {
+      inSingleQuote = !inSingleQuote;
+      continue;
+    }
+    if (!inSingleQuote && char === '"') {
+      inDoubleQuote = !inDoubleQuote;
+      continue;
+    }
+    if (inSingleQuote || inDoubleQuote) continue;
+
+    if (char === "]") {
+      bracketDepth += 1;
+      continue;
+    }
+    if (char === "[") {
+      if (bracketDepth > 0) {
+        bracketDepth -= 1;
+        continue;
+      }
+    }
+    if (bracketDepth > 0) continue;
+
+    // Stop at token boundaries; `alias.field` has no whitespace between alias and dot.
+    if (/\s|,|\(|\)/.test(char)) {
+      break;
+    }
+
+    if (char === ".") {
+      dotIndex = i;
+      break;
+    }
+  }
+
+  if (dotIndex === -1) return null;
+
+  let alias: string | null = null;
+  if (dotIndex > 0 && sql[dotIndex - 1] === "]") {
+    const openIndex = sql.lastIndexOf("[", dotIndex - 1);
+    if (openIndex === -1) return null;
+    alias = sql.slice(openIndex + 1, dotIndex - 1).trim() || null;
+  } else {
+    let start = dotIndex - 1;
+    while (start >= 0 && /[A-Za-z0-9_]/.test(sql[start] ?? "")) {
+      start -= 1;
+    }
+    alias = sql.slice(start + 1, dotIndex) || null;
+  }
 
   // ENT is the shared folder prefix, not an alias
   if (alias?.toLowerCase() === "ent") return null;
@@ -1111,4 +1168,72 @@ export function isInsideFunctionParens(
 
   // If we're inside any paren that is a function call, return true
   return parenStack.some((p) => p.isFunction);
+}
+
+export function isAtEndOfBracketedTableInFromJoin(
+  sql: string,
+  cursorIndex: number,
+): boolean {
+  // Handle auto-closed brackets: cursor could be inside [TableName|] where | is cursor
+  // Find the matching open bracket by scanning backwards from cursor
+  let openBracketIndex = -1;
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let bracketDepth = 0;
+
+  // Scan backwards from cursor to find the opening bracket
+  for (let i = cursorIndex - 1; i >= 0; i--) {
+    const char = sql[i];
+    const prevChar = i > 0 ? sql[i - 1] : "";
+
+    // Skip if inside quotes (scanning backwards)
+    if (char === "'" && prevChar !== "'") {
+      inSingleQuote = !inSingleQuote;
+      continue;
+    }
+    if (char === '"') {
+      inDoubleQuote = !inDoubleQuote;
+      continue;
+    }
+    if (inSingleQuote || inDoubleQuote) continue;
+
+    if (char === "]") {
+      bracketDepth++;
+    } else if (char === "[") {
+      if (bracketDepth > 0) {
+        bracketDepth--;
+      } else {
+        openBracketIndex = i;
+        break;
+      }
+    }
+  }
+
+  if (openBracketIndex === -1) {
+    return false;
+  }
+
+  const bracketContent = sql.slice(openBracketIndex + 1, cursorIndex).trim();
+  if (bracketContent.length === 0) {
+    return false;
+  }
+
+  const textBeforeBracket = sql.slice(0, openBracketIndex);
+  const tokens = tokenizeSql(textBeforeBracket);
+
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    const token = tokens[i];
+    if (token.type !== "word") continue;
+    const value = token.value.toLowerCase();
+
+    if (value === "from" || value === "join") {
+      return true;
+    }
+
+    if (KEYWORDS.has(value)) {
+      return false;
+    }
+  }
+
+  return false;
 }

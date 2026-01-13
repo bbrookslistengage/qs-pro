@@ -1,12 +1,45 @@
 import type { LintRule, LintContext, SqlDiagnostic } from "../types";
 import { createDiagnostic, isWordChar } from "../utils/helpers";
 
-/**
- * Detects JOIN clauses without ON condition (except CROSS JOIN).
- * INNER JOIN, LEFT JOIN, RIGHT JOIN, FULL JOIN all require ON.
- * CROSS JOIN does not require ON.
- */
-const getMissingJoinOnDiagnostics = (sql: string): SqlDiagnostic[] => {
+const isCursorAtEndOfIncompleteJoin = (
+  sql: string,
+  cursorPosition: number,
+  joinEnd: number,
+  searchEndIndex: number,
+): boolean => {
+  // Cursor must be after the JOIN keyword
+  if (cursorPosition < joinEnd) return false;
+
+  // Cursor must be within or at the end of the search zone
+  // Allow cursor to be at searchEndIndex (typing at end of file)
+  // or slightly past if there's just whitespace/newlines after
+  if (cursorPosition > searchEndIndex) {
+    // Check if we're just past the end with trailing whitespace
+    const textAfterSearch = sql.slice(searchEndIndex, cursorPosition).trim();
+    if (textAfterSearch.length > 0) return false;
+  }
+
+  // Check remaining text after cursor - should only be whitespace or empty
+  const remainingText = sql.slice(cursorPosition).trim();
+
+  // Suppress if remaining text is empty, or only contains whitespace
+  // Also suppress if remaining text doesn't start with a SQL keyword
+  // (user is still typing the table name/alias)
+  if (remainingText.length === 0) return true;
+
+  // Check if remaining text starts with a clause keyword (WHERE, GROUP, etc.)
+  // If so, user has moved on and we should show the error
+  const clauseKeywords = /^(where|group|having|order|union|except|intersect|join|inner|left|right|full|cross|on)\b/i;
+  if (clauseKeywords.test(remainingText)) return false;
+
+  // User is still in the "typing zone" - suppress the error
+  return true;
+};
+
+const getMissingJoinOnDiagnostics = (
+  sql: string,
+  cursorPosition?: number,
+): SqlDiagnostic[] => {
   const diagnostics: SqlDiagnostic[] = [];
   let index = 0;
   let inSingleQuote = false;
@@ -327,30 +360,31 @@ const getMissingJoinOnDiagnostics = (sql: string): SqlDiagnostic[] => {
       checkIndex += 1;
     }
 
-    // If we didn't find ON before the next JOIN or clause end, report error
     if (!foundOn) {
-      diagnostics.push(
-        createDiagnostic(
-          `${join.joinType.toUpperCase()} requires an ON clause. Example: \`${join.joinType.toUpperCase()} [Table] t ON t.ID = base.ID\`. Only CROSS JOIN can omit ON.`,
-          "error",
-          join.start,
-          join.end,
-        ),
-      );
+      const shouldSuppress =
+        cursorPosition !== undefined &&
+        isCursorAtEndOfIncompleteJoin(sql, cursorPosition, join.end, checkIndex);
+
+      if (!shouldSuppress) {
+        diagnostics.push(
+          createDiagnostic(
+            `${join.joinType.toUpperCase()} requires an ON clause. Example: \`${join.joinType.toUpperCase()} [Table] t ON t.ID = base.ID\`. Only CROSS JOIN can omit ON.`,
+            "error",
+            join.start,
+            join.end,
+          ),
+        );
+      }
     }
   }
 
   return diagnostics;
 };
 
-/**
- * Rule to detect JOIN clauses without ON condition (except CROSS JOIN).
- * INNER JOIN, LEFT JOIN, RIGHT JOIN, FULL JOIN all require ON.
- */
 export const missingJoinOnRule: LintRule = {
   id: "missing-join-on",
   name: "Missing JOIN ON Clause",
   check: (context: LintContext) => {
-    return getMissingJoinOnDiagnostics(context.sql);
+    return getMissingJoinOnDiagnostics(context.sql, context.cursorPosition);
   },
 };

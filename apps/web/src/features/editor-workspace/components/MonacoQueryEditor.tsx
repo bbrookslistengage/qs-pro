@@ -35,6 +35,7 @@ import { toMonacoMarkers } from "@/features/editor-workspace/utils/sql-diagnosti
 import { getContextualKeywords } from "@/features/editor-workspace/utils/autocomplete-keyword";
 import { evaluateInlineSuggestions } from "@/features/editor-workspace/utils/inline-suggestions";
 import type { InlineSuggestionContext } from "@/features/editor-workspace/utils/inline-suggestions";
+import { getInlineCompletionReplacementEndOffset } from "@/features/editor-workspace/utils/inline-completion-range";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { cn } from "@/lib/utils";
 
@@ -84,6 +85,7 @@ interface MonacoQueryEditorProps {
   onChange: (value: string) => void;
   onSave?: () => void;
   onRunRequest?: () => void;
+  onCursorPositionChange?: (position: number) => void;
   diagnostics: SqlDiagnostic[];
   dataExtensions: DataExtension[];
   folders: Folder[];
@@ -96,6 +98,7 @@ export function MonacoQueryEditor({
   onChange,
   onSave,
   onRunRequest,
+  onCursorPositionChange,
   diagnostics,
   dataExtensions,
   folders,
@@ -109,7 +112,10 @@ export function MonacoQueryEditor({
   const completionDisposableRef = useRef<Monaco.IDisposable | null>(null);
   const autoBracketDisposableRef = useRef<Monaco.IDisposable | null>(null);
   const inlineCompletionDisposableRef = useRef<Monaco.IDisposable | null>(null);
+  const suggestRetriggerDisposableRef = useRef<Monaco.IDisposable | null>(null);
+  const cursorPositionDisposableRef = useRef<Monaco.IDisposable | null>(null);
   const autoBracketRef = useRef(false);
+  const onCursorPositionChangeRef = useRef(onCursorPositionChange);
   const queryClient = useQueryClient();
 
   // Debounce the value to prevent excessive decoration updates during rapid typing
@@ -239,6 +245,10 @@ export function MonacoQueryEditor({
   useEffect(() => {
     tenantIdRef.current = tenantId;
   }, [tenantId]);
+
+  useEffect(() => {
+    onCursorPositionChangeRef.current = onCursorPositionChange;
+  }, [onCursorPositionChange]);
 
   const handleEditorMount: OnMount = useCallback(
     (editorInstance, monacoInstance) => {
@@ -444,6 +454,21 @@ export function MonacoQueryEditor({
             });
 
             if (sqlContext.aliasBeforeDot) {
+              // Calculate field range explicitly from the dot position
+              // This prevents issues when Monaco's getWordUntilPosition returns wrong boundaries after deletion
+              const lineContent = model.getLineContent(position.lineNumber);
+              const textBeforeCursor = lineContent.slice(0, position.column - 1);
+              const dotIndex = textBeforeCursor.lastIndexOf('.');
+
+              // The range should start right after the dot and end at cursor
+              const fieldStartColumn = dotIndex >= 0 ? dotIndex + 2 : wordInfo.startColumn; // +2 because columns are 1-indexed and we want after the dot
+              const fieldRange = new monacoInstance.Range(
+                position.lineNumber,
+                fieldStartColumn,
+                position.lineNumber,
+                position.column,
+              );
+
               const table = resolveTableForAlias(
                 sqlContext.aliasBeforeDot,
                 sqlContext.tablesInScope,
@@ -476,9 +501,8 @@ export function MonacoQueryEditor({
                 detail: suggestion.detail,
                 kind: monacoInstance.languages.CompletionItemKind.Field,
                 sortText: suggestion.label,
-                range: wordRange,
+                range: fieldRange,
               }));
-              // Only return field suggestions when completing after alias.
               return { suggestions };
             }
 
@@ -645,26 +669,31 @@ export function MonacoQueryEditor({
               return { items: [] };
             }
 
+            const buildInlineRangeForInsertText = (insertText: string) => {
+              const endOffset = getInlineCompletionReplacementEndOffset(
+                text,
+                cursorIndex,
+                insertText,
+              );
+              const endPosition = model.getPositionAt(endOffset);
+              return new monacoInstance.Range(
+                position.lineNumber,
+                position.column,
+                endPosition.lineNumber,
+                endPosition.column,
+              );
+            };
+
             return {
               items: [
                 {
                   insertText: suggestion.text,
-                  range: new monacoInstance.Range(
-                    position.lineNumber,
-                    position.column,
-                    position.lineNumber,
-                    position.column,
-                  ),
+                  range: buildInlineRangeForInsertText(suggestion.text),
                 },
                 // Include alternatives if available
                 ...(suggestion.alternatives || []).map((alt) => ({
                   insertText: alt,
-                  range: new monacoInstance.Range(
-                    position.lineNumber,
-                    position.column,
-                    position.lineNumber,
-                    position.column,
-                  ),
+                  range: buildInlineRangeForInsertText(alt),
                 })),
               ],
             };
@@ -709,7 +738,13 @@ export function MonacoQueryEditor({
               indentAction: monacoInstance.languages.IndentAction.Indent,
             },
           },
-          // Before major clauses - outdent to match SELECT level
+          {
+            beforeText:
+              /^\s*(INNER\s+|LEFT\s+(OUTER\s+)?|RIGHT\s+(OUTER\s+)?|FULL\s+(OUTER\s+)?|CROSS\s+)?JOIN\s+\S+.*(?<!\bON\b.*)$/i,
+            action: {
+              indentAction: monacoInstance.languages.IndentAction.Indent,
+            },
+          },
           {
             beforeText: /^\s*$/,
             afterText: /^\s*(FROM|WHERE|GROUP\s+BY|ORDER\s+BY|HAVING)\b/i,
@@ -760,6 +795,28 @@ export function MonacoQueryEditor({
           autoBracketRef.current = false;
         },
       );
+
+      suggestRetriggerDisposableRef.current?.dispose();
+      suggestRetriggerDisposableRef.current =
+        editorInstance.onDidChangeModelContent((event) => {
+          const model = editorInstance.getModel();
+          if (!model) return;
+
+          const latestChange = event.changes[event.changes.length - 1];
+          if (!latestChange) return;
+
+          const insertedText = latestChange.text;
+          if (!insertedText || insertedText.length !== 1) return;
+          if (!/[a-zA-Z0-9_]/.test(insertedText)) return;
+
+          const changeEnd = latestChange.rangeOffset + insertedText.length;
+          if (changeEnd < 2) return;
+
+          const charBeforeInsert = model.getValue().charAt(changeEnd - 2);
+          if (charBeforeInsert !== ".") return;
+
+          editorInstance.trigger("retrigger", "editor.action.triggerSuggest", {});
+        });
 
       editorInstance.onKeyDown((event) => {
         if (event.keyCode !== monacoInstance.KeyCode.Tab) return;
@@ -853,6 +910,15 @@ export function MonacoQueryEditor({
           editorInstance.getAction("editor.action.commentLine")?.run();
         },
       );
+
+      cursorPositionDisposableRef.current?.dispose();
+      cursorPositionDisposableRef.current =
+        editorInstance.onDidChangeCursorPosition((event) => {
+          const model = editorInstance.getModel();
+          if (!model) return;
+          const offset = model.getOffsetAt(event.position);
+          onCursorPositionChangeRef.current?.(offset);
+        });
     },
     [
       diagnostics,
@@ -870,9 +936,13 @@ export function MonacoQueryEditor({
       completionDisposableRef.current?.dispose();
       autoBracketDisposableRef.current?.dispose();
       inlineCompletionDisposableRef.current?.dispose();
+      suggestRetriggerDisposableRef.current?.dispose();
+      cursorPositionDisposableRef.current?.dispose();
       completionDisposableRef.current = null;
       autoBracketDisposableRef.current = null;
       inlineCompletionDisposableRef.current = null;
+      suggestRetriggerDisposableRef.current = null;
+      cursorPositionDisposableRef.current = null;
     };
   }, []);
 

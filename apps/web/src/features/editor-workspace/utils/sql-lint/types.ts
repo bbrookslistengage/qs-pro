@@ -14,6 +14,7 @@ export interface LintContext {
   sql: string;
   tokens: SqlToken[];
   dataExtensions?: DataExtension[];
+  cursorPosition?: number;
 }
 
 export interface LintRule {

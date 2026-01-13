@@ -42,6 +42,7 @@ export type {
 
 interface LintOptions {
   dataExtensions?: DataExtension[];
+  cursorPosition?: number;
 }
 
 /**
@@ -92,6 +93,7 @@ export const lintSql = (sql: string, options: LintOptions = {}) => {
     sql,
     tokens,
     dataExtensions: options.dataExtensions,
+    cursorPosition: options.cursorPosition,
   };
 
   const diagnostics = rules.flatMap((rule) => rule.check(context));

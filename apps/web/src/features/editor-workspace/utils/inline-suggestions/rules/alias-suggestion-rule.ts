@@ -1,5 +1,6 @@
 import type { InlineSuggestionRule } from "../types";
 import { generateSmartAlias } from "../../alias-generator";
+import { isAtEndOfBracketedTableInFromJoin } from "../../sql-context";
 
 /**
  * Rule: After completing a table name in FROM or JOIN clause, suggest " AS {alias}"
@@ -9,6 +10,12 @@ export const aliasSuggestionRule: InlineSuggestionRule = {
 
   matches(ctx) {
     const { sqlContext, sql, cursorIndex } = ctx;
+
+    const isInsideBracket = isAtEndOfBracketedTableInFromJoin(sql, cursorIndex);
+
+    if (isInsideBracket) {
+      return true;
+    }
 
     if (
       sqlContext.lastKeyword !== "join" &&
@@ -26,8 +33,6 @@ export const aliasSuggestionRule: InlineSuggestionRule = {
       return false;
     }
 
-    // Allow suggestion if cursor is after a completed table name
-    // Either no word at cursor (after space/bracket) or word matches the table name
     const currentWord = sqlContext.currentWord.toLowerCase();
     if (currentWord && currentWord !== lastTable.name.toLowerCase()) {
       return false;
@@ -46,18 +51,40 @@ export const aliasSuggestionRule: InlineSuggestionRule = {
   },
 
   async getSuggestion(ctx) {
-    const lastTable = ctx.tablesInScope[ctx.tablesInScope.length - 1];
-    if (!lastTable) return null;
+    const { sql, cursorIndex } = ctx;
+    const isInsideBracket = isAtEndOfBracketedTableInFromJoin(sql, cursorIndex);
 
-    const tableName = lastTable.name;
+    let tableName: string;
+
+    if (isInsideBracket) {
+      let openBracketIndex = -1;
+      for (let i = cursorIndex - 1; i >= 0; i--) {
+        if (sql[i] === "[") {
+          openBracketIndex = i;
+          break;
+        }
+        if (sql[i] === "]") {
+          break;
+        }
+      }
+      if (openBracketIndex === -1) return null;
+      tableName = sql.slice(openBracketIndex + 1, cursorIndex).trim();
+    } else {
+      const lastTable = ctx.tablesInScope[ctx.tablesInScope.length - 1];
+      if (!lastTable) return null;
+      tableName = lastTable.name;
+    }
+
     if (!tableName) return null;
     const nameForAlias = tableName.replace(/^ENT\./i, "");
     const alias = generateSmartAlias(nameForAlias, ctx.existingAliases);
 
     if (!alias) return null;
 
+    const suggestionText = isInsideBracket ? `] AS ${alias}` : ` AS ${alias}`;
+
     return {
-      text: ` AS ${alias}`,
+      text: suggestionText,
       priority: 80,
     };
   },

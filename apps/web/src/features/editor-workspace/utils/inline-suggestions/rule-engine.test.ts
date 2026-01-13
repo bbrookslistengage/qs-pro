@@ -3,8 +3,10 @@ import { evaluateInlineSuggestions } from "./rule-engine";
 import { getSqlCursorContext } from "../sql-context";
 import type { InlineSuggestionContext } from "./types";
 
-const buildContext = (sql: string): InlineSuggestionContext => {
-  const cursorIndex = sql.length;
+const buildContext = (
+  sql: string,
+  cursorIndex: number = sql.length,
+): InlineSuggestionContext => {
   const sqlContext = getSqlCursorContext(sql, cursorIndex);
   return {
     sql,
@@ -56,6 +58,14 @@ describe("evaluateInlineSuggestions", () => {
     const ctx = buildContext("SELECT * FROM [Orders] ");
     const suggestion = await evaluateInlineSuggestions(ctx);
     expect(suggestion?.text).toBe(" AS o");
+  });
+
+  test("insideBracketedFromTableEnd_ReturnsAliasSuggestion", async () => {
+    const sql = "SELECT * FROM [Orders]";
+    const cursorIndex = sql.length - 1; // before the auto-closed `]`
+    const ctx = buildContext(sql, cursorIndex);
+    const suggestion = await evaluateInlineSuggestions(ctx);
+    expect(suggestion?.text).toBe("] AS o");
   });
 
   test("afterFromTableWithAlias_ReturnsNull", async () => {

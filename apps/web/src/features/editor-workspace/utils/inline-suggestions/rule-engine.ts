@@ -8,6 +8,7 @@ import {
   isInsideBrackets,
   isAfterComparisonOperator,
   isInsideFunctionParens,
+  isAtEndOfBracketedTableInFromJoin,
 } from "../sql-context";
 
 /**
@@ -37,7 +38,15 @@ export async function evaluateInlineSuggestions(
   // Negative conditions - return early if any match
   if (isInsideString(ctx.sql, ctx.cursorIndex)) return null;
   if (isInsideComment(ctx.sql, ctx.cursorIndex)) return null;
-  if (isInsideBrackets(ctx.sql, ctx.cursorIndex)) return null;
+  // Allow alias suggestions when cursor is inside a bracketed table in FROM/JOIN
+  // (e.g. `FROM [Orders|]` with Monaco auto-closed `]`).
+  const insideBrackets = isInsideBrackets(ctx.sql, ctx.cursorIndex);
+  if (
+    insideBrackets &&
+    !isAtEndOfBracketedTableInFromJoin(ctx.sql, ctx.cursorIndex)
+  ) {
+    return null;
+  }
   if (isAfterComparisonOperator(ctx.sql, ctx.cursorIndex)) return null;
   if (isInsideFunctionParens(ctx.sql, ctx.cursorIndex)) return null;
 

@@ -54,4 +54,11 @@ describe("getSqlCursorContext - ENT. prefix edge cases", () => {
     const context = getSqlCursorContext(sql, cursorIndex);
     expect(context.aliasBeforeDot).toBe("e");
   });
+
+  test("aliasBeforeDot_WithPartialFieldAfterDot_ReturnsAlias", () => {
+    const sql = "SELECT a.sub FROM [Example] a";
+    const cursorIndex = sql.indexOf("a.sub") + "a.sub".length;
+    const context = getSqlCursorContext(sql, cursorIndex);
+    expect(context.aliasBeforeDot).toBe("a");
+  });
 });

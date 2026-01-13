@@ -55,13 +55,17 @@ export const applyMonacoTheme = (monaco: typeof import("monaco-editor")) => {
   const foreground = getCssVarValue("--foreground", "--card-foreground");
   const background = getCssVarValue("--background", "--card");
   const border = getCssVarValue("--border", "--muted");
-  const muted = getCssVarValue("--muted-foreground", "--neutral-500");
-  const keyword = getCssVarValue("--primary", "--primary-500");
-  const string = getCssVarValue("--secondary", "--secondary-500");
-  const number = getCssVarValue("--warning", "--warning-500");
   const error = getCssVarValue("--error", "--error-500");
   const warning = getCssVarValue("--warning", "--warning-500");
   const lineHighlight = getCssVarValue("--surface", "--muted");
+
+  const syntaxKeyword = getCssVarValue("--syntax-keyword", "--primary");
+  const syntaxFunction = getCssVarValue("--syntax-function", "--warning");
+  const syntaxOperator = getCssVarValue("--syntax-operator", "--secondary");
+  const syntaxString = getCssVarValue("--syntax-string", "--success");
+  const syntaxNumber = getCssVarValue("--syntax-number", "--primary-300");
+  const syntaxComment = getCssVarValue("--syntax-comment", "--muted-foreground");
+
   const toToken = (value: string) => value.replace("#", "");
 
   monaco.editor.defineTheme(MONACO_THEME_NAME, {
@@ -70,9 +74,9 @@ export const applyMonacoTheme = (monaco: typeof import("monaco-editor")) => {
     colors: {
       "editor.background": background,
       "editor.foreground": foreground,
-      "editorLineNumber.foreground": muted,
+      "editorLineNumber.foreground": syntaxComment,
       "editorLineNumber.activeForeground": foreground,
-      "editorCursor.foreground": keyword,
+      "editorCursor.foreground": syntaxKeyword,
       "editorIndentGuide.background": border,
       "editorIndentGuide.activeBackground": border,
       editorLineHighlightBackground: lineHighlight,
@@ -83,10 +87,22 @@ export const applyMonacoTheme = (monaco: typeof import("monaco-editor")) => {
       "editorWarning.foreground": warning,
     },
     rules: [
-      { token: "keyword", foreground: toToken(keyword) },
-      { token: "string", foreground: toToken(string) },
-      { token: "number", foreground: toToken(number) },
-      { token: "comment", foreground: toToken(muted) },
+      { token: "keyword", foreground: toToken(syntaxKeyword), fontStyle: "bold" },
+      { token: "keyword.sql", foreground: toToken(syntaxKeyword), fontStyle: "bold" },
+
+      { token: "predefined.sql", foreground: toToken(syntaxFunction) },
+
+      { token: "operator", foreground: toToken(syntaxOperator) },
+      { token: "operator.sql", foreground: toToken(syntaxOperator) },
+
+      { token: "string", foreground: toToken(syntaxString) },
+      { token: "string.sql", foreground: toToken(syntaxString) },
+
+      { token: "number", foreground: toToken(syntaxNumber) },
+      { token: "number.sql", foreground: toToken(syntaxNumber) },
+
+      { token: "comment", foreground: toToken(syntaxComment), fontStyle: "italic" },
+      { token: "comment.sql", foreground: toToken(syntaxComment), fontStyle: "italic" },
     ],
   });
 

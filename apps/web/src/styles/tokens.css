@@ -45,6 +45,16 @@
   --surface: #F1F5F9;
   --surface-hover: #E2E8F0;
 
+  --syntax-keyword: #D900FF;
+  --syntax-table: #00B4D8;
+  --syntax-alias: #7DD3FC;
+  --syntax-field: #FDE047;
+  --syntax-function: #FB923C;
+  --syntax-operator: #F472B6;
+  --syntax-string: #00FF94;
+  --syntax-number: #C4B5FD;
+  --syntax-comment: #64748B;
+
   --primary-50: #FDF2FF;
   --primary-100: #FAE6FF;
   --primary-200: #F5CCFF;
@@ -147,6 +157,16 @@
 
   --surface: #1E293B;
   --surface-hover: #334155;
+
+  --syntax-keyword: #E879F9;
+  --syntax-table: #22D3EE;
+  --syntax-alias: #7DD3FC;
+  --syntax-field: #FDE047;
+  --syntax-function: #FB923C;
+  --syntax-operator: #F472B6;
+  --syntax-string: #4ADE80;
+  --syntax-number: #C4B5FD;
+  --syntax-comment: #64748B;
 
   /* Pro badge - slightly brighter in dark mode */
   --pro-badge-bg: #FBBF24;

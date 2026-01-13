@@ -160,15 +160,15 @@
 }
 
 .monaco-de-name {
-  @apply text-success font-semibold;
-}
-
-.monaco-field-name {
-  color: var(--secondary);
+  color: var(--syntax-table);
   font-weight: 600;
 }
 
+.monaco-field-name {
+  color: var(--syntax-field);
+}
+
 .monaco-field-alias {
-  color: var(--muted-foreground);
+  color: var(--syntax-alias);
 }
 }

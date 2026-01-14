@@ -176,7 +176,6 @@ SFMC SQL is based on SQL Server 2019 with significant restrictions. Marketing Cl
 ### Functions That May Fail
 | Function | Reason |
 |----------|--------|
-| STRING_AGG | Not available in SFMC SQL |
 | STRING_SPLIT | Not available in SFMC SQL |
 | JSON_MODIFY | JSON functions not supported |
 | OPENJSON | JSON functions not supported |
@@ -221,7 +220,7 @@ SFMC SQL is based on SQL Server 2019 with significant restrictions. Marketing Cl
 | limit-prohibition | error | Blocks LIMIT keyword (use TOP instead) |
 | offset-without-order-by | error | OFFSET/FETCH requires ORDER BY clause |
 | order-by-in-subquery | error | ORDER BY in subquery requires TOP or OFFSET |
-| unsupported-functions | error | Blocks unsupported functions (STRING_AGG, OPENJSON, TRY_CONVERT, etc.) |
+| unsupported-functions | error | Blocks unsupported functions (OPENJSON, TRY_CONVERT, STRING_SPLIT, etc.) |
 | aggregate-grouping | error | Validates GROUP BY requirements for aggregates |
 | comma-validation | error | Detects invalid comma usage (trailing, leading, double) |
 | alias-in-clause | error | Detects column aliases used in WHERE/HAVING/ORDER BY/GROUP BY |

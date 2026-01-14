@@ -13,22 +13,21 @@
  * - Suppression of worker parse errors when prereq diagnostics exist
  */
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-
-// DEBUG: Enable/disable debug logging
-const DEBUG_DIAGNOSTICS = false;
-
-function debugLog(label: string, ...args: unknown[]) {
-  if (DEBUG_DIAGNOSTICS) {
-    // eslint-disable-next-line no-console
-    console.log(`[SQL-DIAG] ${label}`, ...args);
-  }
-}
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { DataExtension } from "@/features/editor-workspace/types";
 import type { SqlDiagnostic } from "./types";
 import { lintSql } from "./index";
 import type { WorkerRequest, WorkerResponse } from "./parser/protocol";
 import { createRequestId } from "./parser/protocol";
+
+// DEBUG: Enable/disable debug logging
+const DEBUG_DIAGNOSTICS = false;
+
+function debugLog(label: string, getArgs: () => unknown[]) {
+  if (!DEBUG_DIAGNOSTICS) return;
+  // eslint-disable-next-line no-console
+  console.log(`[SQL-DIAG] ${label}`, ...getArgs());
+}
 
 /**
  * Debounce delay for worker requests (ms)
@@ -146,14 +145,16 @@ export function useSqlDiagnostics(
   // Run legacy linting synchronously - this is immediate feedback
   const syncDiagnostics = useMemo(() => {
     const result = lintSql(sql, { dataExtensions, cursorPosition });
-    debugLog("SYNC_LINT", {
-      sqlPreview: sql.substring(0, 50),
-      count: result.length,
-      diagnostics: result.map((d) => ({
-        severity: d.severity,
-        message: d.message.substring(0, 50),
-      })),
-    });
+    debugLog("SYNC_LINT", () => [
+      {
+        sqlPreview: sql.substring(0, 50),
+        count: result.length,
+        diagnostics: result.map((d) => ({
+          severity: d.severity,
+          message: d.message.substring(0, 50),
+        })),
+      },
+    ]);
     return result;
   }, [sql, dataExtensions, cursorPosition]);
 
@@ -181,24 +182,28 @@ export function useSqlDiagnostics(
 
         case "lint-result":
           // Only apply result if it matches the latest request
-          debugLog("WORKER_RESPONSE", {
-            requestId: response.requestId,
-            latestRequestId: latestRequestIdRef.current,
-            isLatest: response.requestId === latestRequestIdRef.current,
-            workerDiagCount: response.diagnostics.length,
-            workerDiagnostics: response.diagnostics.map((d) => ({
-              severity: d.severity,
-              message: d.message.substring(0, 50),
-            })),
-          });
+          debugLog("WORKER_RESPONSE", () => [
+            {
+              requestId: response.requestId,
+              latestRequestId: latestRequestIdRef.current,
+              isLatest: response.requestId === latestRequestIdRef.current,
+              workerDiagCount: response.diagnostics.length,
+              workerDiagnostics: response.diagnostics.map((d) => ({
+                severity: d.severity,
+                message: d.message.substring(0, 50),
+              })),
+            },
+          ]);
           if (response.requestId === latestRequestIdRef.current) {
             workerDiagnosticsRef.current = response.diagnostics;
             // Trigger re-merge via state update - the merge effect will run with CURRENT values
             // This avoids the stale closure bug where captured values were used
-            debugLog("WORKER_TRIGGER_REMERGE", {
-              workerDiagCount: response.diagnostics.length,
-              note: "Incrementing workerVersion to trigger merge effect with current sync state",
-            });
+            debugLog("WORKER_TRIGGER_REMERGE", () => [
+              {
+                workerDiagCount: response.diagnostics.length,
+                note: "Incrementing workerVersion to trigger merge effect with current sync state",
+              },
+            ]);
             setWorkerVersion((v) => v + 1);
           }
           break;
@@ -224,57 +229,34 @@ export function useSqlDiagnostics(
     };
   }, []);
 
-  // Request worker lint with debouncing
-  const requestWorkerLint = useCallback((sqlToLint: string) => {
-    if (!workerRef.current) return;
-
-    // Skip for empty or very large SQL
-    if (!sqlToLint.trim() || sqlToLint.length > MAX_SQL_LENGTH) {
-      workerDiagnosticsRef.current = [];
-      return;
+  // Merge diagnostics from sync and worker sources
+  const mergeDiagnostics = (
+    sync: SqlDiagnostic[],
+    worker: SqlDiagnostic[],
+    hasPrereq: boolean,
+  ): SqlDiagnostic[] => {
+    // If prereq diagnostics exist, suppress worker parse errors
+    // This improves UX during typing - user sees "missing SELECT" not parse error
+    let filteredWorker = worker;
+    if (hasPrereq) {
+      // Filter out generic parse errors when prereq exists
+      filteredWorker = worker.filter((d) => {
+        // Keep non-error diagnostics
+        if (d.severity !== "error") return true;
+        // Keep specific policy errors (MCE-related)
+        if (d.message.includes("MCE")) return true;
+        if (d.message.includes("not available")) return true;
+        if (d.message.includes("not supported")) return true;
+        if (d.message.includes("read-only")) return true;
+        // Filter out generic parse errors
+        return false;
+      });
     }
 
-    const requestId = createRequestId();
-    latestRequestIdRef.current = requestId;
-
-    workerRef.current.postMessage({
-      type: "lint",
-      requestId,
-      sql: sqlToLint,
-    } satisfies WorkerRequest);
-  }, []);
-
-  // Merge diagnostics from sync and worker sources
-  const mergeDiagnostics = useCallback(
-    (
-      sync: SqlDiagnostic[],
-      worker: SqlDiagnostic[],
-      hasPrereq: boolean,
-    ): SqlDiagnostic[] => {
-      // If prereq diagnostics exist, suppress worker parse errors
-      // This improves UX during typing - user sees "missing SELECT" not parse error
-      let filteredWorker = worker;
-      if (hasPrereq) {
-        // Filter out generic parse errors when prereq exists
-        filteredWorker = worker.filter((d) => {
-          // Keep non-error diagnostics
-          if (d.severity !== "error") return true;
-          // Keep specific policy errors (MCE-related)
-          if (d.message.includes("MCE")) return true;
-          if (d.message.includes("not available")) return true;
-          if (d.message.includes("not supported")) return true;
-          if (d.message.includes("read-only")) return true;
-          // Filter out generic parse errors
-          return false;
-        });
-      }
-
-      // Combine and dedupe
-      const combined = [...sync, ...filteredWorker];
-      return dedupeAndSortDiagnostics(combined);
-    },
-    [],
-  );
+    // Combine and dedupe
+    const combined = [...sync, ...filteredWorker];
+    return dedupeAndSortDiagnostics(combined);
+  };
 
   // Effect to debounce worker requests when SQL changes
   useEffect(() => {
@@ -283,9 +265,31 @@ export function useSqlDiagnostics(
       clearTimeout(debounceTimerRef.current);
     }
 
+    if (!workerRef.current) return;
+
+    // If SQL is empty or too large, invalidate any in-flight responses and clear worker diags.
+    // This prevents stale results from reappearing after the user clears the editor.
+    if (!sql.trim() || sql.length > MAX_SQL_LENGTH) {
+      latestRequestIdRef.current = null;
+      if (workerDiagnosticsRef.current.length > 0) {
+        workerDiagnosticsRef.current = [];
+        setWorkerVersion((v) => v + 1);
+      }
+      return;
+    }
+
+    // Generate requestId immediately (before debounce) so any late responses
+    // from the previous SQL are ignored during the debounce window.
+    const requestId = createRequestId();
+    latestRequestIdRef.current = requestId;
+
     // Debounce worker request
     debounceTimerRef.current = setTimeout(() => {
-      requestWorkerLint(sql);
+      workerRef.current?.postMessage({
+        type: "lint",
+        requestId,
+        sql,
+      } satisfies WorkerRequest);
     }, DEBOUNCE_MS);
 
     return () => {
@@ -293,58 +297,64 @@ export function useSqlDiagnostics(
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [sql, requestWorkerLint]);
+  }, [sql]);
 
   // Effect to merge diagnostics when sync diagnostics change OR when worker results arrive
   // The workerVersion dependency ensures we re-merge with CURRENT sync state when worker responds
   useEffect(() => {
-    debugLog("MERGE_EFFECT", {
-      trigger: workerVersion > 0 ? "worker_or_sync" : "sync_only",
-      workerVersion,
-      syncCount: syncDiagnostics.length,
-      workerRefCount: workerDiagnosticsRef.current.length,
-      hasPrereq: hasPrereqDiagnostics,
-      syncDiagnostics: syncDiagnostics.map((d) => ({
-        severity: d.severity,
-        message: d.message.substring(0, 50),
-      })),
-      workerDiagnostics: workerDiagnosticsRef.current.map((d) => ({
-        severity: d.severity,
-        message: d.message.substring(0, 50),
-      })),
-    });
+    debugLog("MERGE_EFFECT", () => [
+      {
+        trigger: workerVersion > 0 ? "worker_or_sync" : "sync_only",
+        workerVersion,
+        syncCount: syncDiagnostics.length,
+        workerRefCount: workerDiagnosticsRef.current.length,
+        hasPrereq: hasPrereqDiagnostics,
+        syncDiagnostics: syncDiagnostics.map((d) => ({
+          severity: d.severity,
+          message: d.message.substring(0, 50),
+        })),
+        workerDiagnostics: workerDiagnosticsRef.current.map((d) => ({
+          severity: d.severity,
+          message: d.message.substring(0, 50),
+        })),
+      },
+    ]);
     const merged = mergeDiagnostics(
       syncDiagnostics,
       workerDiagnosticsRef.current,
       hasPrereqDiagnostics,
     );
 
-    debugLog("MERGE_EFFECT_RESULT", {
-      mergedCount: merged.length,
-      hasBlocking: merged.some(
-        (d) => d.severity === "error" || d.severity === "prereq",
-      ),
-      merged: merged.map((d) => ({
-        severity: d.severity,
-        message: d.message.substring(0, 50),
-      })),
-    });
+    debugLog("MERGE_EFFECT_RESULT", () => [
+      {
+        mergedCount: merged.length,
+        hasBlocking: merged.some(
+          (d) => d.severity === "error" || d.severity === "prereq",
+        ),
+        merged: merged.map((d) => ({
+          severity: d.severity,
+          message: d.message.substring(0, 50),
+        })),
+      },
+    ]);
 
     setMergedDiagnostics((prev) =>
       diagnosticsEqual(prev, merged) ? prev : merged,
     );
-  }, [syncDiagnostics, hasPrereqDiagnostics, mergeDiagnostics, workerVersion]);
+  }, [syncDiagnostics, hasPrereqDiagnostics, workerVersion]);
 
-  debugLog("HOOK_RETURN", {
-    mergedCount: mergedDiagnostics.length,
-    hasBlocking: mergedDiagnostics.some(
-      (d) => d.severity === "error" || d.severity === "prereq",
-    ),
-    diagnostics: mergedDiagnostics.map((d) => ({
-      severity: d.severity,
-      message: d.message.substring(0, 50),
-    })),
-  });
+  debugLog("HOOK_RETURN", () => [
+    {
+      mergedCount: mergedDiagnostics.length,
+      hasBlocking: mergedDiagnostics.some(
+        (d) => d.severity === "error" || d.severity === "prereq",
+      ),
+      diagnostics: mergedDiagnostics.map((d) => ({
+        severity: d.severity,
+        message: d.message.substring(0, 50),
+      })),
+    },
+  ]);
 
   return mergedDiagnostics;
 }

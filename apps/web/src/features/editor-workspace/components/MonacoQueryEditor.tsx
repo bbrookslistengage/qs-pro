@@ -80,11 +80,7 @@ const SQL_KEYWORDS = [
 const MAX_DE_SUGGESTIONS = 50;
 const MAX_DE_COUNT_FETCH = 10;
 
-const ERROR_DECORATION_RULE_IDS = new Set([
-  "prohibited-keywords",
-  "unsupported-functions",
-  "cte-detection",
-]);
+const MAX_ERROR_TOKEN_LENGTH = 80;
 
 interface MonacoQueryEditorProps {
   value: string;
@@ -984,11 +980,36 @@ export function MonacoQueryEditor({
       };
     });
 
+    const errorTokenDecorations = diagnostics
+      .filter((diagnostic) => diagnostic.severity === "error")
+      .filter(
+        (diagnostic) =>
+          diagnostic.endIndex - diagnostic.startIndex <= MAX_ERROR_TOKEN_LENGTH,
+      )
+      .map((diagnostic) => {
+        const start = model.getPositionAt(diagnostic.startIndex);
+        const end = model.getPositionAt(
+          Math.max(diagnostic.endIndex, diagnostic.startIndex + 1),
+        );
+        return {
+          range: new monaco.Range(
+            start.lineNumber,
+            start.column,
+            end.lineNumber,
+            end.column,
+          ),
+          options: {
+            inlineClassName: "monaco-error-token",
+          },
+        };
+      });
+
     decorationRef.current = editor.deltaDecorations(decorationRef.current, [
       ...tableDecorations,
       ...fieldDecorations,
+      ...errorTokenDecorations,
     ]);
-  }, [debouncedValue]);
+  }, [debouncedValue, diagnostics]);
 
   return (
     <div className={cn("h-full w-full", className)}>

@@ -1,4 +1,4 @@
-import type { SqlToken } from "../../sql-context";
+import type { SqlToken } from "../../../sql-context";
 import { tokenizeSql } from "./tokenizer";
 
 export interface FromJoinTarget {
@@ -57,9 +57,7 @@ export const extractFromJoinTargets = (sql: string): FromJoinTarget[] => {
   const targets: FromJoinTarget[] = [];
 
   for (let i = 0; i < tokens.length; i += 1) {
-    const token = tokens.at(i);
-    if (!token) continue;
-
+    const token = tokens[i];
     const keyword = isFromOrJoin(token);
     if (!keyword) continue;
 
@@ -67,16 +65,15 @@ export const extractFromJoinTargets = (sql: string): FromJoinTarget[] => {
     let nextIndex = i + 1;
 
     // Skip any commas immediately after FROM/JOIN
-    let nextToken = tokens.at(nextIndex);
     while (
-      nextToken &&
-      nextToken.type === "symbol" &&
-      nextToken.value === ","
+      tokens[nextIndex] &&
+      tokens[nextIndex].type === "symbol" &&
+      tokens[nextIndex].value === ","
     ) {
       nextIndex += 1;
-      nextToken = tokens.at(nextIndex);
     }
 
+    const nextToken = tokens[nextIndex];
     if (!nextToken) continue;
 
     // Handle subquery: FROM (SELECT ...)
@@ -119,8 +116,7 @@ export const extractFromJoinTargets = (sql: string): FromJoinTarget[] => {
     let lastWasIdentifier = false;
 
     while (runIndex < tokens.length) {
-      const current = tokens.at(runIndex);
-      if (!current) break;
+      const current = tokens[runIndex];
 
       // Stop at depth changes
       if (current.depth !== baseDepth) break;
@@ -153,7 +149,7 @@ export const extractFromJoinTargets = (sql: string): FromJoinTarget[] => {
         (current.value === "." || current.value === "-")
       ) {
         if (lastWasIdentifier) {
-          const peekNext = tokens.at(runIndex + 1);
+          const peekNext = tokens[runIndex + 1];
           // Only include connector if followed by word or bracket at same depth
           if (
             peekNext &&
@@ -176,29 +172,22 @@ export const extractFromJoinTargets = (sql: string): FromJoinTarget[] => {
 
     if (runTokens.length === 0) continue;
 
-    const firstRunToken = runTokens.at(0);
-    const lastRunToken = runTokens.at(runTokens.length - 1);
-    if (!firstRunToken || !lastRunToken) continue;
-
-    const startIndex = firstRunToken.startIndex;
-    const endIndex = lastRunToken.endIndex;
+    const startIndex = runTokens[0].startIndex;
+    const endIndex = runTokens[runTokens.length - 1].endIndex;
     const rawText = sql.slice(startIndex, endIndex);
 
     // Detect ENT. prefix
-    const secondRunToken = runTokens.at(1);
     const hasEntPrefix =
       runTokens.length >= 2 &&
-      firstRunToken.type === "word" &&
-      firstRunToken.value.toLowerCase() === "ent" &&
-      secondRunToken !== undefined &&
-      secondRunToken.type === "symbol" &&
-      secondRunToken.value === ".";
+      runTokens[0].type === "word" &&
+      runTokens[0].value.toLowerCase() === "ent" &&
+      runTokens[1].type === "symbol" &&
+      runTokens[1].value === ".";
 
     // Count word tokens, excluding ENT if it's part of ENT. prefix
     let wordCount = 0;
     for (let j = 0; j < runTokens.length; j += 1) {
-      const t = runTokens.at(j);
-      if (!t) continue;
+      const t = runTokens[j];
       if (t.type === "word" || t.type === "bracket") {
         // Skip counting ENT when it's part of ENT. prefix
         if (
@@ -222,12 +211,9 @@ export const extractFromJoinTargets = (sql: string): FromJoinTarget[] => {
     );
 
     // Check if the target portion (after ENT. if present) is bracketed
-    const thirdRunToken = runTokens.at(2);
     const isBracketed = hasEntPrefix
-      ? runTokens.length >= 3 &&
-        thirdRunToken !== undefined &&
-        thirdRunToken.type === "bracket"
-      : firstRunToken.type === "bracket";
+      ? runTokens.length >= 3 && runTokens[2].type === "bracket"
+      : runTokens[0].type === "bracket";
 
     targets.push({
       keyword,

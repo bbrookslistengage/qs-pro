@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { unbracketedNamesRule } from "./unbracketed-names";
-import type { LintContext } from "../types";
+import type { LintContext, SqlDiagnostic } from "../types";
 import type { DataExtension } from "@/features/editor-workspace/types";
 
 const createContext = (
@@ -202,7 +202,9 @@ describe("unbracketedNamesRule", () => {
     });
 
     it("should return empty array for SQL without FROM/JOIN", () => {
-      const diagnostics = unbracketedNamesRule.check(createContext("SELECT 1"));
+      const diagnostics = unbracketedNamesRule.check(
+        createContext("SELECT 1"),
+      );
       expect(diagnostics).toHaveLength(0);
     });
   });

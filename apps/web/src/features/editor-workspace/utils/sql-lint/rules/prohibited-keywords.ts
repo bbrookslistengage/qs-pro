@@ -1,59 +1,11 @@
 import type { LintRule, LintContext, SqlDiagnostic } from "../types";
 import { createDiagnostic, isWordChar } from "../utils/helpers";
 import { MC } from "@/constants/marketing-cloud";
-
-// DML keywords that are prohibited (read-only SQL)
-const DML_KEYWORDS = new Set([
-  "insert",
-  "update",
-  "delete",
-  "merge",
-  "truncate",
-]);
-
-// Procedural/control flow keywords that are prohibited
-const PROCEDURAL_KEYWORDS = new Set([
-  "declare",
-  "set",
-  "while",
-  "if",
-  "begin",
-  "end",
-  "exec",
-  "execute",
-  "print",
-  "raiserror",
-  "throw",
-  "try",
-  "catch",
-  "goto",
-  "return",
-  "break",
-  "continue",
-]);
-
-// DDL and other prohibited keywords
-const DDL_KEYWORDS = new Set([
-  "drop",
-  "alter",
-  "create",
-  "grant",
-  "revoke",
-  "commit",
-  "rollback",
-  "savepoint",
-  "cursor",
-  "fetch",
-  "open",
-  "close",
-  "deallocate",
-  "backup",
-  "restore",
-  "kill",
-  "go",
-  "else",
-  "waitfor",
-]);
+import {
+  MCE_SQL_PROHIBITED_DML,
+  MCE_SQL_PROHIBITED_DDL,
+  MCE_SQL_PROHIBITED_PROCEDURAL,
+} from "@/constants/mce-sql";
 
 const getKeywordDiagnostics = (sql: string): SqlDiagnostic[] => {
   const diagnostics: SqlDiagnostic[] = [];
@@ -172,7 +124,7 @@ const getKeywordDiagnostics = (sql: string): SqlDiagnostic[] => {
       }
       const word = sql.slice(start, end).toLowerCase();
 
-      if (DML_KEYWORDS.has(word)) {
+      if (MCE_SQL_PROHIBITED_DML.has(word)) {
         diagnostics.push(
           createDiagnostic(
             `${MC.SHORT} SQL is read-only — INSERT, UPDATE, DELETE are not supported. To modify data, use the Query Activity's 'Overwrite' or 'Update' data action, or the ${MC.SHORT} UI.`,
@@ -181,7 +133,7 @@ const getKeywordDiagnostics = (sql: string): SqlDiagnostic[] => {
             end,
           ),
         );
-      } else if (PROCEDURAL_KEYWORDS.has(word)) {
+      } else if (MCE_SQL_PROHIBITED_PROCEDURAL.has(word)) {
         diagnostics.push(
           createDiagnostic(
             `Variables and procedural logic (DECLARE, SET, WHILE, IF) are not supported in ${MC.SHORT}. Write pure SELECT queries only.`,
@@ -190,7 +142,7 @@ const getKeywordDiagnostics = (sql: string): SqlDiagnostic[] => {
             end,
           ),
         );
-      } else if (DDL_KEYWORDS.has(word)) {
+      } else if (MCE_SQL_PROHIBITED_DDL.has(word)) {
         diagnostics.push(
           createDiagnostic(
             `${MC.SHORT} SQL is read-only — DDL statements (CREATE, DROP, ALTER) are not supported.`,
@@ -211,9 +163,6 @@ const getKeywordDiagnostics = (sql: string): SqlDiagnostic[] => {
   return diagnostics;
 };
 
-/**
- * Rule to detect prohibited DML/DDL keywords and procedural keywords.
- */
 export const prohibitedKeywordsRule: LintRule = {
   id: "prohibited-keywords",
   name: "Prohibited Keywords",

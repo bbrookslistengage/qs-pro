@@ -493,8 +493,8 @@ describe("sql lint", () => {
 
   // Task Group 3: New Linting Rules tests
   test("lintSql_WithUnsupportedFunction_ReturnsErrorDiagnostic", () => {
-    // Arrange
-    const sql = "SELECT string_agg(Name, ',') FROM [Users]";
+    // Arrange - STRING_AGG is now supported, use TRY_CONVERT instead
+    const sql = "SELECT TRY_CONVERT(INT, Value) FROM [Users]";
 
     // Act
     const diagnostics = lintSql(sql);
@@ -618,7 +618,7 @@ describe("sql lint", () => {
     // Arrange - Complex SQL with multiple violations
     // Note: OFFSET without ORDER BY is an error, and unbracketed names/unsupported functions are now errors
     const sql = `
-      SELECT Region, string_agg(Name, ','), COUNT(*)
+      SELECT Region, TRY_CONVERT(INT, ID), COUNT(*)
       FROM My Data
       WHERE 1=1
       LIMIT 10

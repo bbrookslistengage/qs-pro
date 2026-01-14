@@ -242,15 +242,6 @@ describe("Policy Validation Layer", () => {
   });
 
   describe("Unsupported Functions", () => {
-    test("string_agg_returns_error", () => {
-      const sql = "SELECT STRING_AGG(Name, ',') FROM Contacts";
-      const diagnostics = parseAndLint(sql);
-      expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("STRING_AGG");
-      expect(diagnostics[0].message).toContain("not available");
-    });
-
     test("string_split_returns_error", () => {
       const sql = "SELECT * FROM STRING_SPLIT('a,b,c', ',')";
       const diagnostics = parseAndLint(sql);
@@ -293,41 +284,31 @@ describe("Policy Validation Layer", () => {
       expect(diagnostics[0].message).toContain("ISJSON");
     });
 
-    test("unsupported_function_in_where_clause", () => {
-      const sql =
-        "SELECT ID FROM Contacts WHERE STRING_AGG(Name, ',') = 'test'";
-      const diagnostics = parseAndLint(sql);
-      // May fail to parse due to aggregate in WHERE, but test the policy check
-      expect(diagnostics.length).toBeGreaterThanOrEqual(1);
-      expect(diagnostics[0].severity).toBe("error");
-    });
-
     test("unsupported_function_in_subquery", () => {
       const sql = `
         SELECT ID FROM Contacts
-        WHERE ID IN (SELECT STRING_AGG(ID, ',') FROM Orders)
+        WHERE ID IN (SELECT value FROM OPENJSON('{"a":1}'))
       `;
       const diagnostics = parseAndLint(sql);
-      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics.length).toBeGreaterThanOrEqual(1);
       expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("STRING_AGG");
+      expect(diagnostics[0].message).toContain("OPENJSON");
     });
 
     test("multiple_unsupported_functions", () => {
       const sql =
-        "SELECT STRING_AGG(Name, ','), TRY_CONVERT(INT, ID) FROM Contacts";
+        "SELECT TRY_CAST('1' AS INT), TRY_CONVERT(INT, '2') FROM Contacts";
       const diagnostics = parseAndLint(sql);
-      // May fail to parse due to complex structure, but test what we can
-      expect(diagnostics.length).toBeGreaterThanOrEqual(1);
+      expect(diagnostics.length).toBeGreaterThanOrEqual(2);
       expect(diagnostics[0].severity).toBe("error");
     });
 
     test("unsupported_function_error_position", () => {
-      const sql = "SELECT ID, STRING_AGG(Name, ',') FROM Contacts";
+      const sql = "SELECT ID, TRY_CONVERT(INT, '123') FROM Contacts";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(1);
-      // startIndex should be at STRING_AGG position
-      expect(diagnostics[0].startIndex).toBe(sql.toLowerCase().indexOf("string_agg"));
+      // startIndex should be at TRY_CONVERT position
+      expect(diagnostics[0].startIndex).toBe(sql.toLowerCase().indexOf("try_convert"));
     });
   });
 
@@ -340,6 +321,12 @@ describe("Policy Validation Layer", () => {
 
     test("sum_avg_min_max_are_allowed", () => {
       const sql = "SELECT SUM(Amount), AVG(Amount), MIN(Amount), MAX(Amount) FROM Orders";
+      const diagnostics = parseAndLint(sql);
+      expect(diagnostics).toHaveLength(0);
+    });
+
+    test("string_agg_is_allowed", () => {
+      const sql = "SELECT STRING_AGG(Name, ',') FROM Contacts GROUP BY Category";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(0);
     });

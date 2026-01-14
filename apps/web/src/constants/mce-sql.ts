@@ -120,7 +120,6 @@ export const MCE_SQL_ALL_PROHIBITED = new Set([
 ]);
 
 export const MCE_SQL_UNSUPPORTED_FUNCTIONS: Record<string, string | null> = {
-  string_agg: null,
   string_split: null,
   json_modify: null,
   openjson: null,
@@ -181,6 +180,7 @@ export const MCE_SQL_SUPPORTED_FUNCTIONS = new Set([
   "avg",
   "sum",
   "count",
+  "string_agg",
   "abs",
   "ceiling",
   "floor",

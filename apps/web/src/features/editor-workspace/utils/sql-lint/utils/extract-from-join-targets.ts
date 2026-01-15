@@ -1,4 +1,5 @@
-import type { SqlToken } from "../../sql-context";
+import type { SqlToken } from "@/features/editor-workspace/utils/sql-context";
+
 import { tokenizeSql } from "./tokenizer";
 
 export interface FromJoinTarget {

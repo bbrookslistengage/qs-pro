@@ -1,4 +1,4 @@
-import { tokenizeSql as tokenizeSqlFromContext } from "../../sql-context";
+import { tokenizeSql as tokenizeSqlFromContext } from "@/features/editor-workspace/utils/sql-context";
 
 /**
  * Tokenizes SQL into a stream of tokens with type, value, position, and depth.

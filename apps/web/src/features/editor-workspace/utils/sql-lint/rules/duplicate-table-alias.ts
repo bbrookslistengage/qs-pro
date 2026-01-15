@@ -1,6 +1,6 @@
 import { MC } from "@/constants/marketing-cloud";
+import { extractTableReferences } from "@/features/editor-workspace/utils/sql-context";
 
-import { extractTableReferences } from "../../sql-context";
 import type { LintContext, LintRule, SqlDiagnostic } from "../types";
 import { createDiagnostic } from "../utils/helpers";
 

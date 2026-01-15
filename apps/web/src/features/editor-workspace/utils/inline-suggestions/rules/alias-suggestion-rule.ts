@@ -1,5 +1,6 @@
-import { generateSmartAlias } from "../../alias-generator";
-import { isAtEndOfBracketedTableInFromJoin } from "../../sql-context";
+import { generateSmartAlias } from "@/features/editor-workspace/utils/alias-generator";
+import { isAtEndOfBracketedTableInFromJoin } from "@/features/editor-workspace/utils/sql-context";
+
 import type { InlineSuggestionRule } from "../types";
 
 /**

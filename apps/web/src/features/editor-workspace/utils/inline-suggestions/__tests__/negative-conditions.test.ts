@@ -6,7 +6,7 @@ import {
   isInsideComment,
   isInsideFunctionParens,
   isInsideString,
-} from "../../sql-context";
+} from "@/features/editor-workspace/utils/sql-context";
 
 describe("isInsideString", () => {
   it("isInsideString_CursorInsideSingleQuotedString_ReturnsTrue", () => {

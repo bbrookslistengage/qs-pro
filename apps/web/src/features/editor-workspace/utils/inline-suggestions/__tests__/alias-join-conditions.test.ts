@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { DataExtensionField } from "@/features/editor-workspace/types";
+import { getSqlCursorContext } from "@/features/editor-workspace/utils/sql-context";
 
-import { getSqlCursorContext } from "../../sql-context";
 import { aliasSuggestionRule } from "../rules/alias-suggestion-rule";
 import type { InlineSuggestionContext } from "../types";
 

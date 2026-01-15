@@ -1,4 +1,5 @@
-import { extractTableReferences } from "../../sql-context";
+import { extractTableReferences } from "@/features/editor-workspace/utils/sql-context";
+
 import type { LintContext, LintRule, SqlDiagnostic } from "../types";
 import { createDiagnostic } from "../utils/helpers";
 

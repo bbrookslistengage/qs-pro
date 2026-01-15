@@ -11,7 +11,7 @@ export interface UserSession {
 }
 
 export const CurrentUser = createParamDecorator(
-  (data: unknown, ctx: ExecutionContext): UserSession => {
+  (_data: unknown, ctx: ExecutionContext): UserSession => {
     const request = ctx.switchToHttp().getRequest();
     const user = request.user as Partial<UserSession> | undefined;
     if (

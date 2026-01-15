@@ -138,7 +138,7 @@ async function bootstrap() {
     .getInstance()
     .addHook(
       'onSend',
-      (req: FastifyRequest, reply: FastifyReply, _payload, done) => {
+      (_req: FastifyRequest, reply: FastifyReply, _payload, done) => {
         setSecurityHeaders(reply, cookieSecure);
         done();
       },

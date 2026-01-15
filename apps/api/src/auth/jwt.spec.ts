@@ -9,8 +9,6 @@ import { AuthService } from './auth.service';
 
 describe('AuthService JWT Verification', () => {
   let service: AuthService;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  let configService: ConfigService;
   const secret = 'secret-key-at-least-32-chars-long-!!!';
   const encodedSecret = new TextEncoder().encode(secret);
 
@@ -54,7 +52,6 @@ describe('AuthService JWT Verification', () => {
     }).compile();
 
     service = module.get<AuthService>(AuthService);
-    configService = module.get<ConfigService>(ConfigService);
   });
 
   async function createJwt(

@@ -22,6 +22,14 @@ function getRequiredEnv(key: string): string {
   return value;
 }
 
+function getFirstCookie(headers: { 'set-cookie'?: string[] }): string {
+  const cookie = headers['set-cookie']?.[0];
+  if (!cookie) {
+    throw new Error('Expected set-cookie header');
+  }
+  return cookie;
+}
+
 const server = setupServer(
   http.post('https://test-tssd.auth.marketingcloudapis.com/v2/token', () => {
     return HttpResponse.json({
@@ -105,8 +113,7 @@ describe('Auth (e2e)', () => {
       .expect(302);
 
     expect(response.headers.location).toBe('/');
-    expect(response.headers['set-cookie']).toBeDefined();
-    const cookie = response.headers['set-cookie'][0];
+    const cookie = getFirstCookie(response.headers);
 
     // Verify user created
     const userRepo: IUserRepository = app.get('USER_REPOSITORY');
@@ -130,8 +137,12 @@ describe('Auth (e2e)', () => {
       .query({ tssd: 'test-tssd' })
       .expect(302);
 
-    const loginCookie = loginResponse.headers['set-cookie'][0];
+    const loginCookie = getFirstCookie(loginResponse.headers);
     const redirectUrl = loginResponse.headers.location;
+    expect(redirectUrl).toBeDefined();
+    if (!redirectUrl) {
+      throw new Error('redirectUrl expected');
+    }
     const state = new URL(redirectUrl).searchParams.get('state');
 
     expect(state).toBeDefined();
@@ -149,12 +160,11 @@ describe('Auth (e2e)', () => {
       .expect(302);
 
     expect(response.headers.location).toBe('/');
-    expect(response.headers['set-cookie']).toBeDefined();
-    const cookie = response.headers['set-cookie'][0];
+    const callbackCookie = getFirstCookie(response.headers);
 
     const meResponse = await request(app.getHttpServer())
       .get('/auth/me')
-      .set('Cookie', cookie)
+      .set('Cookie', callbackCookie)
       .expect(200);
 
     expect(meResponse.body.user.sfUserId).toBe('sf-user-123');
@@ -186,11 +196,11 @@ describe('Auth (e2e)', () => {
       .send({ jwt })
       .expect(302);
 
-    const cookie = loginResponse.headers['set-cookie'][0];
+    const refreshCookie = getFirstCookie(loginResponse.headers);
 
     const response = await request(app.getHttpServer())
       .get('/auth/refresh')
-      .set('Cookie', cookie)
+      .set('Cookie', refreshCookie)
       .expect(200);
 
     expect(response.body.ok).toBe(true);

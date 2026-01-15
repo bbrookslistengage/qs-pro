@@ -515,12 +515,15 @@ export class AuthService {
       return undefined;
     }
     const parts = code.split('.');
-    if (parts.length < 2) {
+    const encodedPayload = parts[1];
+    if (!encodedPayload) {
       return undefined;
     }
 
     try {
-      const payloadJson = Buffer.from(parts[1], 'base64url').toString('utf8');
+      const payloadJson = Buffer.from(encodedPayload, 'base64url').toString(
+        'utf8',
+      );
       const payload = JSON.parse(payloadJson) as {
         auth_code?: string;
         eid?: number | string;

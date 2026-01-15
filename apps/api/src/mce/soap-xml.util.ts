@@ -32,8 +32,8 @@ function parseXml(xml: string): Record<string, unknown> {
 
     if (token.startsWith('</')) {
       const node = stack.pop();
-      if (node) {
-        const parent = stack[stack.length - 1];
+      const parent = stack[stack.length - 1];
+      if (node && parent) {
         parent.children.push(node);
       }
       continue;
@@ -46,7 +46,9 @@ function parseXml(xml: string): Record<string, unknown> {
 
       if (selfClosing) {
         const parent = stack[stack.length - 1];
-        parent.children.push(node);
+        if (parent) {
+          parent.children.push(node);
+        }
       } else {
         stack.push(node);
       }
@@ -57,7 +59,9 @@ function parseXml(xml: string): Record<string, unknown> {
     const text = token.trim();
     if (text) {
       const current = stack[stack.length - 1];
-      current.text += text;
+      if (current) {
+        current.text += text;
+      }
     }
   }
 
@@ -88,7 +92,7 @@ function nodeToObject(node: XmlNode): Record<string, unknown> {
 
 function normalizeTagName(token: string): string {
   const tagBody = token.replace(/^<|\/?>$/g, '').trim();
-  const [rawName] = tagBody.split(/\s+/);
+  const [rawName = ''] = tagBody.split(/\s+/);
   const name = rawName.replace(/^\/?/, '');
   // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- Empty result from pop (e.g. "foo:") should use full name
   return name.includes(':') ? name.split(':').pop() || name : name;

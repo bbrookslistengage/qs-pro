@@ -6,8 +6,6 @@ import { MetadataService } from './metadata.service';
 
 describe('MetadataController', () => {
   let controller: MetadataController;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  let service: MetadataService;
 
   const mockService = {
     getFolders: vi.fn(),
@@ -27,7 +25,6 @@ describe('MetadataController', () => {
     }).compile();
 
     controller = module.get<MetadataController>(MetadataController);
-    service = module.get<MetadataService>(MetadataService);
   });
 
   afterEach(() => {

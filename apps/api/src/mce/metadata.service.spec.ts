@@ -1,6 +1,5 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Cache } from 'cache-manager';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MceBridgeService } from './mce-bridge.service';

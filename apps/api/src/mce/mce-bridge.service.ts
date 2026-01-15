@@ -5,7 +5,6 @@ import {
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import axios, { AxiosRequestConfig } from 'axios';
 
 import { AuthService } from '../auth/auth.service';
@@ -24,10 +23,7 @@ export interface ProblemDetails {
 export class MceBridgeService {
   private readonly logger = new Logger(MceBridgeService.name);
 
-  constructor(
-    private authService: AuthService,
-    private configService: ConfigService,
-  ) {}
+  constructor(private authService: AuthService) {}
 
   /**
    * Constructs a SOAP Envelope for MCE

@@ -28,7 +28,10 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         break;
       default:
         // Type guard exhaustiveness
-        sendError(undefined, `Unknown request type: ${(request as { type: string }).type}`);
+        sendError(
+          undefined,
+          `Unknown request type: ${(request as { type: string }).type}`,
+        );
     }
   } catch (err) {
     const error = err as Error;

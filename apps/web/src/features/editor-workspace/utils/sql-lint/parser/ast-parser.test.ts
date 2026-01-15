@@ -104,7 +104,9 @@ describe("AST Parser", () => {
       const diagnostics = parseAndLint(sql);
       expect(diagnostics.length).toBe(1);
       expect(diagnostics[0].startIndex).toBeGreaterThanOrEqual(0);
-      expect(diagnostics[0].endIndex).toBeGreaterThan(diagnostics[0].startIndex);
+      expect(diagnostics[0].endIndex).toBeGreaterThan(
+        diagnostics[0].startIndex,
+      );
     });
 
     test("unmatched_parenthesis_returns_error", () => {

@@ -546,16 +546,14 @@ export function MonacoQueryEditor({
                       })()
                     : wordRange;
 
-                  const fieldCount = countResults.at(index);
-
                   return {
                     label: suggestion.label,
                     insertText,
                     kind: monacoInstance.languages.CompletionItemKind.Struct,
                     detail:
-                      fieldCount === null
+                      countResults[index] === null
                         ? "Fields: —"
-                        : `Fields: ${fieldCount}`,
+                        : `Fields: ${countResults[index]}`,
                     range,
                     sortText: `0-${suggestion.label}`,
                   };
@@ -704,8 +702,7 @@ export function MonacoQueryEditor({
         ],
         onEnterRules: [
           {
-            // eslint-disable-next-line security/detect-unsafe-regex -- Monaco requires a RegExp here; this pattern is fully anchored and avoids nested quantifiers/backtracking hotspots, so it's safe for untrusted input.
-            beforeText: /^\s*SELECT(?:\s+DISTINCT)?(?:\s+TOP\s+\d+)?\s*$/i,
+            beforeText: /^\s*SELECT(\s+DISTINCT)?(\s+TOP\s+\d+)?\s*$/i,
             action: {
               indentAction: monacoInstance.languages.IndentAction.Indent,
             },
@@ -724,8 +721,7 @@ export function MonacoQueryEditor({
           },
           {
             beforeText:
-              // eslint-disable-next-line security/detect-unsafe-regex -- Monaco requires a RegExp here; this pattern is fully anchored and avoids nested quantifiers/backtracking hotspots, so it's safe for untrusted input.
-              /^\s*(?:(?:INNER|LEFT|RIGHT|FULL)(?:\s+OUTER)?|CROSS)?\s*JOIN\s+\S+(?:\s+(?:AS\s+)?(?!ON\b)\S+)?\s*$/i,
+              /^\s*(INNER\s+|LEFT\s+(OUTER\s+)?|RIGHT\s+(OUTER\s+)?|FULL\s+(OUTER\s+)?|CROSS\s+)?JOIN\s+\S+.*(?<!\bON\b.*)$/i,
             action: {
               indentAction: monacoInstance.languages.IndentAction.Indent,
             },
@@ -829,9 +825,7 @@ export function MonacoQueryEditor({
 
         if (/\s/.test(charBefore)) return;
 
-        const fromJoinMatch = currentWord.match(
-          /^(?:f|fr|fro|from|j|jo|joi|join)$/i,
-        );
+        const fromJoinMatch = currentWord.match(/^(f(r(om?)?)?|j(o(in?)?)?)$/i);
         const isFromOrJoinPrefix =
           wordInfo.endColumn === position.column && fromJoinMatch !== null;
         if (!isFromOrJoinPrefix) return;

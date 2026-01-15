@@ -71,6 +71,12 @@ module.exports = tseslint.config(
               message: "Use @solar-icons/react for Solar icons in @qs-pro/web.",
             },
           ],
+          patterns: [
+            {
+              group: ["../../*"],
+              message: "Deep parent imports are not allowed. Use @/ alias instead.",
+            },
+          ],
         },
       ],
     },

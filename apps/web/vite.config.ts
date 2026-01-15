@@ -31,7 +31,7 @@ export default defineConfig(({ mode }) => {
               },
             ]
           : []),
-        { find: "@", replacement: srcRoot },
+        { find: /^@\//, replacement: `${srcRoot}/` },
       ],
     },
 

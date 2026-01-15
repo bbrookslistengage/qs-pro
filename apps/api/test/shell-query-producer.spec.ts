@@ -137,7 +137,10 @@ describe('Shell Query Producer (e2e)', () => {
 
       expect(res.statusCode).toBe(201);
       expect(res.json()).toEqual(
-        expect.objectContaining({ runId: expect.any(String), status: 'queued' }),
+        expect.objectContaining({
+          runId: expect.any(String),
+          status: 'queued',
+        }),
       );
     });
 

@@ -150,34 +150,161 @@ const extractColumnAliases = (sql: string): ColumnAlias[] => {
  */
 const extractTableAliases = (sql: string): Set<string> => {
   const tableAliases = new Set<string>();
-  const cleanSql = removeComments(sql);
+  const parser = createParser(sql);
 
-  // Pattern: FROM [TableName] alias or FROM [TableName] AS alias
-  // Also handles: JOIN [TableName] alias
-  const tableAliasPattern =
-    /\b(?:FROM|JOIN)\s+(?:\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)\s+(?:AS\s+)?([A-Za-z_][A-Za-z0-9_]*)\b/gi;
-
-  let match: RegExpExecArray | null;
-  while ((match = tableAliasPattern.exec(cleanSql)) !== null) {
-    const alias = match[1].toLowerCase();
-    // Skip keywords that might be matched
-    if (
-      ![
-        "on",
-        "where",
-        "and",
-        "or",
-        "join",
-        "left",
-        "right",
-        "inner",
-        "outer",
-        "cross",
-        "full",
-      ].includes(alias)
-    ) {
-      tableAliases.add(alias);
+  const skipWhitespace = () => {
+    while (!parser.atEnd() && /\s/.test(parser.char())) {
+      parser.advance();
     }
+  };
+
+  const normalizeAliasForKeywordCheck = (aliasLower: string): string => {
+    if (aliasLower.startsWith("[") && aliasLower.endsWith("]")) {
+      return aliasLower.slice(1, -1).replaceAll("]]", "]").trim();
+    }
+    return aliasLower;
+  };
+
+  const keywordsToSkip = new Set([
+    "on",
+    "where",
+    "and",
+    "or",
+    "join",
+    "left",
+    "right",
+    "inner",
+    "outer",
+    "cross",
+    "full",
+  ]);
+
+  const readWord = (): string | null => {
+    if (parser.atEnd()) return null;
+    if (!isWordChar(parser.char())) return null;
+
+    const start = parser.index;
+    let end = start + 1;
+    while (end < sql.length && isWordChar(sql.charAt(end))) {
+      end += 1;
+    }
+    parser.index = end;
+    return sql.slice(start, end);
+  };
+
+  const readBracketedIdentifier = (): string | null => {
+    if (parser.atEnd()) return null;
+    if (parser.char() !== "[") return null;
+
+    const start = parser.index;
+    parser.advance();
+    while (!parser.atEnd()) {
+      const char = parser.char();
+      const nextChar = sql.charAt(parser.index + 1);
+      if (char === "]") {
+        if (nextChar === "]") {
+          parser.index += 2;
+          continue;
+        }
+        parser.advance();
+        return sql.slice(start, parser.index);
+      }
+      parser.advance();
+    }
+
+    return null;
+  };
+
+  const readIdentifierToken = (): string | null => {
+    return readBracketedIdentifier() ?? readWord();
+  };
+
+  const skipSubquery = (): boolean => {
+    if (parser.char() !== "(") return false;
+    let depth = 0;
+
+    while (!parser.atEnd()) {
+      if (parser.skipQuotesAndComments()) continue;
+
+      const char = parser.char();
+      if (char === "(") {
+        depth += 1;
+        parser.advance();
+        continue;
+      }
+      if (char === ")") {
+        depth -= 1;
+        parser.advance();
+        if (depth === 0) return true;
+        continue;
+      }
+      parser.advance();
+    }
+
+    return false;
+  };
+
+  const consumeTableReference = (): boolean => {
+    skipWhitespace();
+
+    if (parser.char() === "(") {
+      return skipSubquery();
+    }
+
+    const firstSegment = readIdentifierToken();
+    if (!firstSegment) return false;
+
+    skipWhitespace();
+    while (!parser.atEnd() && parser.char() === ".") {
+      parser.advance();
+      skipWhitespace();
+      const nextSegment = readIdentifierToken();
+      if (!nextSegment) break;
+      skipWhitespace();
+    }
+
+    return true;
+  };
+
+  while (!parser.atEnd()) {
+    if (parser.skipQuotesAndComments()) continue;
+
+    if (isWordChar(parser.char())) {
+      const word = readWord();
+      if (!word) {
+        parser.advance();
+        continue;
+      }
+
+      const wordLower = word.toLowerCase();
+      if (wordLower !== "from" && wordLower !== "join") {
+        continue;
+      }
+
+      if (!consumeTableReference()) continue;
+
+      skipWhitespace();
+      const maybeAsIndex = parser.index;
+      const maybeAs = readWord();
+      if (!maybeAs || maybeAs.toLowerCase() !== "as") {
+        parser.index = maybeAsIndex;
+      } else {
+        skipWhitespace();
+      }
+
+      const aliasToken = readIdentifierToken();
+      if (!aliasToken) continue;
+
+      const aliasLower = aliasToken.toLowerCase();
+      if (keywordsToSkip.has(normalizeAliasForKeywordCheck(aliasLower))) {
+        continue;
+      }
+
+      tableAliases.add(aliasLower);
+      continue;
+    }
+
+    parser.advance();
   }
 
   return tableAliases;
@@ -521,6 +648,11 @@ const getAliasInClauseDiagnostics = (sql: string): SqlDiagnostic[] => {
           const bracketContent = clauseText.slice(bracketStart + 1, i);
           const fullBracket = `[${bracketContent}]`;
           const fullBracketLower = fullBracket.toLowerCase();
+
+          if (tableAliases.has(fullBracketLower)) {
+            i++;
+            continue;
+          }
 
           // Check if this matches a column alias
           for (const alias of columnAliases) {

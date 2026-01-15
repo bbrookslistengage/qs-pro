@@ -14,19 +14,25 @@ import {
   createTenantRepoStub,
   createSessionGuardMock,
 } from './stubs';
+import { ShellQuerySseService } from '../src/shell-query/shell-query-sse.service';
 
-const mockRedis = createRedisStub();
-const mockShellQueryService = createShellQueryServiceStub();
-const mockTenantRepo = createTenantRepoStub();
+let mockRedis: ReturnType<typeof createRedisStub>;
+let mockShellQueryService: ReturnType<typeof createShellQueryServiceStub>;
+let mockTenantRepo: ReturnType<typeof createTenantRepoStub>;
 
 describe('Shell Query Notifications & Results (e2e)', () => {
   let app: NestFastifyApplication;
 
   beforeEach(async () => {
+    mockRedis = createRedisStub();
+    mockShellQueryService = createShellQueryServiceStub();
+    mockTenantRepo = createTenantRepoStub();
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [ShellQueryController],
       providers: [
         { provide: ShellQueryService, useValue: mockShellQueryService },
+        ShellQuerySseService,
         { provide: 'REDIS_CLIENT', useValue: mockRedis },
         { provide: 'TENANT_REPOSITORY', useValue: mockTenantRepo },
       ],
@@ -149,8 +155,8 @@ describe('Shell Query Notifications & Results (e2e)', () => {
     });
 
     it('should enforce rate limiting', async () => {
-      mockShellQueryService.getRun.mockResolvedValue({ id: 'run-1' });
-      mockRedis.incr.mockResolvedValue(6); // Exceed limit
+      mockShellQueryService.getRun.mockResolvedValueOnce({ id: 'run-1' });
+      mockRedis.incr.mockResolvedValueOnce(6);
 
       const res = await app.inject({
         method: 'GET',

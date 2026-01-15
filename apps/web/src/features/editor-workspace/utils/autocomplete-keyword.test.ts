@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+
 import { getContextualKeywords } from "@/features/editor-workspace/utils/autocomplete-keyword";
 
 describe("autocomplete keyword helpers", () => {

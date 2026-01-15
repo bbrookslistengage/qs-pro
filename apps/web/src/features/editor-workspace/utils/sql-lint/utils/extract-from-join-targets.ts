@@ -35,16 +35,24 @@ const JOIN_BOUNDARIES = new Set([
 ]);
 
 const isClauseBoundary = (token: SqlToken): boolean => {
-  if (token.type !== "word") return false;
+  if (token.type !== "word") {
+    return false;
+  }
   const lower = token.value.toLowerCase();
   return CLAUSE_BOUNDARIES.has(lower) || JOIN_BOUNDARIES.has(lower);
 };
 
 const isFromOrJoin = (token: SqlToken): "from" | "join" | null => {
-  if (token.type !== "word") return null;
+  if (token.type !== "word") {
+    return null;
+  }
   const lower = token.value.toLowerCase();
-  if (lower === "from") return "from";
-  if (lower === "join") return "join";
+  if (lower === "from") {
+    return "from";
+  }
+  if (lower === "join") {
+    return "join";
+  }
   return null;
 };
 
@@ -58,26 +66,28 @@ export const extractFromJoinTargets = (sql: string): FromJoinTarget[] => {
 
   for (let i = 0; i < tokens.length; i += 1) {
     const token = tokens.at(i);
-    if (!token) continue;
+    if (!token) {
+      continue;
+    }
 
     const keyword = isFromOrJoin(token);
-    if (!keyword) continue;
+    if (!keyword) {
+      continue;
+    }
 
     const baseDepth = token.depth;
     let nextIndex = i + 1;
 
     // Skip any commas immediately after FROM/JOIN
     let nextToken = tokens.at(nextIndex);
-    while (
-      nextToken &&
-      nextToken.type === "symbol" &&
-      nextToken.value === ","
-    ) {
+    while (nextToken?.type === "symbol" && nextToken.value === ",") {
       nextIndex += 1;
       nextToken = tokens.at(nextIndex);
     }
 
-    if (!nextToken) continue;
+    if (!nextToken) {
+      continue;
+    }
 
     // Handle subquery: FROM (SELECT ...)
     if (nextToken.type === "symbol" && nextToken.value === "(") {
@@ -120,16 +130,24 @@ export const extractFromJoinTargets = (sql: string): FromJoinTarget[] => {
 
     while (runIndex < tokens.length) {
       const current = tokens.at(runIndex);
-      if (!current) break;
+      if (!current) {
+        break;
+      }
 
       // Stop at depth changes
-      if (current.depth !== baseDepth) break;
+      if (current.depth !== baseDepth) {
+        break;
+      }
 
       // Stop at clause/join boundaries
-      if (isClauseBoundary(current)) break;
+      if (isClauseBoundary(current)) {
+        break;
+      }
 
       // Stop at comma
-      if (current.type === "symbol" && current.value === ",") break;
+      if (current.type === "symbol" && current.value === ",") {
+        break;
+      }
 
       // Handle word tokens (identifiers)
       if (current.type === "word") {
@@ -156,8 +174,7 @@ export const extractFromJoinTargets = (sql: string): FromJoinTarget[] => {
           const peekNext = tokens.at(runIndex + 1);
           // Only include connector if followed by word or bracket at same depth
           if (
-            peekNext &&
-            peekNext.depth === baseDepth &&
+            peekNext?.depth === baseDepth &&
             (peekNext.type === "word" || peekNext.type === "bracket")
           ) {
             runTokens.push(current);
@@ -174,11 +191,15 @@ export const extractFromJoinTargets = (sql: string): FromJoinTarget[] => {
       break;
     }
 
-    if (runTokens.length === 0) continue;
+    if (runTokens.length === 0) {
+      continue;
+    }
 
     const firstRunToken = runTokens.at(0);
     const lastRunToken = runTokens.at(runTokens.length - 1);
-    if (!firstRunToken || !lastRunToken) continue;
+    if (!firstRunToken || !lastRunToken) {
+      continue;
+    }
 
     const startIndex = firstRunToken.startIndex;
     const endIndex = lastRunToken.endIndex;
@@ -190,15 +211,16 @@ export const extractFromJoinTargets = (sql: string): FromJoinTarget[] => {
       runTokens.length >= 2 &&
       firstRunToken.type === "word" &&
       firstRunToken.value.toLowerCase() === "ent" &&
-      secondRunToken !== undefined &&
-      secondRunToken.type === "symbol" &&
+      secondRunToken?.type === "symbol" &&
       secondRunToken.value === ".";
 
     // Count word tokens, excluding ENT if it's part of ENT. prefix
     let wordCount = 0;
     for (let j = 0; j < runTokens.length; j += 1) {
       const t = runTokens.at(j);
-      if (!t) continue;
+      if (!t) {
+        continue;
+      }
       if (t.type === "word" || t.type === "bracket") {
         // Skip counting ENT when it's part of ENT. prefix
         if (
@@ -224,9 +246,7 @@ export const extractFromJoinTargets = (sql: string): FromJoinTarget[] => {
     // Check if the target portion (after ENT. if present) is bracketed
     const thirdRunToken = runTokens.at(2);
     const isBracketed = hasEntPrefix
-      ? runTokens.length >= 3 &&
-        thirdRunToken !== undefined &&
-        thirdRunToken.type === "bracket"
+      ? runTokens.length >= 3 && thirdRunToken?.type === "bracket"
       : firstRunToken.type === "bracket";
 
     targets.push({

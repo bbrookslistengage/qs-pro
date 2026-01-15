@@ -1,11 +1,12 @@
 import { Processor, WorkerHost } from "@nestjs/bullmq";
+import { Inject, Logger } from "@nestjs/common";
+import { MceBridgeService, RlsContextService } from "@qs-pro/backend-shared";
+import { eq, shellQueryRuns } from "@qs-pro/database";
 import { Job, UnrecoverableError } from "bullmq";
-import { Logger, Inject } from "@nestjs/common";
+import * as crypto from "crypto";
+
 import { ShellQueryJob, SoapAsyncStatusResponse } from "./shell-query.types";
 import { RunToTempFlow } from "./strategies/run-to-temp.strategy";
-import { RlsContextService, MceBridgeService } from "@qs-pro/backend-shared";
-import { shellQueryRuns, eq } from "@qs-pro/database";
-import * as crypto from "crypto";
 
 @Processor("shell-query", { concurrency: 50, lockDuration: 120000 })
 export class ShellQueryProcessor extends WorkerHost {
@@ -151,7 +152,9 @@ export class ShellQueryProcessor extends WorkerHost {
 
   private isTerminalError(error: unknown): boolean {
     const err = error as { terminal?: boolean; status?: number };
-    if (err.terminal) return true;
+    if (err.terminal) {
+      return true;
+    }
 
     if (err.status) {
       return [400, 401, 403].includes(err.status);
@@ -226,7 +229,9 @@ export class ShellQueryProcessor extends WorkerHost {
         );
       } catch (e: unknown) {
         const err = e as { terminal?: boolean; message?: string };
-        if (err.terminal) throw e;
+        if (err.terminal) {
+          throw e;
+        }
         this.logger.warn(
           `Polling error for ${runId}: ${err.message || "Unknown error"}`,
         );

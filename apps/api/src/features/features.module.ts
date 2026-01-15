@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
-import { FeaturesController } from './features.controller';
-import { FeaturesService } from './features.service';
-import { SeatLimitService } from './seat-limit.service';
-import { DatabaseModule } from '../database/database.module';
 import {
   DrizzleFeatureOverrideRepository,
   DrizzleTenantRepository,
 } from '@qs-pro/database';
+
+import { DatabaseModule } from '../database/database.module';
+import { FeaturesController } from './features.controller';
+import { FeaturesService } from './features.service';
+import { SeatLimitService } from './seat-limit.service';
 
 @Module({
   imports: [DatabaseModule],

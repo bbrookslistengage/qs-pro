@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+
 import { ThemeToggle } from "@/components/theme-toggle";
 
 interface AppShellProps {

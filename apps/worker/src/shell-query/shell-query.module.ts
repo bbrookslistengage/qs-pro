@@ -1,12 +1,13 @@
-import { Module } from "@nestjs/common";
-import { BullModule } from "@nestjs/bullmq";
-import { ScheduleModule } from "@nestjs/schedule";
-import { BullBoardModule } from "@bull-board/nestjs";
 import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
-import { ShellQueryProcessor } from "./shell-query.processor";
-import { RunToTempFlow } from "./strategies/run-to-temp.strategy";
-import { ShellQuerySweeper } from "./shell-query.sweeper";
+import { BullBoardModule } from "@bull-board/nestjs";
+import { BullModule } from "@nestjs/bullmq";
+import { Module } from "@nestjs/common";
+import { ScheduleModule } from "@nestjs/schedule";
 import { DatabaseModule, MceModule } from "@qs-pro/backend-shared";
+
+import { ShellQueryProcessor } from "./shell-query.processor";
+import { ShellQuerySweeper } from "./shell-query.sweeper";
+import { RunToTempFlow } from "./strategies/run-to-temp.strategy";
 
 @Module({
   imports: [

@@ -8,13 +8,14 @@
  * blocked execution.
  */
 
-import { describe, test, expect } from "vitest";
+import { describe, expect, test } from "vitest";
+
 import type { SqlDiagnostic } from "./types";
 import {
-  isBlockingDiagnostic,
+  BLOCKING_SEVERITIES,
   getFirstBlockingDiagnostic,
   hasBlockingDiagnostics,
-  BLOCKING_SEVERITIES,
+  isBlockingDiagnostic,
 } from "./types";
 
 describe("Execution Gating", () => {

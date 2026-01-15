@@ -1,5 +1,7 @@
 import { useCallback } from "react";
+
 import type { DataExtensionField } from "@/features/editor-workspace/types";
+
 import type { SqlTableReference } from "./sql-context";
 
 export interface JoinSuggestion {
@@ -29,8 +31,8 @@ const resolveOverrides = (
 ) => {
   const key = getOverrideKey(left, right);
   return (
-    overrides.get(key) ||
-    overrides.get(right.qualifiedName.toLowerCase()) ||
+    overrides.get(key) ??
+    overrides.get(right.qualifiedName.toLowerCase()) ??
     overrides.get(left.qualifiedName.toLowerCase())
   );
 };
@@ -53,7 +55,9 @@ const buildFuzzyJoinSuggestions = (
   leftFields.forEach((field) => {
     const normalized = normalizeField(field.name);
     const rightMatch = rightMap.get(normalized);
-    if (!rightMatch) return;
+    if (!rightMatch) {
+      return;
+    }
     suggestions.push({
       text: `${leftAlias}.${field.name} = ${rightAlias}.${rightMatch}`,
     });

@@ -1,7 +1,8 @@
-import { Injectable, Logger, Inject } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { MceBridgeService } from "@qs-pro/backend-shared";
 import { credentials } from "@qs-pro/database";
+
 import { SoapRetrieveResponse } from "./shell-query.types";
 
 @Injectable()
@@ -65,7 +66,9 @@ export class ShellQuerySweeper {
         "Retrieve",
       );
     const folder = searchResponse.Body?.RetrieveResponseMsg?.Results;
-    if (!folder) return;
+    if (!folder) {
+      return;
+    }
 
     const folderId = Array.isArray(folder) ? folder[0].ID : folder.ID;
 
@@ -109,7 +112,9 @@ export class ShellQuerySweeper {
 
     if (queries && Array.isArray(queries)) {
       for (const q of queries) {
-        if (!q.CustomerKey) continue;
+        if (!q.CustomerKey) {
+          continue;
+        }
         await this.deleteAsset(
           tenantId,
           userId,

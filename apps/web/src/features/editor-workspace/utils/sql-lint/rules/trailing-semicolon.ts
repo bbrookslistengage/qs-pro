@@ -1,6 +1,7 @@
-import type { LintRule, LintContext, SqlDiagnostic } from "../types";
-import { createDiagnostic } from "../utils/helpers";
 import { MC } from "@/constants/marketing-cloud";
+
+import type { LintContext, LintRule, SqlDiagnostic } from "../types";
+import { createDiagnostic } from "../utils/helpers";
 
 const getTrailingSemicolonDiagnostics = (sql: string): SqlDiagnostic[] => {
   const diagnostics: SqlDiagnostic[] = [];

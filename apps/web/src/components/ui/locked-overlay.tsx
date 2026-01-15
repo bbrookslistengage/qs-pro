@@ -1,12 +1,14 @@
-import * as React from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { cva, type VariantProps } from "class-variance-authority";
+import * as React from "react";
+
+import { cn } from "@/lib/utils";
+
 import {
   PremiumBadgeIcon,
-  PremiumPopoverContent,
   type PremiumBadgeProps,
+  PremiumPopoverContent,
 } from "./premium-badge";
-import { cn } from "@/lib/utils";
 
 const lockedOverlayVariants = cva("relative cursor-not-allowed", {
   variants: {

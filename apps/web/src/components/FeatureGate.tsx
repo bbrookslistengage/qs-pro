@@ -1,10 +1,11 @@
-import type { ReactNode } from "react";
 import type { FeatureKey } from "@qs-pro/shared-types";
-import { useFeature } from "@/hooks/use-feature";
+import type { ReactNode } from "react";
+
 import {
   LockedOverlay,
   type LockedOverlayProps,
 } from "@/components/ui/locked-overlay";
+import { useFeature } from "@/hooks/use-feature";
 
 const FEATURE_CONFIG: Record<
   string,

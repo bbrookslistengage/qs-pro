@@ -1,6 +1,7 @@
-import { Injectable, Inject } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Inject, Injectable } from '@nestjs/common';
 import * as cacheManager from 'cache-manager';
+
 import { MceBridgeService } from './mce-bridge.service';
 
 interface MceSoapFolder {
@@ -40,7 +41,9 @@ export class MetadataService {
       ? `folders:${tenantId}:${mid}:${eid}`
       : `folders:${tenantId}:${mid}`;
     const cached = await this.cacheManager.get(cacheKey);
-    if (cached) return cached;
+    if (cached) {
+      return cached;
+    }
 
     const localPromise = this.fetchFolders(tenantId, userId, mid);
     const sharedPromise = eid
@@ -111,7 +114,7 @@ export class MetadataService {
       )) as MceSoapResponse;
 
       const retrieveResponse = response?.Body?.RetrieveResponseMsg;
-      const results = retrieveResponse?.Results || [];
+      const results = retrieveResponse?.Results ?? [];
       const folders = (
         Array.isArray(results) ? results : [results]
       ) as MceSoapFolder[];
@@ -126,7 +129,9 @@ export class MetadataService {
       page++;
     } while (continueRequest && page <= MAX_PAGES);
 
-    if (!clientId) return allFolders;
+    if (!clientId) {
+      return allFolders;
+    }
 
     return allFolders.map((folder) => {
       const name = typeof folder.Name === 'string' ? folder.Name : null;
@@ -136,7 +141,7 @@ export class MetadataService {
           ? String(rawParentId).trim()
           : '';
       const isRoot = parentId === '' || parentId === '0';
-      if (isRoot && name && name.toLowerCase() === 'data extensions') {
+      if (isRoot && name?.toLowerCase() === 'data extensions') {
         return { ...folder, Name: 'Shared' };
       }
       return folder;
@@ -155,7 +160,9 @@ export class MetadataService {
         deduped.push(folder);
         return;
       }
-      if (seen.has(id)) return;
+      if (seen.has(id)) {
+        return;
+      }
       seen.set(id, folder);
       deduped.push(folder);
     });
@@ -230,7 +237,7 @@ export class MetadataService {
       )) as MceSoapResponse;
 
       const retrieveResponse = response?.Body?.RetrieveResponseMsg;
-      const results = retrieveResponse?.Results || [];
+      const results = retrieveResponse?.Results ?? [];
       const des = Array.isArray(results) ? results : [results];
 
       allDEs = allDEs.concat(des);
@@ -254,7 +261,9 @@ export class MetadataService {
   ): Promise<unknown[]> {
     const cacheKey = `fields:${tenantId}:${mid}:${deKey}`;
     const cached = await this.cacheManager.get(cacheKey);
-    if (cached) return cached as unknown[];
+    if (cached) {
+      return cached as unknown[];
+    }
 
     const soapBody = `
       <RetrieveRequestMsg xmlns="http://exacttarget.com/wsdl/partnerAPI">
@@ -281,7 +290,7 @@ export class MetadataService {
       soapBody,
       'Retrieve',
     )) as MceSoapResponse;
-    const results = response?.Body?.RetrieveResponseMsg?.Results || [];
+    const results = response?.Body?.RetrieveResponseMsg?.Results ?? [];
     const fields = Array.isArray(results) ? results : [results];
 
     // Cache for 30 minutes (1800000ms)

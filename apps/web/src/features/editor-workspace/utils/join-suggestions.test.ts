@@ -1,8 +1,9 @@
-import { describe, expect, test } from "vitest";
 import { renderHook } from "@testing-library/react";
+import { describe, expect, test } from "vitest";
+
 import type { DataExtensionField } from "@/features/editor-workspace/types";
-import type { SqlTableReference } from "@/features/editor-workspace/utils/sql-context";
 import { useJoinSuggestions } from "@/features/editor-workspace/utils/join-suggestions";
+import type { SqlTableReference } from "@/features/editor-workspace/utils/sql-context";
 
 const makeTable = (name: string, alias?: string): SqlTableReference => ({
   name,

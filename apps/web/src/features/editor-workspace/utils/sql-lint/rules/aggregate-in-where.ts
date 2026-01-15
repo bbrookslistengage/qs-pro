@@ -1,4 +1,4 @@
-import type { LintRule, LintContext, SqlDiagnostic } from "../types";
+import type { LintContext, LintRule, SqlDiagnostic } from "../types";
 import { createDiagnostic, isWordChar } from "../utils/helpers";
 
 const AGGREGATE_FUNCTIONS = new Set(["count", "sum", "avg", "min", "max"]);

@@ -1,4 +1,4 @@
-import type { LintRule, LintContext, SqlDiagnostic } from "../types";
+import type { LintContext, LintRule, SqlDiagnostic } from "../types";
 import { createDiagnostic, isWordChar } from "../utils/helpers";
 
 const isCursorAtEndOfIncompleteJoin = (
@@ -8,7 +8,9 @@ const isCursorAtEndOfIncompleteJoin = (
   searchEndIndex: number,
 ): boolean => {
   // Cursor must be after the JOIN keyword
-  if (cursorPosition < joinEnd) return false;
+  if (cursorPosition < joinEnd) {
+    return false;
+  }
 
   // Cursor must be within or at the end of the search zone
   // Allow cursor to be at searchEndIndex (typing at end of file)
@@ -16,7 +18,9 @@ const isCursorAtEndOfIncompleteJoin = (
   if (cursorPosition > searchEndIndex) {
     // Check if we're just past the end with trailing whitespace
     const textAfterSearch = sql.slice(searchEndIndex, cursorPosition).trim();
-    if (textAfterSearch.length > 0) return false;
+    if (textAfterSearch.length > 0) {
+      return false;
+    }
   }
 
   // Check remaining text after cursor - should only be whitespace or empty
@@ -25,13 +29,17 @@ const isCursorAtEndOfIncompleteJoin = (
   // Suppress if remaining text is empty, or only contains whitespace
   // Also suppress if remaining text doesn't start with a SQL keyword
   // (user is still typing the table name/alias)
-  if (remainingText.length === 0) return true;
+  if (remainingText.length === 0) {
+    return true;
+  }
 
   // Check if remaining text starts with a clause keyword (WHERE, GROUP, etc.)
   // If so, user has moved on and we should show the error
   const clauseKeywords =
     /^(where|group|having|order|union|except|intersect|join|inner|left|right|full|cross|on)\b/i;
-  if (clauseKeywords.test(remainingText)) return false;
+  if (clauseKeywords.test(remainingText)) {
+    return false;
+  }
 
   // User is still in the "typing zone" - suppress the error
   return true;
@@ -176,8 +184,9 @@ const getMissingJoinOnDiagnostics = (
             lookAhead += 1;
           }
 
-          if (lookAhead >= sql.length || !isWordChar(sql.charAt(lookAhead)))
+          if (lookAhead >= sql.length || !isWordChar(sql.charAt(lookAhead))) {
             break;
+          }
 
           // Read next word
           const wordStart = lookAhead;
@@ -203,7 +212,9 @@ const getMissingJoinOnDiagnostics = (
             joinWords.push(nextWord);
             finalEnd = wordEnd;
             lookAhead = wordEnd;
-            if (nextWord === "join") break; // End of join type
+            if (nextWord === "join") {
+              break;
+            } // End of join type
           } else {
             break;
           }
@@ -233,7 +244,9 @@ const getMissingJoinOnDiagnostics = (
   // Now check each JOIN to see if it has an ON clause
   for (const join of joinPositions) {
     // CROSS JOIN doesn't require ON
-    if (join.isCross) continue;
+    if (join.isCross) {
+      continue;
+    }
 
     // Look for ON keyword after the JOIN
     // We need to find the next table reference and then check for ON
@@ -261,7 +274,9 @@ const getMissingJoinOnDiagnostics = (
 
       // Handle comments and quotes
       if (inLineComment) {
-        if (char === "\n") inLineComment = false;
+        if (char === "\n") {
+          inLineComment = false;
+        }
         checkIndex += 1;
         continue;
       }
@@ -286,12 +301,16 @@ const getMissingJoinOnDiagnostics = (
         continue;
       }
       if (inDoubleQuote) {
-        if (char === '"') inDoubleQuote = false;
+        if (char === '"') {
+          inDoubleQuote = false;
+        }
         checkIndex += 1;
         continue;
       }
       if (inBracket) {
-        if (char === "]") inBracket = false;
+        if (char === "]") {
+          inBracket = false;
+        }
         checkIndex += 1;
         continue;
       }

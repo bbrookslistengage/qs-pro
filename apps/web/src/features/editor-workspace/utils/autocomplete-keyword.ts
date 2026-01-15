@@ -6,7 +6,9 @@
  * @returns Array of high-priority keywords for the given context
  */
 export const getContextualKeywords = (lastKeyword: string | null): string[] => {
-  if (!lastKeyword) return [];
+  if (!lastKeyword) {
+    return [];
+  }
 
   const normalized = lastKeyword.toLowerCase();
 

@@ -1,10 +1,11 @@
-import type { ReactNode } from "react";
+import { type TenantFeatures } from "@qs-pro/shared-types";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { type TenantFeatures } from "@qs-pro/shared-types";
-import * as featuresService from "@/services/features";
+
 import { useTenantFeatures } from "@/hooks/use-tenant-features";
+import * as featuresService from "@/services/features";
 
 vi.mock("@/services/features", () => ({
   getTenantFeatures: vi.fn(),

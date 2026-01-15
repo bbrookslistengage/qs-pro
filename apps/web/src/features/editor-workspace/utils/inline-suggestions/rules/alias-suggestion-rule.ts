@@ -1,6 +1,6 @@
-import type { InlineSuggestionRule } from "../types";
 import { generateSmartAlias } from "../../alias-generator";
 import { isAtEndOfBracketedTableInFromJoin } from "../../sql-context";
+import type { InlineSuggestionRule } from "../types";
 
 /**
  * Rule: After completing a table name in FROM or JOIN clause, suggest " AS {alias}"
@@ -67,19 +67,27 @@ export const aliasSuggestionRule: InlineSuggestionRule = {
           break;
         }
       }
-      if (openBracketIndex === -1) return null;
+      if (openBracketIndex === -1) {
+        return null;
+      }
       tableName = sql.slice(openBracketIndex + 1, cursorIndex).trim();
     } else {
       const lastTable = ctx.tablesInScope.at(-1);
-      if (!lastTable) return null;
+      if (!lastTable) {
+        return null;
+      }
       tableName = lastTable.name;
     }
 
-    if (!tableName) return null;
+    if (!tableName) {
+      return null;
+    }
     const nameForAlias = tableName.replace(/^ENT\./i, "");
     const alias = generateSmartAlias(nameForAlias, ctx.existingAliases);
 
-    if (!alias) return null;
+    if (!alias) {
+      return null;
+    }
 
     const suggestionText = isInsideBracket ? `] AS ${alias}` : ` AS ${alias}`;
 

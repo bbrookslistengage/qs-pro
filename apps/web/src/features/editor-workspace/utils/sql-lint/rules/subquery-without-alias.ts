@@ -1,6 +1,7 @@
-import type { LintRule, LintContext, SqlDiagnostic } from "../types";
-import { createDiagnostic, isWordChar } from "../utils/helpers";
 import { MC } from "@/constants/marketing-cloud";
+
+import type { LintContext, LintRule, SqlDiagnostic } from "../types";
+import { createDiagnostic, isWordChar } from "../utils/helpers";
 
 /**
  * Detects derived tables (subqueries in FROM) without alias.
@@ -149,11 +150,7 @@ const getSubqueryWithoutAliasDiagnostics = (sql: string): SqlDiagnostic[] => {
     if (char === ")") {
       // Check if this closes a subquery in FROM
       const currentSubquery = subqueryStack.at(subqueryStack.length - 1);
-      if (
-        currentSubquery &&
-        currentSubquery.depth === parenDepth &&
-        currentSubquery.isInFrom
-      ) {
+      if (currentSubquery?.depth === parenDepth && currentSubquery.isInFrom) {
         // Mark the closing paren position
         currentSubquery.closeParenPos = index;
 

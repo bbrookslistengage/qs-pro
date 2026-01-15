@@ -1,10 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
+
 import {
-  isInsideString,
-  isInsideComment,
-  isInsideBrackets,
   isAfterComparisonOperator,
+  isInsideBrackets,
+  isInsideComment,
   isInsideFunctionParens,
+  isInsideString,
 } from "../../sql-context";
 
 describe("isInsideString", () => {

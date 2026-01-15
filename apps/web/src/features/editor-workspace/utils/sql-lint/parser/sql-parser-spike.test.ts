@@ -8,8 +8,8 @@
  * 4. Handles MCE-specific SQL constructs as documented in MCE-SQL-REFERENCE.md
  */
 
-import { describe, test, expect } from "vitest";
 import { Parser } from "node-sql-parser";
+import { assert, describe, expect, test } from "vitest";
 
 // Create parser instance - T-SQL / SQL Server dialect
 const parser = new Parser();
@@ -50,8 +50,12 @@ function tryParse(sql: string): ParseResult {
 
 // Helper to normalize AST to array format
 function getAstStatements(ast: unknown): Array<Record<string, unknown>> | null {
-  if (!ast) return null;
-  if (Array.isArray(ast)) return ast as Array<Record<string, unknown>>;
+  if (!ast) {
+    return null;
+  }
+  if (Array.isArray(ast)) {
+    return ast as Array<Record<string, unknown>>;
+  }
   // Single statement is returned as object directly
   return [ast as Record<string, unknown>];
 }
@@ -707,10 +711,10 @@ describe("node-sql-parser Feasibility Spike", () => {
 
       // Explore AST shape - use helper to normalize
       const stmts = getAstStatements(result.ast);
-      expect(stmts).not.toBeNull();
-      expect(stmts!.length).toBeGreaterThanOrEqual(1);
+      assert.exists(stmts);
+      expect(stmts.length).toBeGreaterThanOrEqual(1);
 
-      const stmt = stmts![0];
+      const stmt = stmts[0];
       expect(stmt).toHaveProperty("type");
 
       // Document the AST shape
@@ -730,8 +734,8 @@ describe("node-sql-parser Feasibility Spike", () => {
 
       expect(result.parses).toBe(true);
       const stmts = getAstStatements(result.ast);
-      expect(stmts).not.toBeNull();
-      const stmt = stmts![0];
+      assert.exists(stmts);
+      const stmt = stmts[0];
 
       // Check if FROM clause contains join info
       expect(stmt).toHaveProperty("from");
@@ -749,8 +753,8 @@ describe("node-sql-parser Feasibility Spike", () => {
 
       expect(result.parses).toBe(true);
       const stmts = getAstStatements(result.ast);
-      expect(stmts).not.toBeNull();
-      const stmt = stmts![0];
+      assert.exists(stmts);
+      const stmt = stmts[0];
 
       // Check if WHERE clause contains subquery
       expect(stmt).toHaveProperty("where");
@@ -765,8 +769,8 @@ describe("node-sql-parser Feasibility Spike", () => {
 
       if (result.parses) {
         const stmts = getAstStatements(result.ast);
-        expect(stmts).not.toBeNull();
-        const stmt = stmts![0];
+        assert.exists(stmts);
+        const stmt = stmts[0];
         // Document CTE representation
         // eslint-disable-next-line no-console
         console.log("CTE AST keys:", Object.keys(stmt));
@@ -782,8 +786,8 @@ describe("node-sql-parser Feasibility Spike", () => {
 
       if (result.parses) {
         const stmts = getAstStatements(result.ast);
-        expect(stmts).not.toBeNull();
-        const stmt = stmts![0];
+        assert.exists(stmts);
+        const stmt = stmts[0];
         // eslint-disable-next-line no-console
         console.log("INSERT AST type:", stmt.type);
         expect(stmt.type).toBe("insert");
@@ -796,8 +800,8 @@ describe("node-sql-parser Feasibility Spike", () => {
 
       if (result.parses) {
         const stmts = getAstStatements(result.ast);
-        expect(stmts).not.toBeNull();
-        const stmt = stmts![0];
+        assert.exists(stmts);
+        const stmt = stmts[0];
         // eslint-disable-next-line no-console
         console.log("UPDATE AST type:", stmt.type);
         expect(stmt.type).toBe("update");
@@ -810,8 +814,8 @@ describe("node-sql-parser Feasibility Spike", () => {
 
       if (result.parses) {
         const stmts = getAstStatements(result.ast);
-        expect(stmts).not.toBeNull();
-        const stmt = stmts![0];
+        assert.exists(stmts);
+        const stmt = stmts[0];
         // eslint-disable-next-line no-console
         console.log("DELETE AST type:", stmt.type);
         expect(stmt.type).toBe("delete");
@@ -826,8 +830,8 @@ describe("node-sql-parser Feasibility Spike", () => {
 
       expect(result.parses).toBe(true);
       const stmts = getAstStatements(result.ast);
-      expect(stmts).not.toBeNull();
-      const stmt = stmts![0];
+      assert.exists(stmts);
+      const stmt = stmts[0];
 
       // Check if AST nodes have location info
       // Document what location format is used (if any)

@@ -1,16 +1,26 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import request from 'supertest';
-import { AppModule } from './../src/app.module';
-import { setupServer } from 'msw/node';
-import { http, HttpResponse } from 'msw';
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { ITenantRepository, IUserRepository } from '@qs-pro/database';
-import * as jose from 'jose';
+import secureSession from '@fastify/secure-session';
 import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
-import secureSession from '@fastify/secure-session';
+import { Test, TestingModule } from '@nestjs/testing';
+import { ITenantRepository, IUserRepository } from '@qs-pro/database';
+import * as jose from 'jose';
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
+import request from 'supertest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import { AppModule } from './../src/app.module';
+
+function getRequiredEnv(key: string): string {
+  // eslint-disable-next-line security/detect-object-injection -- `key` is a trusted string, not user input
+  const value = process.env[key];
+  if (!value) {
+    throw new Error(`Missing env: ${key}`);
+  }
+  return value;
+}
 
 const server = setupServer(
   http.post('https://test-tssd.auth.marketingcloudapis.com/v2/token', () => {
@@ -74,7 +84,7 @@ describe('Auth (e2e)', () => {
   });
 
   it('/auth/login (POST) should handle MCE JWT and set session', async () => {
-    const secret = process.env.MCE_JWT_SIGNING_SECRET!;
+    const secret = getRequiredEnv('MCE_JWT_SIGNING_SECRET');
     const encodedSecret = new TextEncoder().encode(secret);
 
     const payload = {
@@ -156,7 +166,7 @@ describe('Auth (e2e)', () => {
   });
 
   it('/auth/refresh (GET) should return a new access token', async () => {
-    const secret = process.env.MCE_JWT_SIGNING_SECRET!;
+    const secret = getRequiredEnv('MCE_JWT_SIGNING_SECRET');
     const encodedSecret = new TextEncoder().encode(secret);
 
     const payload = {

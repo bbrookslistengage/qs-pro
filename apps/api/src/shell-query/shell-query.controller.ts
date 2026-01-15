@@ -1,27 +1,28 @@
 import {
-  Controller,
-  Post,
-  Body,
-  UseGuards,
-  InternalServerErrorException,
   BadRequestException,
+  Body,
+  Controller,
+  Get,
   HttpCode,
+  HttpException,
   HttpStatus,
   Inject,
-  HttpException,
-  Sse,
+  InternalServerErrorException,
   Param,
-  Get,
+  Post,
   Query,
+  Sse,
+  UseGuards,
 } from '@nestjs/common';
-import { ShellQueryService } from './shell-query.service';
-import { ShellQuerySseService } from './shell-query-sse.service';
-import { SessionGuard } from '../auth/session.guard';
+import type { Observable } from 'rxjs';
+import { z } from 'zod';
+
 import { CsrfGuard } from '../auth/csrf.guard';
+import { SessionGuard } from '../auth/session.guard';
 import type { UserSession } from '../common/decorators/current-user.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { z } from 'zod';
-import type { Observable } from 'rxjs';
+import { ShellQueryService } from './shell-query.service';
+import { ShellQuerySseService } from './shell-query-sse.service';
 
 const createRunSchema = z.object({
   sqlText: z.string().min(1, 'SQL text is required'),

@@ -1,7 +1,9 @@
-import { describe, it, expect } from "vitest";
-import { unbracketedNamesRule } from "./unbracketed-names";
-import type { LintContext } from "../types";
+import { describe, expect, it } from "vitest";
+
 import type { DataExtension } from "@/features/editor-workspace/types";
+
+import type { LintContext } from "../types";
+import { unbracketedNamesRule } from "./unbracketed-names";
 
 const createContext = (
   sql: string,
@@ -15,6 +17,7 @@ const createContext = (
 const createDE = (name: string, customerKey?: string): DataExtension => ({
   id: `de-${name}`,
   name,
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- Empty customerKey should use name
   customerKey: customerKey || name,
   folderId: "folder-1",
   description: "",

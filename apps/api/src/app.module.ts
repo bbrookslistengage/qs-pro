@@ -1,16 +1,18 @@
-import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import path from 'node:path';
+
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
-import { UsersModule } from './users/users.module';
+import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 import { DatabaseModule } from './database/database.module';
+import { FeaturesModule } from './features/features.module';
 import { MceModule } from './mce/mce.module';
 import { RedisModule } from './redis/redis.module';
 import { ShellQueryModule } from './shell-query/shell-query.module';
-import { FeaturesModule } from './features/features.module';
-import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
-import path from 'node:path';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [

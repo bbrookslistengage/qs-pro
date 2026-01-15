@@ -1,12 +1,13 @@
 import { Module } from "@nestjs/common";
-import { AuthService } from "./auth.service";
-import { DatabaseModule } from "../database/database.module";
-import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import {
+  DrizzleCredentialsRepository,
   DrizzleTenantRepository,
   DrizzleUserRepository,
-  DrizzleCredentialsRepository,
 } from "@qs-pro/database";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+
+import { DatabaseModule } from "../database/database.module";
+import { AuthService } from "./auth.service";
 
 @Module({
   imports: [DatabaseModule],

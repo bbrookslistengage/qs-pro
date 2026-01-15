@@ -1,6 +1,6 @@
-import type { LintRule, LintContext, SqlDiagnostic } from "../types";
-import { createDiagnostic } from "../utils/helpers";
 import { extractTableReferences } from "../../sql-context";
+import type { LintContext, LintRule, SqlDiagnostic } from "../types";
+import { createDiagnostic } from "../utils/helpers";
 
 const splitSelectExpressions = (clause: string) => {
   const expressions: string[] = [];
@@ -61,8 +61,12 @@ const splitSelectExpressions = (clause: string) => {
       continue;
     }
 
-    if (char === "(") depth += 1;
-    if (char === ")") depth = Math.max(0, depth - 1);
+    if (char === "(") {
+      depth += 1;
+    }
+    if (char === ")") {
+      depth = Math.max(0, depth - 1);
+    }
 
     if (char === "," && depth === 0) {
       if (current.trim()) {
@@ -98,7 +102,9 @@ const parseBracketedIdentifierEnd = (
   value: string,
   index: number,
 ): number | null => {
-  if (value.charAt(index) !== "[") return null;
+  if (value.charAt(index) !== "[") {
+    return null;
+  }
   let i = index + 1;
   while (i < value.length) {
     const char = value.charAt(i);
@@ -119,7 +125,9 @@ const parseUnbracketedIdentifierEnd = (
   value: string,
   index: number,
 ): number | null => {
-  if (!isIdentifierChar(value.charAt(index))) return null;
+  if (!isIdentifierChar(value.charAt(index))) {
+    return null;
+  }
   let i = index + 1;
   while (i < value.length && isIdentifierChar(value.charAt(i))) {
     i += 1;
@@ -129,11 +137,15 @@ const parseUnbracketedIdentifierEnd = (
 
 const parseAliasSuffix = (value: string, index: number): boolean => {
   let i = skipWhitespace(value, index);
-  if (i >= value.length) return true;
+  if (i >= value.length) {
+    return true;
+  }
 
   const tryParseAlias = (start: number): number | null => {
     const bracketEnd = parseBracketedIdentifierEnd(value, start);
-    if (bracketEnd !== null) return bracketEnd;
+    if (bracketEnd !== null) {
+      return bracketEnd;
+    }
     return parseUnbracketedIdentifierEnd(value, start);
   };
 
@@ -143,7 +155,9 @@ const parseAliasSuffix = (value: string, index: number): boolean => {
     if (firstWord === "as") {
       i = skipWhitespace(value, wordEnd);
       const aliasEnd = tryParseAlias(i);
-      if (aliasEnd === null) return false;
+      if (aliasEnd === null) {
+        return false;
+      }
       return skipWhitespace(value, aliasEnd) >= value.length;
     }
 
@@ -152,12 +166,16 @@ const parseAliasSuffix = (value: string, index: number): boolean => {
   }
 
   const aliasEnd = tryParseAlias(i);
-  if (aliasEnd === null) return false;
+  if (aliasEnd === null) {
+    return false;
+  }
   return skipWhitespace(value, aliasEnd) >= value.length;
 };
 
 const parseStringLiteralEnd = (value: string, index: number): number | null => {
-  if (value.charAt(index) !== "'") return null;
+  if (value.charAt(index) !== "'") {
+    return null;
+  }
   let i = index + 1;
   while (i < value.length) {
     const char = value.charAt(i);
@@ -176,24 +194,32 @@ const parseStringLiteralEnd = (value: string, index: number): number | null => {
 
 const parseNumberLiteralEnd = (value: string, index: number): number | null => {
   const firstChar = value.charAt(index);
-  if (firstChar < "0" || firstChar > "9") return null;
+  if (firstChar < "0" || firstChar > "9") {
+    return null;
+  }
 
   let i = index;
   while (i < value.length) {
     const char = value.charAt(i);
-    if (char < "0" || char > "9") break;
+    if (char < "0" || char > "9") {
+      break;
+    }
     i += 1;
   }
 
   if (value.charAt(i) === ".") {
     const decimalStart = i + 1;
     const decimalFirst = value.charAt(decimalStart);
-    if (decimalFirst < "0" || decimalFirst > "9") return null;
+    if (decimalFirst < "0" || decimalFirst > "9") {
+      return null;
+    }
 
     i = decimalStart + 1;
     while (i < value.length) {
       const char = value.charAt(i);
-      if (char < "0" || char > "9") break;
+      if (char < "0" || char > "9") {
+        break;
+      }
       i += 1;
     }
   }
@@ -209,10 +235,14 @@ const parseKeywordLiteralEnd = (
   const keywords = ["true", "false", "null"] as const;
 
   for (const keyword of keywords) {
-    if (!remaining.startsWith(keyword)) continue;
+    if (!remaining.startsWith(keyword)) {
+      continue;
+    }
     const end = index + keyword.length;
     const nextChar = value.charAt(end);
-    if (nextChar && isIdentifierChar(nextChar)) return null;
+    if (nextChar && isIdentifierChar(nextChar)) {
+      return null;
+    }
     return end;
   }
 
@@ -221,22 +251,32 @@ const parseKeywordLiteralEnd = (
 
 const isLiteralExpression = (expression: string) => {
   const start = skipWhitespace(expression, 0);
-  if (start >= expression.length) return false;
+  if (start >= expression.length) {
+    return false;
+  }
 
   const stringEnd = parseStringLiteralEnd(expression, start);
-  if (stringEnd !== null) return parseAliasSuffix(expression, stringEnd);
+  if (stringEnd !== null) {
+    return parseAliasSuffix(expression, stringEnd);
+  }
 
   const numberEnd = parseNumberLiteralEnd(expression, start);
-  if (numberEnd !== null) return parseAliasSuffix(expression, numberEnd);
+  if (numberEnd !== null) {
+    return parseAliasSuffix(expression, numberEnd);
+  }
 
   const keywordEnd = parseKeywordLiteralEnd(expression, start);
-  if (keywordEnd !== null) return parseAliasSuffix(expression, keywordEnd);
+  if (keywordEnd !== null) {
+    return parseAliasSuffix(expression, keywordEnd);
+  }
 
   return false;
 };
 
 const hasAlias = (expression: string) => {
-  if (/\bas\s+\[?[A-Za-z0-9_\s]+\]?\s*$/i.test(expression)) return true;
+  if (/\bas\s+\[?[A-Za-z0-9_\s]+\]?\s*$/i.test(expression)) {
+    return true;
+  }
   return /\s+\[?[A-Za-z0-9_\s]+\]?\s*$/i.test(expression);
 };
 

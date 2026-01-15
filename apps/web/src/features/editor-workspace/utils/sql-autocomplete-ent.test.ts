@@ -1,4 +1,6 @@
 import { describe, expect, test } from "vitest";
+
+import { MAX_SUGGESTIONS } from "@/features/editor-workspace/constants";
 import type { DataExtension, Folder } from "@/features/editor-workspace/types";
 import {
   buildDataExtensionSuggestions,
@@ -8,7 +10,6 @@ import {
   getSharedFolderIds,
   getSqlCursorContext,
 } from "@/features/editor-workspace/utils/sql-context";
-import { MAX_SUGGESTIONS } from "@/features/editor-workspace/constants";
 
 describe("fuzzy matching and ENT. table suggestions", () => {
   describe("fuzzy matching order", () => {

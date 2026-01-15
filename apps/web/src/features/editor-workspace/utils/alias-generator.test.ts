@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+
 import { generateSmartAlias } from "./alias-generator";
 
 describe("generateSmartAlias", () => {

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+
 import type { DataExtension, Folder } from "@/features/editor-workspace/types";
 import {
   buildDataExtensionSuggestions,

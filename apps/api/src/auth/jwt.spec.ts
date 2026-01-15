@@ -1,10 +1,11 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { AuthService } from './auth.service';
 import { ConfigService } from '@nestjs/config';
+import { Test, TestingModule } from '@nestjs/testing';
 import * as jose from 'jose';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { RlsContextService } from '../database/rls-context.service';
 import { SeatLimitService } from '../features/seat-limit.service';
+import { AuthService } from './auth.service';
 
 describe('AuthService JWT Verification', () => {
   let service: AuthService;
@@ -21,7 +22,9 @@ describe('AuthService JWT Verification', () => {
           provide: ConfigService,
           useValue: {
             get: vi.fn((key: string) => {
-              if (key === 'MCE_JWT_SIGNING_SECRET') return secret;
+              if (key === 'MCE_JWT_SIGNING_SECRET') {
+                return secret;
+              }
               return null;
             }),
           },

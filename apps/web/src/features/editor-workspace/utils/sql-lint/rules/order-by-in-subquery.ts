@@ -1,6 +1,7 @@
-import type { LintRule, LintContext, SqlDiagnostic } from "../types";
-import { createDiagnostic, isWordChar } from "../utils/helpers";
 import { MC } from "@/constants/marketing-cloud";
+
+import type { LintContext, LintRule, SqlDiagnostic } from "../types";
+import { createDiagnostic, isWordChar } from "../utils/helpers";
 
 /**
  * Detects ORDER BY in subqueries without TOP or OFFSET.
@@ -146,7 +147,7 @@ const getOrderByInSubqueryDiagnostics = (sql: string): SqlDiagnostic[] => {
     if (char === ")") {
       // Check if we're closing a subquery context
       const currentContext = subqueryStack.at(subqueryStack.length - 1);
-      if (currentContext && currentContext.depth === parenDepth) {
+      if (currentContext?.depth === parenDepth) {
         // This closes a subquery - check if it has ORDER BY without TOP/OFFSET
         if (
           currentContext.orderByPositions.length > 0 &&
@@ -182,7 +183,7 @@ const getOrderByInSubqueryDiagnostics = (sql: string): SqlDiagnostic[] => {
 
       // Check if we're in a subquery context
       const currentContext = subqueryStack.at(subqueryStack.length - 1);
-      if (currentContext && currentContext.depth === parenDepth) {
+      if (currentContext?.depth === parenDepth) {
         if (word === "top") {
           currentContext.hasTop = true;
         } else if (word === "offset") {

@@ -1,14 +1,15 @@
-import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import * as metadataService from "@/services/metadata";
+
 import {
   useDataExtensionFields,
   useDataExtensions,
-  useMetadataFolders,
   useMetadata,
+  useMetadataFolders,
 } from "@/features/editor-workspace/hooks/use-metadata";
+import * as metadataService from "@/services/metadata";
 
 vi.mock("@/services/metadata", () => ({
   getFolders: vi.fn(),

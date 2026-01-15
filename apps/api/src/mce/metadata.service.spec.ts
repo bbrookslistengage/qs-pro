@@ -1,9 +1,10 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { MetadataService } from './metadata.service';
-import { MceBridgeService } from './mce-bridge.service';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Test, TestingModule } from '@nestjs/testing';
 import { Cache } from 'cache-manager';
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { MceBridgeService } from './mce-bridge.service';
+import { MetadataService } from './metadata.service';
 
 describe('MetadataService', () => {
   let service: MetadataService;

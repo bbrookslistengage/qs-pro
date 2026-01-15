@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+
 import { getEditorOptions } from "@/features/editor-workspace/utils/monaco-options";
 
 describe("monaco options", () => {

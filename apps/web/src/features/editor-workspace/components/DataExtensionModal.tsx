@@ -1,24 +1,25 @@
+import {
+  AddCircle,
+  Database,
+  InfoCircle,
+  TrashBinTrash,
+} from "@solar-icons/react";
 import { useState } from "react";
+
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import {
-  Database,
-  TrashBinTrash,
-  AddCircle,
-  InfoCircle,
-} from "@solar-icons/react";
-import { cn } from "@/lib/utils";
 import type {
   DataExtensionDraft,
   DataExtensionField,
   SFMCFieldType,
 } from "@/features/editor-workspace/types";
+import { cn } from "@/lib/utils";
 
 interface DataExtensionModalProps {
   isOpen: boolean;
@@ -39,6 +40,7 @@ export function DataExtensionModal({
     setFields((prev) => [
       ...prev,
       {
+        id: crypto.randomUUID(),
         name: "",
         type: "Text",
         length: undefined,
@@ -66,7 +68,9 @@ export function DataExtensionModal({
   const handleSave = () => {
     const trimmedName = name.trim();
     const trimmedKey = customerKey.trim();
-    if (!trimmedName || !trimmedKey) return;
+    if (!trimmedName || !trimmedKey) {
+      return;
+    }
     onSave?.({
       name: trimmedName,
       customerKey: trimmedKey,
@@ -108,10 +112,14 @@ export function DataExtensionModal({
           {/* Metadata Section */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              <label
+                htmlFor="de-name"
+                className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+              >
                 Name
               </label>
               <input
+                id="de-name"
                 type="text"
                 placeholder="e.g. Master_Subscriber_Feed"
                 value={name}
@@ -120,10 +128,14 @@ export function DataExtensionModal({
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              <label
+                htmlFor="de-customer-key"
+                className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+              >
                 Customer Key
               </label>
               <input
+                id="de-customer-key"
                 type="text"
                 placeholder="External ID"
                 value={customerKey}
@@ -156,7 +168,7 @@ export function DataExtensionModal({
               ) : (
                 fields.map((field, index) => (
                   <FieldRow
-                    key={`${field.name}-${index}`}
+                    key={field.id}
                     field={field}
                     onChange={(updates) => handleUpdateField(index, updates)}
                     onRemove={() => handleRemoveField(index)}
@@ -283,9 +295,9 @@ function FieldRow({ field, onChange, onRemove }: FieldRowProps) {
           )}
           aria-label="Toggle primary key"
         >
-          {field.isPrimaryKey && (
+          {field.isPrimaryKey ? (
             <div className="w-1.5 h-1.5 bg-white rounded-full" />
-          )}
+          ) : null}
         </button>
       </div>
       <div className="col-span-1 flex justify-center">
@@ -298,9 +310,9 @@ function FieldRow({ field, onChange, onRemove }: FieldRowProps) {
           )}
           aria-label="Toggle nullable"
         >
-          {field.isNullable && (
+          {field.isNullable ? (
             <div className="w-1.5 h-1.5 bg-primary rounded-full" />
-          )}
+          ) : null}
         </button>
       </div>
       <div className="col-span-1 flex justify-end">

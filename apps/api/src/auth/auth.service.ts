@@ -1,21 +1,22 @@
 import {
-  Injectable,
   Inject,
-  UnauthorizedException,
-  Logger,
+  Injectable,
   InternalServerErrorException,
+  Logger,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
-import * as jose from 'jose';
-import { encrypt, decrypt } from '@qs-pro/database';
-import { RlsContextService } from '../database/rls-context.service';
-import { SeatLimitService } from '../features/seat-limit.service';
 import type {
+  ICredentialsRepository,
   ITenantRepository,
   IUserRepository,
-  ICredentialsRepository,
 } from '@qs-pro/database';
+import { decrypt, encrypt } from '@qs-pro/database';
+import axios from 'axios';
+import * as jose from 'jose';
+
+import { RlsContextService } from '../database/rls-context.service';
+import { SeatLimitService } from '../features/seat-limit.service';
 
 export interface MceTokenResponse {
   access_token: string;
@@ -187,7 +188,7 @@ export class AuthService {
   getAuthUrl(tssd: string, state: string): string {
     const clientId = this.configService.get<string>('MCE_CLIENT_ID');
     const redirectUri =
-      this.configService.get<string>('MCE_REDIRECT_URI') || '';
+      this.configService.get<string>('MCE_REDIRECT_URI') ?? '';
     if (!clientId || !redirectUri) {
       throw new InternalServerErrorException('MCE OAuth config not complete');
     }
@@ -289,7 +290,9 @@ export class AuthService {
       tenantId,
       mid,
     );
-    if (!creds) return;
+    if (!creds) {
+      return;
+    }
 
     await this.rlsContext.runWithTenantContext(tenantId, mid, async () => {
       await this.credRepo.upsert({
@@ -374,11 +377,11 @@ export class AuthService {
     }
 
     const derivedSfUserId =
-      this.coerceId(info.sub) ||
-      this.coerceId(info.user_id) ||
-      this.coerceId(info.user?.sub) ||
-      this.coerceId(info.user?.id) ||
-      this.coerceId(info.user?.user_id) ||
+      this.coerceId(info.sub) ??
+      this.coerceId(info.user_id) ??
+      this.coerceId(info.user?.sub) ??
+      this.coerceId(info.user?.id) ??
+      this.coerceId(info.user?.user_id) ??
       this.extractIdFromObject(info.user, [
         'userId',
         'userID',
@@ -386,10 +389,10 @@ export class AuthService {
         'member_id',
       ]);
     const derivedEid =
-      this.coerceId(info.enterprise_id) ||
-      this.coerceId(info.organization?.enterprise_id) ||
-      this.coerceId(info.organization?.id) ||
-      this.coerceId(info.organization?.org_id) ||
+      this.coerceId(info.enterprise_id) ??
+      this.coerceId(info.organization?.enterprise_id) ??
+      this.coerceId(info.organization?.id) ??
+      this.coerceId(info.organization?.org_id) ??
       this.extractIdFromObject(info.organization, [
         'enterpriseId',
         'enterpriseID',
@@ -398,10 +401,10 @@ export class AuthService {
         'eid',
       ]);
     const derivedMid =
-      this.coerceId(info.member_id) ||
-      this.coerceId(info.user?.member_id) ||
-      this.coerceId(info.organization?.member_id) ||
-      this.extractIdFromObject(info.user, ['mid', 'member_id', 'memberId']) ||
+      this.coerceId(info.member_id) ??
+      this.coerceId(info.user?.member_id) ??
+      this.coerceId(info.organization?.member_id) ??
+      this.extractIdFromObject(info.user, ['mid', 'member_id', 'memberId']) ??
       this.extractIdFromObject(info.organization, [
         'mid',
         'member_id',
@@ -409,7 +412,7 @@ export class AuthService {
       ]);
 
     const providedSfUserId = this.coerceId(sfUserId);
-    const providedEid = this.coerceId(eid) || this.coerceId(embeddedEid);
+    const providedEid = this.coerceId(eid) ?? this.coerceId(embeddedEid);
     const providedMid = this.coerceId(mid);
 
     if (
@@ -426,12 +429,12 @@ export class AuthService {
       throw new UnauthorizedException('OAuth identity mismatch');
     }
 
-    const effectiveSfUserId = derivedSfUserId || providedSfUserId;
-    const effectiveEid = derivedEid || providedEid;
-    const effectiveMid = derivedMid || providedMid;
-    const effectiveEmail = info.email || info.user?.email || email;
+    const effectiveSfUserId = derivedSfUserId ?? providedSfUserId;
+    const effectiveEid = derivedEid ?? providedEid;
+    const effectiveMid = derivedMid ?? providedMid;
+    const effectiveEmail = info.email ?? info.user?.email ?? email;
     const effectiveName =
-      info.name || info.user?.name || info.user?.full_name || name;
+      info.name ?? info.user?.name ?? info.user?.full_name ?? name;
 
     if (!effectiveSfUserId || !effectiveEid || !effectiveMid) {
       throw new UnauthorizedException(
@@ -468,17 +471,24 @@ export class AuthService {
     obj: Record<string, unknown> | undefined,
     keys: string[],
   ): string | undefined {
-    if (!obj) return undefined;
+    if (!obj) {
+      return undefined;
+    }
 
     for (const key of keys) {
+      // eslint-disable-next-line security/detect-object-injection -- `key` comes from hardcoded array parameter, not user input
       const value = obj[key];
       const direct = this.coerceId(value);
-      if (direct) return direct;
+      if (direct) {
+        return direct;
+      }
 
       if (value && typeof value === 'object') {
         const nested = value as Record<string, unknown>;
         const nestedId = this.coerceId(nested.id ?? nested.value);
-        if (nestedId) return nestedId;
+        if (nestedId) {
+          return nestedId;
+        }
       }
     }
 
@@ -501,9 +511,13 @@ export class AuthService {
   private extractAuthCode(
     code: string,
   ): { authCode: string; eid?: string } | undefined {
-    if (!code.includes('.')) return undefined;
+    if (!code.includes('.')) {
+      return undefined;
+    }
     const parts = code.split('.');
-    if (parts.length < 2) return undefined;
+    if (parts.length < 2) {
+      return undefined;
+    }
 
     try {
       const payloadJson = Buffer.from(parts[1], 'base64url').toString('utf8');
@@ -511,7 +525,9 @@ export class AuthService {
         auth_code?: string;
         eid?: number | string;
       };
-      if (!payload.auth_code) return undefined;
+      if (!payload.auth_code) {
+        return undefined;
+      }
       return {
         authCode: payload.auth_code,
         eid: payload.eid ? String(payload.eid) : undefined,
@@ -543,10 +559,14 @@ export class AuthService {
   }
 
   private getOAuthErrorCode(error: unknown): string | undefined {
-    if (!axios.isAxiosError(error)) return undefined;
+    if (!axios.isAxiosError(error)) {
+      return undefined;
+    }
 
     const data = error.response?.data;
-    if (!data || typeof data !== 'object') return undefined;
+    if (!data || typeof data !== 'object') {
+      return undefined;
+    }
 
     const errorCode = (data as { error?: string }).error;
     return errorCode ? String(errorCode) : undefined;
@@ -563,10 +583,14 @@ export class AuthService {
       tenantId,
       mid,
     );
-    if (!creds) throw new UnauthorizedException('No credentials found');
+    if (!creds) {
+      throw new UnauthorizedException('No credentials found');
+    }
 
     const tenant = await this.tenantRepo.findById(tenantId);
-    if (!tenant) throw new UnauthorizedException('Tenant not found');
+    if (!tenant) {
+      throw new UnauthorizedException('Tenant not found');
+    }
 
     if (
       !forceRefresh &&
@@ -635,10 +659,14 @@ export class AuthService {
   }
 
   private isAccessTokenValid(expiresAt: Date | string | null): boolean {
-    if (!expiresAt) return false;
+    if (!expiresAt) {
+      return false;
+    }
     const expiry =
       expiresAt instanceof Date ? expiresAt.getTime() : Date.parse(expiresAt);
-    if (!Number.isFinite(expiry)) return false;
+    if (!Number.isFinite(expiry)) {
+      return false;
+    }
 
     // Refresh ~1 minute early to avoid edge races.
     return Date.now() < expiry - 60_000;

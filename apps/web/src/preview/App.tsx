@@ -1,8 +1,9 @@
 import { useEffect } from "react";
+
 import { AppShell } from "@/components/app-shell";
-import { useAuthStore } from "@/store/auth-store";
 import { Toaster } from "@/components/ui/sonner";
 import { PreviewEditorWorkspacePage } from "@/preview/PreviewEditorWorkspacePage";
+import { useAuthStore } from "@/store/auth-store";
 
 const PREVIEW_USER = {
   id: "preview-user",
@@ -21,7 +22,9 @@ export default function App() {
   const { isAuthenticated, setAuth } = useAuthStore();
 
   useEffect(() => {
-    if (isAuthenticated) return;
+    if (isAuthenticated) {
+      return;
+    }
     setAuth(PREVIEW_USER, PREVIEW_TENANT, null);
   }, [isAuthenticated, setAuth]);
 

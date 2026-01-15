@@ -1,11 +1,11 @@
 import {
-  Injectable,
-  NestMiddleware,
   HttpException,
   HttpStatus,
+  Injectable,
+  NestMiddleware,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { FastifyRequest, FastifyReply } from "fastify";
+import { FastifyReply, FastifyRequest } from "fastify";
 
 @Injectable()
 export class AdminAuthMiddleware implements NestMiddleware {

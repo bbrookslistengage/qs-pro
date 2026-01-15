@@ -1,4 +1,5 @@
 import type { DataExtension } from "@/features/editor-workspace/types";
+
 import type { SqlToken } from "../sql-context";
 
 export type SqlDiagnosticSeverity = "error" | "warning" | "prereq";
@@ -54,11 +55,15 @@ export function getFirstBlockingDiagnostic(
 ): SqlDiagnostic | null {
   // First look for errors (highest priority)
   const error = diagnostics.find((d) => d.severity === "error");
-  if (error) return error;
+  if (error) {
+    return error;
+  }
 
   // Then look for prereq (missing structure)
   const prereq = diagnostics.find((d) => d.severity === "prereq");
-  if (prereq) return prereq;
+  if (prereq) {
+    return prereq;
+  }
 
   // No blocking diagnostics
   return null;

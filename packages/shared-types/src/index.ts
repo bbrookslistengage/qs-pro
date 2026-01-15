@@ -12,18 +12,17 @@ export const EnvVarSchema = z.object({
 export type EnvVars = z.infer<typeof EnvVarSchema>;
 
 // Feature flags
-export {
-  SubscriptionTierSchema,
-  FeatureKeySchema,
-  ALL_FEATURE_KEYS,
-  TIER_FEATURES,
-  TenantFeaturesSchema,
-  isTierFeature,
-  getTierFeatures,
-} from "./features.js";
-
 export type {
-  SubscriptionTier,
   FeatureKey,
+  SubscriptionTier,
   TenantFeatures,
+} from "./features.js";
+export {
+  ALL_FEATURE_KEYS,
+  FeatureKeySchema,
+  getTierFeatures,
+  isTierFeature,
+  SubscriptionTierSchema,
+  TenantFeaturesSchema,
+  TIER_FEATURES,
 } from "./features.js";

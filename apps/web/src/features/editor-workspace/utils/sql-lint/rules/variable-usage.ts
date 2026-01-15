@@ -1,6 +1,7 @@
-import type { LintRule, LintContext, SqlDiagnostic } from "../types";
-import { createDiagnostic, isWordChar } from "../utils/helpers";
 import { MC } from "@/constants/marketing-cloud";
+
+import type { LintContext, LintRule, SqlDiagnostic } from "../types";
+import { createDiagnostic, isWordChar } from "../utils/helpers";
 
 const getVariableUsageDiagnostics = (sql: string): SqlDiagnostic[] => {
   const diagnostics: SqlDiagnostic[] = [];

@@ -90,6 +90,7 @@ function normalizeTagName(token: string): string {
   const tagBody = token.replace(/^<|\/?>$/g, '').trim();
   const [rawName] = tagBody.split(/\s+/);
   const name = rawName.replace(/^\/?/, '');
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- Empty result from pop (e.g. "foo:") should use full name
   return name.includes(':') ? name.split(':').pop() || name : name;
 }
 

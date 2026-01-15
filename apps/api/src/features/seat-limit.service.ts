@@ -1,5 +1,6 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { ITenantRepository } from '@qs-pro/database';
+
 import { SeatLimitExceededException } from '../common/exceptions/seat-limit-exceeded.exception';
 
 @Injectable()

@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
-import { aliasInClauseRule } from "./alias-in-clause";
+import { describe, expect, it } from "vitest";
+
 import type { LintContext } from "../types";
+import { aliasInClauseRule } from "./alias-in-clause";
 
 const createContext = (sql: string): LintContext => ({
   sql,

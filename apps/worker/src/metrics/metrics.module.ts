@@ -1,6 +1,7 @@
-import { Module, Global } from "@nestjs/common";
+import { Global, Module } from "@nestjs/common";
+import { Counter, Gauge, Histogram } from "prom-client";
+
 import { MetricsController } from "./metrics.controller";
-import { Counter, Histogram, Gauge } from "prom-client";
 
 @Global()
 @Module({

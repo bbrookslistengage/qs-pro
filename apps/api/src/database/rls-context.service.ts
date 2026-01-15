@@ -1,7 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { createDatabaseFromClient } from '@qs-pro/database';
 import type { Sql } from 'postgres';
-import { runWithDbContext, getDbFromContext } from './db-context';
+
+import { getDbFromContext, runWithDbContext } from './db-context';
 
 @Injectable()
 export class RlsContextService {

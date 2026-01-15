@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { PostgresJsDatabase, drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-import { tenants, users, shellQueryRuns, tenantSettings } from "../schema";
 import { eq } from "drizzle-orm";
+import { drizzle, PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { shellQueryRuns, tenants, tenantSettings, users } from "../schema";
 
 // DATABASE_URL is loaded from root .env via vitest.setup.ts
 const connectionString = process.env.DATABASE_URL;
@@ -30,6 +31,9 @@ describe("Shell Query Engine Schema", () => {
         tssd: "sqe-test-subdomain",
       })
       .returning();
+    if (!tenant) {
+      throw new Error("Insert failed");
+    }
     tenantId = tenant.id;
 
     const [user] = await db
@@ -41,6 +45,9 @@ describe("Shell Query Engine Schema", () => {
         name: "SQE Tester",
       })
       .returning();
+    if (!user) {
+      throw new Error("Insert failed");
+    }
     userId = user.id;
   });
 
@@ -67,6 +74,9 @@ describe("Shell Query Engine Schema", () => {
     };
 
     const [run] = await db.insert(shellQueryRuns).values(runData).returning();
+    if (!run) {
+      throw new Error("Insert failed");
+    }
 
     expect(run.id).toBeDefined();
     expect(run.status).toBe("queued");
@@ -85,6 +95,9 @@ describe("Shell Query Engine Schema", () => {
         status: "queued",
       })
       .returning();
+    if (!run) {
+      throw new Error("Insert failed");
+    }
 
     const [updated] = await db
       .update(shellQueryRuns)
@@ -94,6 +107,9 @@ describe("Shell Query Engine Schema", () => {
       })
       .where(eq(shellQueryRuns.id, run.id))
       .returning();
+    if (!updated) {
+      throw new Error("Update failed");
+    }
 
     expect(updated.status).toBe("running");
     expect(updated.startedAt).toBeDefined();
@@ -112,6 +128,9 @@ describe("Shell Query Engine Schema", () => {
         qppFolderId: folderId,
       })
       .returning();
+    if (!settings) {
+      throw new Error("Insert failed");
+    }
 
     expect(settings.qppFolderId).toBe(folderId);
     expect(settings.mid).toBe(mid);
@@ -123,6 +142,9 @@ describe("Shell Query Engine Schema", () => {
       .set({ qppFolderId: newFolderId })
       .where(eq(tenantSettings.id, settings.id))
       .returning();
+    if (!updated) {
+      throw new Error("Update failed");
+    }
 
     expect(updated.qppFolderId).toBe(newFolderId);
   });

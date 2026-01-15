@@ -1,4 +1,4 @@
-import type { LintRule, LintContext, SqlDiagnostic } from "../types";
+import type { LintContext, LintRule, SqlDiagnostic } from "../types";
 import { createDiagnostic } from "../utils/helpers";
 
 const getNotEqualStyleDiagnostics = (sql: string): SqlDiagnostic[] => {

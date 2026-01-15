@@ -23,10 +23,14 @@ export const joinKeywordRule: InlineSuggestionRule = {
     // Get the last word before cursor
     const textBefore = ctx.sql.slice(0, ctx.cursorIndex);
     const match = /\b(\w+)$/.exec(textBefore);
-    if (!match) return false;
+    if (!match) {
+      return false;
+    }
 
     const lastWord = match[1].toLowerCase();
-    if (!JOIN_MODIFIERS.has(lastWord)) return false;
+    if (!JOIN_MODIFIERS.has(lastWord)) {
+      return false;
+    }
 
     // Special case: LEFT and RIGHT could be functions in SELECT clause
     // Only suggest JOIN if we're in a clause context (after FROM or JOIN)

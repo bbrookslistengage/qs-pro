@@ -1,27 +1,29 @@
-import { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import {
+  AltArrowLeft,
+  AltArrowRight,
+  CodeFile,
+  Database,
+  Folder as FolderIcon,
+  Folder2,
+} from "@solar-icons/react";
+import Fuse from "fuse.js";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { useDataExtensionFields } from "@/features/editor-workspace/hooks/use-metadata";
 import type {
   DataExtension,
   Folder,
   SavedQuery,
 } from "@/features/editor-workspace/types";
-import { useDataExtensionFields } from "@/features/editor-workspace/hooks/use-metadata";
-import {
-  Database,
-  Folder2,
-  AltArrowLeft,
-  AltArrowRight,
-  Folder as FolderIcon,
-  CodeFile,
-} from "@solar-icons/react";
 import { cn } from "@/lib/utils";
+
+import { getFolderAncestors, getFolderPath } from "../utils/folder-utils";
 import {
   SidebarSearch,
-  SidebarSearchRoot,
-  SidebarSearchResults,
   SidebarSearchResultItem,
+  SidebarSearchResults,
+  SidebarSearchRoot,
 } from "./SidebarSearch";
-import { getFolderAncestors, getFolderPath } from "../utils/folder-utils";
-import Fuse from "fuse.js";
 
 interface WorkspaceSidebarProps {
   tenantId?: string | null;
@@ -264,7 +266,9 @@ export function WorkspaceSidebar({
 
   // Search results with Fuse.js
   const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return [];
+    if (!searchQuery.trim()) {
+      return [];
+    }
 
     if (activeTab === "de") {
       const data = [
@@ -294,22 +298,21 @@ export function WorkspaceSidebar({
           ),
         }))
         .slice(0, 50);
-    } else {
-      const fuse = new Fuse(savedQueries, {
-        keys: ["name"],
-        threshold: 0.35,
-      });
-
-      return fuse
-        .search(searchQuery)
-        .map((result) => ({
-          id: result.item.id,
-          name: result.item.name,
-          type: "query" as const,
-          path: getFolderPath(folders, result.item.folderId),
-        }))
-        .slice(0, 50);
     }
+    const fuse = new Fuse(savedQueries, {
+      keys: ["name"],
+      threshold: 0.35,
+    });
+
+    return fuse
+      .search(searchQuery)
+      .map((result) => ({
+        id: result.item.id,
+        name: result.item.name,
+        type: "query" as const,
+        path: getFolderPath(folders, result.item.folderId),
+      }))
+      .slice(0, 50);
   }, [activeTab, searchQuery, folders, dataExtensions, savedQueries]);
 
   const handleSelectResult = (id: string, type: "de" | "query" | "folder") => {
@@ -363,7 +366,9 @@ export function WorkspaceSidebar({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!isSearchOpen || searchResults.length === 0) return;
+    if (!isSearchOpen || searchResults.length === 0) {
+      return;
+    }
 
     if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -400,10 +405,14 @@ export function WorkspaceSidebar({
   };
 
   const isVisible = (id: string, type: "folder" | "de" | "query") => {
-    if (!focusedItemId) return true;
+    if (!focusedItemId) {
+      return true;
+    }
 
     if (type === "folder") {
-      if (focusedItemId === id && focusedItemType === "folder") return true;
+      if (focusedItemId === id && focusedItemType === "folder") {
+        return true;
+      }
 
       let targetFolderId: string | null = null;
       if (focusedItemType === "de") {
@@ -501,7 +510,9 @@ export function WorkspaceSidebar({
   };
 
   const renderFolderNode = (folder: Folder, depth: number) => {
-    if (!isVisible(folder.id, "folder")) return null;
+    if (!isVisible(folder.id, "folder")) {
+      return null;
+    }
 
     const isExpanded = Boolean(expandedFolderIds[folder.id]);
     const childFolders = foldersByParent.get(folder.id) ?? [];
@@ -610,8 +621,18 @@ export function WorkspaceSidebar({
       className="relative border-r border-border bg-background flex flex-col shrink-0 animate-fade-in group/sidebar"
     >
       {/* Resizer handle */}
-      <div
+      <button
+        type="button"
+        aria-label="Resize sidebar"
         onMouseDown={startResizing}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowLeft") {
+            setWidth((w) => Math.max(200, w - 10));
+          }
+          if (e.key === "ArrowRight") {
+            setWidth((w) => Math.min(600, w + 10));
+          }
+        }}
         className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/30 active:bg-primary/50 transition-colors z-50"
       />
 
@@ -682,10 +703,11 @@ export function WorkspaceSidebar({
             onFocus={() => setIsSearchOpen(true)}
             onKeyDown={handleKeyDown}
             onClear={handleClearSearch}
+            // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- Empty string means "no active search"
             showClear={Boolean(focusedItemId || searchQuery)}
           />
           <SidebarSearchResults
-            isOpen={isSearchOpen && searchResults.length > 0}
+            isOpen={isSearchOpen ? searchResults.length > 0 : null}
           >
             {searchResults.map((result, idx) => (
               <SidebarSearchResultItem
@@ -716,11 +738,11 @@ export function WorkspaceSidebar({
                     )}
                     <span className="font-medium truncate">{result.name}</span>
                   </div>
-                  {result.path && (
+                  {result.path ? (
                     <span className="text-xs opacity-70 text-muted-foreground truncate pl-5">
                       {result.path}
                     </span>
-                  )}
+                  ) : null}
                 </div>
               </SidebarSearchResultItem>
             ))}

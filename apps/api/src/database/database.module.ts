@@ -1,6 +1,7 @@
-import { Module, Global, Logger } from '@nestjs/common';
+import { Global, Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createDatabaseFromClient, createSqlClient } from '@qs-pro/database';
+
 import { createDbProxy } from './db-proxy';
 import { RlsContextService } from './rls-context.service';
 
@@ -13,7 +14,9 @@ type SqlClient = ReturnType<typeof createSqlClient>;
       provide: 'SQL_CLIENT',
       useFactory: (configService: ConfigService) => {
         const logger = new Logger('DatabaseModule');
+
         const dbUrl =
+          // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- Empty DATABASE_URL is invalid; treat as unset
           configService.get<string>('DATABASE_URL') ||
           'postgres://postgres:password@127.0.0.1:5432/qs_pro';
 

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+
 import { getInlineCompletionReplacementEndOffset } from "./inline-completion-range";
 
 describe("getInlineCompletionReplacementEndOffset", () => {

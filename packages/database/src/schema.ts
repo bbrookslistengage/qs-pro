@@ -1,15 +1,15 @@
 import {
+  boolean,
+  index,
+  integer,
   pgTable,
+  text,
+  timestamp,
+  unique,
   uuid,
   varchar,
-  timestamp,
-  text,
-  integer,
-  boolean,
-  unique,
-  index,
 } from "drizzle-orm/pg-core";
-import { createSelectSchema, createInsertSchema } from "drizzle-zod";
+import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 
 // 1. Tenants (The High Level "Customer" / MCE Account)
 export const tenants = pgTable("tenants", {

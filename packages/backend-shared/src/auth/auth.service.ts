@@ -1,20 +1,21 @@
 import {
-  Injectable,
   Inject,
-  UnauthorizedException,
-  Logger,
+  Injectable,
   InternalServerErrorException,
+  Logger,
+  UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import axios from "axios";
-import * as jose from "jose";
-import { encrypt, decrypt } from "@qs-pro/database";
-import { RlsContextService } from "../database/rls-context.service";
 import type {
+  ICredentialsRepository,
   ITenantRepository,
   IUserRepository,
-  ICredentialsRepository,
 } from "@qs-pro/database";
+import { decrypt, encrypt } from "@qs-pro/database";
+import axios from "axios";
+import * as jose from "jose";
+
+import { RlsContextService } from "../database/rls-context.service";
 
 export interface MceTokenResponse {
   access_token: string;
@@ -406,7 +407,9 @@ export class AuthService {
     obj: Record<string, unknown> | undefined,
     keys: string[],
   ): string | undefined {
-    if (!obj) return undefined;
+    if (!obj) {
+      return undefined;
+    }
 
     for (const key of keys) {
       /**
@@ -427,12 +430,16 @@ export class AuthService {
       // eslint-disable-next-line security/detect-object-injection
       const value = obj[key];
       const direct = this.coerceId(value);
-      if (direct) return direct;
+      if (direct) {
+        return direct;
+      }
 
       if (value && typeof value === "object") {
         const nested = value as Record<string, unknown>;
         const nestedId = this.coerceId(nested.id ?? nested.value);
-        if (nestedId) return nestedId;
+        if (nestedId) {
+          return nestedId;
+        }
       }
     }
 
@@ -455,17 +462,24 @@ export class AuthService {
   private extractAuthCode(
     code: string,
   ): { authCode: string; eid?: string } | undefined {
-    if (!code.includes(".")) return undefined;
+    if (!code.includes(".")) {
+      return undefined;
+    }
     const parts = code.split(".");
-    if (parts.length < 2) return undefined;
+    const payload64 = parts[1];
+    if (!payload64) {
+      return undefined;
+    }
 
     try {
-      const payloadJson = Buffer.from(parts[1], "base64url").toString("utf8");
+      const payloadJson = Buffer.from(payload64, "base64url").toString("utf8");
       const payload = JSON.parse(payloadJson) as {
         auth_code?: string;
         eid?: number | string;
       };
-      if (!payload.auth_code) return undefined;
+      if (!payload.auth_code) {
+        return undefined;
+      }
       return {
         authCode: payload.auth_code,
         eid: payload.eid ? String(payload.eid) : undefined,
@@ -497,10 +511,14 @@ export class AuthService {
   }
 
   private getOAuthErrorCode(error: unknown): string | undefined {
-    if (!axios.isAxiosError(error)) return undefined;
+    if (!axios.isAxiosError(error)) {
+      return undefined;
+    }
 
     const data = error.response?.data;
-    if (!data || typeof data !== "object") return undefined;
+    if (!data || typeof data !== "object") {
+      return undefined;
+    }
 
     const errorCode = (data as { error?: string }).error;
     return errorCode ? String(errorCode) : undefined;
@@ -516,10 +534,14 @@ export class AuthService {
       tenantId,
       mid,
     );
-    if (!creds) throw new UnauthorizedException("No credentials found");
+    if (!creds) {
+      throw new UnauthorizedException("No credentials found");
+    }
 
     const tenant = await this.tenantRepo.findById(tenantId);
-    if (!tenant) throw new UnauthorizedException("Tenant not found");
+    if (!tenant) {
+      throw new UnauthorizedException("Tenant not found");
+    }
 
     if (creds.accessToken && this.isAccessTokenValid(creds.expiresAt)) {
       const encryptionKey = this.configService.get<string>("ENCRYPTION_KEY");
@@ -570,10 +592,14 @@ export class AuthService {
   }
 
   private isAccessTokenValid(expiresAt: Date | string | null): boolean {
-    if (!expiresAt) return false;
+    if (!expiresAt) {
+      return false;
+    }
     const expiry =
       expiresAt instanceof Date ? expiresAt.getTime() : Date.parse(expiresAt);
-    if (!Number.isFinite(expiry)) return false;
+    if (!Number.isFinite(expiry)) {
+      return false;
+    }
 
     // Refresh ~1 minute early to avoid edge races.
     return Date.now() < expiry - 60_000;

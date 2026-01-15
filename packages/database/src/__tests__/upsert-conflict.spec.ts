@@ -1,12 +1,13 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { PostgresJsDatabase, drizzle } from "drizzle-orm/postgres-js";
+import { inArray } from "drizzle-orm";
+import { drizzle, PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { tenants, users } from "../schema";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
 import {
   DrizzleTenantRepository,
   DrizzleUserRepository,
 } from "../repositories/drizzle-repositories";
-import { inArray } from "drizzle-orm";
+import { tenants, users } from "../schema";
 
 // DATABASE_URL is loaded from root .env via vitest.setup.ts
 const connectionString = process.env.DATABASE_URL;

@@ -1,10 +1,11 @@
 /* eslint-disable no-console */
+import fs from "node:fs";
+
+import * as dotenv from "dotenv";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
-import postgres from "postgres";
-import * as dotenv from "dotenv";
 import path from "path";
-import fs from "node:fs";
+import postgres from "postgres";
 
 const envCandidates = [
   path.resolve(process.cwd(), ".env"),

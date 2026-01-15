@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { useAuthStore } from "@/store/auth-store";
+
+import { AppShell } from "@/components/app-shell";
+import { Button } from "@/components/ui/button";
+import { Toaster } from "@/components/ui/sonner";
 import { LaunchInstructionsPage } from "@/features/auth/launch-instructions-page";
 import { EditorWorkspacePage } from "@/features/editor-workspace/EditorWorkspacePage";
-import { AppShell } from "@/components/app-shell";
-import { Toaster } from "@/components/ui/sonner";
-import { Button } from "@/components/ui/button";
-import { consumeEmbeddedJwt } from "@/services/embedded-jwt";
 import { getMe, loginWithJwt } from "@/services/auth";
+import { consumeEmbeddedJwt } from "@/services/embedded-jwt";
+import { useAuthStore } from "@/store/auth-store";
 
 function isProbablyJwt(candidate: string): boolean {
   return /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(candidate);
@@ -17,17 +18,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function getHttpStatus(error: unknown): number | null {
-  if (!isRecord(error)) return null;
+  if (!isRecord(error)) {
+    return null;
+  }
   const response = error.response;
-  if (!isRecord(response)) return null;
+  if (!isRecord(response)) {
+    return null;
+  }
   const status = response.status;
   return typeof status === "number" ? status : null;
 }
 
 function getHttpData(error: unknown): unknown {
-  if (!isRecord(error)) return undefined;
+  if (!isRecord(error)) {
+    return undefined;
+  }
   const response = error.response;
-  if (!isRecord(response)) return undefined;
+  if (!isRecord(response)) {
+    return undefined;
+  }
   return response.data;
 }
 
@@ -38,7 +47,9 @@ function App() {
   const [showLaunchHelp, setShowLaunchHelp] = useState(false);
   const [oauthRedirectAttempted, setOauthRedirectAttempted] = useState(false);
   const isEmbedded = useMemo(() => {
-    if (typeof window === "undefined") return false;
+    if (typeof window === "undefined") {
+      return false;
+    }
     try {
       return window.self !== window.top;
     } catch {
@@ -54,10 +65,14 @@ function App() {
     const checkAuth = async (): Promise<void> => {
       try {
         const response = await getMe();
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
         setAuth(response.user, response.tenant, response.csrfToken);
       } catch (err) {
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
         const status = getHttpStatus(err);
         const data = getHttpData(err);
         if (
@@ -94,30 +109,40 @@ function App() {
         }
         setError("Failed to connect to backend");
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
     };
-    checkAuth();
+    void checkAuth();
     return () => {
       cancelled = true;
     };
   }, [setAuth, logout, isEmbedded, oauthRedirectAttempted]);
 
   useEffect(() => {
-    if (!isEmbedded || isAuthenticated) return;
+    if (!isEmbedded || isAuthenticated) {
+      return;
+    }
 
     let cancelled = false;
     let loginInFlight = false;
     const bufferedJwt = consumeEmbeddedJwt();
 
     const tryJwtLogin = async (jwt: string): Promise<void> => {
-      if (cancelled || loginInFlight) return;
+      if (cancelled || loginInFlight) {
+        return;
+      }
       loginInFlight = true;
       try {
         await loginWithJwt(jwt);
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
         const response = await getMe();
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
         setAuth(response.user, response.tenant, response.csrfToken);
       } catch {
         // Intentionally ignore; backend will reject invalid/expired JWTs.
@@ -127,9 +152,13 @@ function App() {
     };
 
     const handleMessage = (_event: MessageEvent): void => {
-      if (cancelled) return;
+      if (cancelled) {
+        return;
+      }
       const jwt = consumeEmbeddedJwt();
-      if (jwt) void tryJwtLogin(jwt);
+      if (jwt) {
+        void tryJwtLogin(jwt);
+      }
     };
 
     const jwtFromQuery =
@@ -139,9 +168,12 @@ function App() {
         : null;
 
     const jwtCandidate =
+      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- Empty string JWT is invalid and should trigger fallback
       bufferedJwt ||
       (jwtFromQuery && isProbablyJwt(jwtFromQuery) ? jwtFromQuery : null);
-    if (jwtCandidate) void tryJwtLogin(jwtCandidate);
+    if (jwtCandidate) {
+      void tryJwtLogin(jwtCandidate);
+    }
 
     window.addEventListener("message", handleMessage);
     return () => {
@@ -154,7 +186,7 @@ function App() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           <p className="text-muted-foreground animate-pulse">
             Initializing Query++...
           </p>
@@ -191,7 +223,7 @@ function App() {
           ) : (
             <div className="flex items-center justify-center min-h-screen bg-background">
               <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
                 <div>Authenticating with Marketing Cloud...</div>
                 <Button
                   variant="secondary"

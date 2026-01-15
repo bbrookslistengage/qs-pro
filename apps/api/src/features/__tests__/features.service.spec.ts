@@ -1,11 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { FeaturesService } from '../features.service';
 import type {
   IFeatureOverrideRepository,
-  TenantFeatureOverride,
   ITenantRepository,
+  TenantFeatureOverride,
 } from '@qs-pro/database';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { FeaturesService } from '../features.service';
 
 describe('FeaturesService', () => {
   let service: FeaturesService;

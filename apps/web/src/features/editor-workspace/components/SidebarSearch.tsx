@@ -1,8 +1,9 @@
-import * as React from "react";
+import { CloseCircle, Magnifer } from "@solar-icons/react";
 import { cva, type VariantProps } from "class-variance-authority";
-import { Magnifer, CloseCircle } from "@solar-icons/react";
-import { cn } from "@/lib/utils";
+import * as React from "react";
+
 import { useClickOutside } from "@/hooks/use-click-outside";
+import { cn } from "@/lib/utils";
 
 const sidebarSearchVariants = cva(
   "relative flex items-center w-full transition-all duration-200",
@@ -55,6 +56,7 @@ export const SidebarSearch = React.forwardRef<
     },
     ref,
   ) => {
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- Empty string means "no input value"
     const hasValue = Boolean(props.value || props.defaultValue);
     const shouldShowClear = showClear ?? hasValue;
 
@@ -77,7 +79,7 @@ export const SidebarSearch = React.forwardRef<
           )}
         />
         <div className="absolute right-2 flex items-center gap-1">
-          {shouldShowClear && (
+          {shouldShowClear ? (
             <button
               type="button"
               onClick={onClear}
@@ -86,7 +88,7 @@ export const SidebarSearch = React.forwardRef<
             >
               <CloseCircle size={16} weight="Bold" />
             </button>
-          )}
+          ) : null}
           {rightElement}
         </div>
       </div>
@@ -107,7 +109,9 @@ export const SidebarSearchResults = ({
   className,
   isOpen = false,
 }: SidebarSearchResultsProps) => {
-  if (!isOpen) return null;
+  if (!isOpen) {
+    return null;
+  }
 
   return (
     <div
@@ -144,7 +148,14 @@ export const SidebarSearchResultItem = ({
       id={id}
       role="option"
       aria-selected={active}
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick?.();
+        }
+      }}
       onMouseEnter={onMouseEnter}
       className={cn(
         "px-3 py-2 text-xs cursor-pointer transition-colors",

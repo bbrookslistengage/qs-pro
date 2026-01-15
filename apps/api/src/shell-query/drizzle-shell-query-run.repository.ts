@@ -1,5 +1,6 @@
-import { and, count, eq, notInArray, shellQueryRuns } from '@qs-pro/database';
 import type { createDatabaseFromClient } from '@qs-pro/database';
+import { and, count, eq, notInArray, shellQueryRuns } from '@qs-pro/database';
+
 import type { RlsContextService } from '../database/rls-context.service';
 import type {
   CreateShellQueryRunParams,

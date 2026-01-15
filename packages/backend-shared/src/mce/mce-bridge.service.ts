@@ -1,6 +1,6 @@
-import { Injectable, HttpException, HttpStatus } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
 import axios, { AxiosRequestConfig } from "axios";
+
 import { AuthService } from "../auth/auth.service";
 import { parseSoapXml } from "./soap-xml.util";
 
@@ -15,10 +15,7 @@ export interface ProblemDetails {
 
 @Injectable()
 export class MceBridgeService {
-  constructor(
-    private authService: AuthService,
-    private configService: ConfigService,
-  ) {}
+  constructor(private authService: AuthService) {}
 
   /**
    * Constructs a SOAP Envelope for MCE
@@ -56,7 +53,7 @@ export class MceBridgeService {
 
       const response = await axios.request<T>({
         ...config,
-        baseURL: config.baseURL || baseUrl,
+        baseURL: config.baseURL ?? baseUrl,
         headers: {
           ...config.headers,
           Authorization: `Bearer ${accessToken}`,
@@ -123,7 +120,7 @@ export class MceBridgeService {
       const problem: ProblemDetails = {
         type: `https://httpstatuses.com/${status}`,
         title: statusText || "An error occurred",
-        status: status,
+        status,
         detail:
           typeof data === "string"
             ? data

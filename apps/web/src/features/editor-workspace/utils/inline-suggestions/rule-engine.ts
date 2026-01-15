@@ -1,15 +1,15 @@
-import type { InlineSuggestionContext, InlineSuggestion } from "./types";
-import { joinKeywordRule } from "./rules/join-keyword-rule";
-import { aliasSuggestionRule } from "./rules/alias-suggestion-rule";
-import { onKeywordRule } from "./rules/on-keyword-rule";
 import {
-  isInsideString,
-  isInsideComment,
-  isInsideBrackets,
   isAfterComparisonOperator,
-  isInsideFunctionParens,
   isAtEndOfBracketedTableInFromJoin,
+  isInsideBrackets,
+  isInsideComment,
+  isInsideFunctionParens,
+  isInsideString,
 } from "../sql-context";
+import { aliasSuggestionRule } from "./rules/alias-suggestion-rule";
+import { joinKeywordRule } from "./rules/join-keyword-rule";
+import { onKeywordRule } from "./rules/on-keyword-rule";
+import type { InlineSuggestion, InlineSuggestionContext } from "./types";
 
 /**
  * All rules in priority order (highest priority first).
@@ -36,8 +36,12 @@ export async function evaluateInlineSuggestions(
   ctx: InlineSuggestionContext,
 ): Promise<InlineSuggestion | null> {
   // Negative conditions - return early if any match
-  if (isInsideString(ctx.sql, ctx.cursorIndex)) return null;
-  if (isInsideComment(ctx.sql, ctx.cursorIndex)) return null;
+  if (isInsideString(ctx.sql, ctx.cursorIndex)) {
+    return null;
+  }
+  if (isInsideComment(ctx.sql, ctx.cursorIndex)) {
+    return null;
+  }
   // Allow alias suggestions when cursor is inside a bracketed table in FROM/JOIN
   // (e.g. `FROM [Orders|]` with Monaco auto-closed `]`).
   const insideBrackets = isInsideBrackets(ctx.sql, ctx.cursorIndex);
@@ -47,8 +51,12 @@ export async function evaluateInlineSuggestions(
   ) {
     return null;
   }
-  if (isAfterComparisonOperator(ctx.sql, ctx.cursorIndex)) return null;
-  if (isInsideFunctionParens(ctx.sql, ctx.cursorIndex)) return null;
+  if (isAfterComparisonOperator(ctx.sql, ctx.cursorIndex)) {
+    return null;
+  }
+  if (isInsideFunctionParens(ctx.sql, ctx.cursorIndex)) {
+    return null;
+  }
 
   // Evaluate rules in priority order
   for (const rule of RULES) {

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
-import { commaValidationRule } from "./comma-validation";
+
 import { tokenizeSql } from "../utils/tokenizer";
+import { commaValidationRule } from "./comma-validation";
 
 const checkRule = (sql: string) => {
   const tokens = tokenizeSql(sql);

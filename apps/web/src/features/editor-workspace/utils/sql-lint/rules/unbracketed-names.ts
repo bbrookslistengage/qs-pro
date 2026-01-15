@@ -1,6 +1,6 @@
-import type { LintRule, LintContext, SqlDiagnostic } from "../types";
-import { createDiagnostic } from "../utils/helpers";
+import type { LintContext, LintRule, SqlDiagnostic } from "../types";
 import { extractFromJoinTargets } from "../utils/extract-from-join-targets";
+import { createDiagnostic } from "../utils/helpers";
 
 /**
  * Normalize a DE name for comparison:
@@ -19,7 +19,9 @@ const buildKnownDELookup = (
   dataExtensions: LintContext["dataExtensions"],
 ): Map<string, string> => {
   const lookup = new Map<string, string>();
-  if (!dataExtensions) return lookup;
+  if (!dataExtensions) {
+    return lookup;
+  }
 
   for (const de of dataExtensions) {
     // Add normalized name
@@ -53,10 +55,12 @@ const createBracketGuidanceMessage = (
   if (hasEntPrefix) {
     // Extract the portion after ENT.
     const afterEnt = cleanedName.replace(/^ENT\.\s*/i, "");
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- Empty metadata name should use computed fallback
     const bracketedName = exactMetadataName || afterEnt;
     return `Data Extension names with spaces must be wrapped in brackets. Use: FROM ENT.[${bracketedName}]`;
   }
 
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- Empty metadata name should use computed fallback
   const bracketedName = exactMetadataName || cleanedName;
   return `Data Extension names with spaces must be wrapped in brackets. Use: FROM [${bracketedName}]`;
 };
@@ -81,11 +85,15 @@ const getUnbracketedNameErrors = (
 
   for (const target of targets) {
     // Skip subqueries and already-bracketed names
-    if (target.isSubquery || target.isBracketed) continue;
+    if (target.isSubquery || target.isBracketed) {
+      continue;
+    }
 
     // Skip dot-qualified names UNLESS they have ENT. prefix
     // (e.g., skip dbo.Table but process ENT.My Data Extension)
-    if (target.hasDot && !target.hasEntPrefix) continue;
+    if (target.hasDot && !target.hasEntPrefix) {
+      continue;
+    }
 
     // High-confidence: 3+ words with spaces (not purely hyphenated)
     const hasSpaces = target.rawText.includes(" ");

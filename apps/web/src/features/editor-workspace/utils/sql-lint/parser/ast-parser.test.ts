@@ -4,8 +4,9 @@
  * These tests verify the AST-based linting for MCE SQL.
  */
 
-import { describe, test, expect } from "vitest";
-import { parseAndLint, canParse, getAst } from "./ast-parser";
+import { describe, expect, test } from "vitest";
+
+import { canParse, getAst, parseAndLint } from "./ast-parser";
 
 describe("AST Parser", () => {
   describe("canParse", () => {

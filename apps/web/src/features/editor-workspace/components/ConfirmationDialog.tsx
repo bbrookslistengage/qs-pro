@@ -1,12 +1,13 @@
+import { Danger, InfoCircle } from "@solar-icons/react";
+
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Danger, InfoCircle } from "@solar-icons/react";
 
 interface ConfirmationDialogProps {
   isOpen: boolean;

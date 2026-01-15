@@ -1,7 +1,6 @@
+export { evaluateInlineSuggestions } from "./rule-engine";
 export type {
-  InlineSuggestionContext,
   InlineSuggestion,
+  InlineSuggestionContext,
   InlineSuggestionRule,
 } from "./types";
-
-export { evaluateInlineSuggestions } from "./rule-engine";

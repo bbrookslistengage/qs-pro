@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import type { Folder } from "../types";
 import { getFolderAncestors, getFolderPath } from "./folder-utils";
 

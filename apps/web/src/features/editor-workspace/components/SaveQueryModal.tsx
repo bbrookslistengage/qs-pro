@@ -1,14 +1,15 @@
+import { Diskette, Folder as FolderIcon, InfoCircle } from "@solar-icons/react";
 import { useState } from "react";
-import type { Folder } from "@/features/editor-workspace/types";
+
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Diskette, Folder as FolderIcon, InfoCircle } from "@solar-icons/react";
+import type { Folder } from "@/features/editor-workspace/types";
 
 interface SaveQueryModalProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ export function SaveQueryModal({
 }: SaveQueryModalProps) {
   const [name, setName] = useState(initialName);
   const [folderId, setFolderId] = useState(
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- Empty string folder ID is invalid
     initialFolderId || folders.find((f) => f.type === "library")?.id || "",
   );
 
@@ -55,10 +57,14 @@ export function SaveQueryModal({
 
         <div className="p-6 space-y-5">
           <div className="space-y-1.5">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1">
+            <label
+              htmlFor="query-name"
+              className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1"
+            >
               Query Name
             </label>
             <input
+              id="query-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Weekly Active Subscribers"
@@ -67,7 +73,10 @@ export function SaveQueryModal({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1">
+            <label
+              htmlFor="query-folder"
+              className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1"
+            >
               Target Folder
             </label>
             <div className="relative">
@@ -76,6 +85,7 @@ export function SaveQueryModal({
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
               />
               <select
+                id="query-folder"
                 value={folderId}
                 onChange={(e) => setFolderId(e.target.value)}
                 className="w-full bg-muted/50 border border-border rounded-lg pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer"

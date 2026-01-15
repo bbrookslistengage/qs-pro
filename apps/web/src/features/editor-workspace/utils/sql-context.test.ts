@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+
 import { getSqlCursorContext } from "./sql-context";
 
 describe("getSqlCursorContext - characterization tests", () => {

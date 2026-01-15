@@ -1,24 +1,25 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { getQueueToken } from '@nestjs/bullmq';
 import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
-import { ShellQueryController } from '../src/shell-query/shell-query.controller';
-import { ShellQueryService } from '../src/shell-query/shell-query.service';
-import { getQueueToken } from '@nestjs/bullmq';
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { Test, TestingModule } from '@nestjs/testing';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { SessionGuard } from '../src/auth/session.guard';
 import { MceBridgeService } from '../src/mce/mce-bridge.service';
+import { ShellQueryController } from '../src/shell-query/shell-query.controller';
+import { ShellQueryService } from '../src/shell-query/shell-query.service';
+import { ShellQuerySseService } from '../src/shell-query/shell-query-sse.service';
 import { createMockShellQueryContext } from './factories';
 import {
-  createQueueStub,
-  createTenantRepoStub,
   createMceBridgeStub,
+  createQueueStub,
   createSessionGuardMock,
   createShellQueryRunRepoStub,
   createShellQuerySseServiceStub,
+  createTenantRepoStub,
 } from './stubs';
-import { ShellQuerySseService } from '../src/shell-query/shell-query-sse.service';
 
 let mockQueue: ReturnType<typeof createQueueStub>;
 let mockTenantRepo: ReturnType<typeof createTenantRepoStub>;

@@ -1,10 +1,10 @@
+import previewCatalog from "@/preview/fixtures/preview-catalog.json";
 import type {
   DataExtensionFieldResponseDto,
   DataExtensionResponseDto,
   DataFolderResponseDto,
 } from "@/services/metadata.types";
 import { getSystemDataViewFields } from "@/services/system-data-views";
-import previewCatalog from "@/preview/fixtures/preview-catalog.json";
 
 export type {
   DataExtensionFieldResponseDto,

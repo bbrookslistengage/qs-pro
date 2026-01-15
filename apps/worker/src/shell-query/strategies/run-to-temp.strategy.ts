@@ -1,14 +1,15 @@
-import { Injectable, Logger, Inject } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { MceBridgeService } from "@qs-pro/backend-shared";
 import { RlsContextService } from "@qs-pro/backend-shared";
-import { tenantSettings, eq, and } from "@qs-pro/database";
+import { and, eq, tenantSettings } from "@qs-pro/database";
+
 import {
-  ShellQueryJob,
   FlowResult,
   IFlowStrategy,
-  SoapRetrieveResponse,
+  ShellQueryJob,
   SoapCreateResponse,
   SoapPerformResponse,
+  SoapRetrieveResponse,
 } from "../shell-query.types";
 
 @Injectable()

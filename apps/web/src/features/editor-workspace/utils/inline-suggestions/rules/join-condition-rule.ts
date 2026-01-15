@@ -1,6 +1,7 @@
-import type { InlineSuggestionRule } from "../types";
 import { IDENTITY_FIELD_PATTERNS } from "@/features/editor-workspace/constants";
 import type { DataExtensionField } from "@/features/editor-workspace/types";
+
+import type { InlineSuggestionRule } from "../types";
 
 /**
  * Normalizes a field name for comparison (lowercase, remove non-alphanumeric).
@@ -57,7 +58,9 @@ export const joinConditionRule: InlineSuggestionRule = {
     const rightTable = tablesInScope[tablesInScope.length - 1];
     const leftTable = tablesInScope[tablesInScope.length - 2];
 
-    if (!leftTable || !rightTable) return null;
+    if (!leftTable || !rightTable) {
+      return null;
+    }
 
     // Fetch fields for both tables
     const [leftFields, rightFields] = await Promise.all([
@@ -132,7 +135,9 @@ export const joinConditionRule: InlineSuggestionRule = {
       }
     }
 
-    if (matches.length === 0) return null;
+    if (matches.length === 0) {
+      return null;
+    }
 
     // Sort by priority (lower number = higher priority)
     matches.sort((a, b) => a.priority - b.priority);

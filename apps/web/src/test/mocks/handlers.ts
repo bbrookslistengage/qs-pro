@@ -1,5 +1,5 @@
-import { http, HttpResponse } from "msw";
 import type { TenantFeatures } from "@qs-pro/shared-types";
+import { http, HttpResponse } from "msw";
 
 export const defaultFeatures: TenantFeatures = {
   basicLinting: true,

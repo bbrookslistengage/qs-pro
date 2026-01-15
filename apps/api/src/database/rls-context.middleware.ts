@@ -1,7 +1,8 @@
 import { Inject, Injectable, NestMiddleware } from '@nestjs/common';
-import type { FastifyReply, FastifyRequest } from 'fastify';
-import { runWithDbContext, getDbFromContext } from './db-context';
 import { createDatabaseFromClient } from '@qs-pro/database';
+import type { FastifyReply, FastifyRequest } from 'fastify';
+
+import { getDbFromContext, runWithDbContext } from './db-context';
 
 type SecureSession = {
   get(key: string): unknown;
@@ -15,7 +16,9 @@ export class RlsContextMiddleware implements NestMiddleware {
     // postgres.js `reserve()` returns a Sql tag function without `.options`, but
     // drizzle-orm's postgres-js driver expects `client.options.parsers` to exist.
     // Copy the base client options/parameters onto the reserved Sql tag.
-    if (!reserved || typeof reserved !== 'function') return reserved;
+    if (!reserved || typeof reserved !== 'function') {
+      return reserved;
+    }
 
     if (!('options' in reserved)) {
       Object.defineProperty(reserved, 'options', {
@@ -73,7 +76,9 @@ export class RlsContextMiddleware implements NestMiddleware {
 
     let released = false;
     const cleanup = async () => {
-      if (released) return;
+      if (released) {
+        return;
+      }
       released = true;
       try {
         await reserved`RESET app.tenant_id`;

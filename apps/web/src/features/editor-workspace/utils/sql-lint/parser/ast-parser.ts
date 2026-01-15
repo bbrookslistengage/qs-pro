@@ -10,11 +10,12 @@
  */
 
 import { Parser } from "node-sql-parser";
+
 import type { SqlDiagnostic } from "../types";
 import {
+  type AstStatement,
   checkPolicyViolations,
   checkUnsupportedFunctionsViaTokens,
-  type AstStatement,
 } from "./policy";
 import { tryRecoverUnbracketedDE } from "./unbracketed-de-recovery";
 
@@ -23,19 +24,22 @@ const parser = new Parser();
 const DIALECT = "transactsql";
 
 /**
- * Result of parsing SQL with node-sql-parser
+ * Error details from parse failure
  */
-interface ParseResult {
-  success: boolean;
-  ast?: AstStatement | AstStatement[];
-  error?: {
-    message: string;
-    location?: {
-      start: { offset: number; line: number; column: number };
-      end: { offset: number; line: number; column: number };
-    };
+interface ParseError {
+  message: string;
+  location?: {
+    start: { offset: number; line: number; column: number };
+    end: { offset: number; line: number; column: number };
   };
 }
+
+/**
+ * Result of parsing SQL with node-sql-parser (discriminated union)
+ */
+type ParseResult =
+  | { success: true; ast: AstStatement | AstStatement[] }
+  | { success: false; error: ParseError };
 
 /**
  * Attempt to parse SQL and return structured result
@@ -132,7 +136,7 @@ export function parseAndLint(sql: string): SqlDiagnostic[] {
     }
 
     // Check if parse failure is due to unbracketed Data Extension name
-    const error = result.error!;
+    const error = result.error;
     const errorOffset = error.location?.start?.offset;
     const unbracketedRecovery = tryRecoverUnbracketedDE(sql, errorOffset);
 
@@ -156,7 +160,7 @@ export function parseAndLint(sql: string): SqlDiagnostic[] {
   }
 
   // Parse succeeded - check policy violations
-  const statements = normalizeAst(result.ast!);
+  const statements = normalizeAst(result.ast);
   const policyDiagnostics = checkPolicyViolations(statements, sql);
   diagnostics.push(...policyDiagnostics);
 
@@ -167,7 +171,9 @@ export function parseAndLint(sql: string): SqlDiagnostic[] {
  * Check if the SQL can be parsed (for quick validation)
  */
 export function canParse(sql: string): boolean {
-  if (!sql.trim()) return true;
+  if (!sql.trim()) {
+    return true;
+  }
   const result = tryParse(sql);
   return result.success;
 }

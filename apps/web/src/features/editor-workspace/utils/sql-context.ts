@@ -44,7 +44,9 @@ const KEYWORDS = new Set([
 const isWordChar = (value: string) => /[A-Za-z0-9_]/.test(value);
 
 const isAliasToken = (token?: SqlToken) => {
-  if (!token || token.type === "symbol") return false;
+  if (!token || token.type === "symbol") {
+    return false;
+  }
   return !KEYWORDS.has(token.value.toLowerCase());
 };
 
@@ -60,7 +62,7 @@ const extractAliasFromTokens = (
 
   // Skip symbol tokens (commas, dots, etc.)
   let currentToken = tokens.at(index);
-  while (currentToken && currentToken.type === "symbol") {
+  while (currentToken?.type === "symbol") {
     index += 1;
     currentToken = tokens.at(index);
   }
@@ -82,7 +84,9 @@ const scanUntil = (sql: string, startIndex: number, endChar: string) => {
   let index = startIndex;
   while (index < sql.length) {
     const char = sql.charAt(index);
-    if (char === endChar) return index;
+    if (char === endChar) {
+      return index;
+    }
     index += 1;
   }
   return sql.length;
@@ -315,7 +319,9 @@ const findClosingParenIndex = (sql: string, startIndex: number) => {
 
     if (char === ")") {
       depth -= 1;
-      if (depth === 0) return index;
+      if (depth === 0) {
+        return index;
+      }
     }
 
     index += 1;
@@ -328,10 +334,14 @@ const extractSelectFields = (sql: string): string[] => {
   const tokens = tokenizeSql(sql);
   const lowerTokens = tokens.map((token) => token.value.toLowerCase());
   const selectIndex = lowerTokens.findIndex((value) => value === "select");
-  if (selectIndex === -1) return [];
+  if (selectIndex === -1) {
+    return [];
+  }
 
   let fromIndex = tokens.findIndex((token, index) => {
-    if (index <= selectIndex) return false;
+    if (index <= selectIndex) {
+      return false;
+    }
     return token.type === "word" && token.value.toLowerCase() === "from";
   });
 
@@ -344,15 +354,21 @@ const extractSelectFields = (sql: string): string[] => {
   let segment: SqlToken[] = [];
 
   const pushSegmentField = () => {
-    if (segment.length === 0) return;
+    if (segment.length === 0) {
+      return;
+    }
     const asIndex = segment.findIndex(
       (token) => token.type === "word" && token.value.toLowerCase() === "as",
     );
     const pickToken = (tokensToScan: SqlToken[]) => {
       for (let i = tokensToScan.length - 1; i >= 0; i -= 1) {
         const token = tokensToScan.at(i);
-        if (!token) continue;
-        if (token.type === "word" || token.type === "bracket") return token;
+        if (!token) {
+          continue;
+        }
+        if (token.type === "word" || token.type === "bracket") {
+          return token;
+        }
       }
       return undefined;
     };
@@ -389,25 +405,29 @@ export const extractTableReferences = (sql: string): SqlTableReference[] => {
 
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens.at(index);
-    if (!token) continue;
-    if (token.type !== "word") continue;
+    if (!token) {
+      continue;
+    }
+    if (token.type !== "word") {
+      continue;
+    }
 
     const keyword = token.value.toLowerCase();
-    if (keyword !== "from" && keyword !== "join") continue;
+    if (keyword !== "from" && keyword !== "join") {
+      continue;
+    }
 
     let nextIndex = index + 1;
     let nextTokenCheck = tokens.at(nextIndex);
-    while (
-      nextTokenCheck &&
-      nextTokenCheck.type === "symbol" &&
-      nextTokenCheck.value === ","
-    ) {
+    while (nextTokenCheck?.type === "symbol" && nextTokenCheck.value === ",") {
       nextIndex += 1;
       nextTokenCheck = tokens.at(nextIndex);
     }
 
     const nextToken = tokens.at(nextIndex);
-    if (!nextToken) continue;
+    if (!nextToken) {
+      continue;
+    }
 
     if (nextToken.type === "symbol" && nextToken.value === "(") {
       const subqueryStart = nextToken.startIndex;
@@ -448,8 +468,7 @@ export const extractTableReferences = (sql: string): SqlTableReference[] => {
     const entNameToken = tokens.at(nextIndex + 2);
 
     if (
-      entToken &&
-      entToken.value.toLowerCase() === "ent" &&
+      entToken?.value.toLowerCase() === "ent" &&
       dotToken?.type === "symbol" &&
       dotToken.value === "." &&
       entNameToken &&
@@ -590,7 +609,9 @@ const getAliasBeforeDot = (sql: string, cursorIndex: number) => {
       inDoubleQuote = !inDoubleQuote;
       continue;
     }
-    if (inSingleQuote || inDoubleQuote) continue;
+    if (inSingleQuote || inDoubleQuote) {
+      continue;
+    }
 
     if (char === "]") {
       bracketDepth += 1;
@@ -602,7 +623,9 @@ const getAliasBeforeDot = (sql: string, cursorIndex: number) => {
         continue;
       }
     }
-    if (bracketDepth > 0) continue;
+    if (bracketDepth > 0) {
+      continue;
+    }
 
     // Stop at token boundaries; `alias.field` has no whitespace between alias and dot.
     if (/\s|,|\(|\)/.test(char)) {
@@ -615,12 +638,16 @@ const getAliasBeforeDot = (sql: string, cursorIndex: number) => {
     }
   }
 
-  if (dotIndex === -1) return null;
+  if (dotIndex === -1) {
+    return null;
+  }
 
   let alias: string | null = null;
   if (dotIndex > 0 && sql.charAt(dotIndex - 1) === "]") {
     const openIndex = sql.lastIndexOf("[", dotIndex - 1);
-    if (openIndex === -1) return null;
+    if (openIndex === -1) {
+      return null;
+    }
     alias = sql.slice(openIndex + 1, dotIndex - 1).trim() || null;
   } else {
     let start = dotIndex - 1;
@@ -631,7 +658,9 @@ const getAliasBeforeDot = (sql: string, cursorIndex: number) => {
   }
 
   // ENT is the shared folder prefix, not an alias
-  if (alias?.toLowerCase() === "ent") return null;
+  if (alias?.toLowerCase() === "ent") {
+    return null;
+  }
 
   return alias;
 };
@@ -643,12 +672,22 @@ const getLastKeyword = (
 ) => {
   for (let index = tokens.length - 1; index >= 0; index -= 1) {
     const token = tokens.at(index);
-    if (!token) continue;
-    if (token.startIndex >= cursorIndex) continue;
-    if (token.depth !== depth) continue;
-    if (token.type !== "word") continue;
+    if (!token) {
+      continue;
+    }
+    if (token.startIndex >= cursorIndex) {
+      continue;
+    }
+    if (token.depth !== depth) {
+      continue;
+    }
+    if (token.type !== "word") {
+      continue;
+    }
     const value = token.value.toLowerCase();
-    if (KEYWORDS.has(value)) return value;
+    if (KEYWORDS.has(value)) {
+      return value;
+    }
   }
   return null;
 };
@@ -660,12 +699,22 @@ const getLastFromJoinToken = (
 ) => {
   for (let index = tokens.length - 1; index >= 0; index -= 1) {
     const token = tokens.at(index);
-    if (!token) continue;
-    if (token.startIndex >= cursorIndex) continue;
-    if (token.depth !== depth) continue;
-    if (token.type !== "word") continue;
+    if (!token) {
+      continue;
+    }
+    if (token.startIndex >= cursorIndex) {
+      continue;
+    }
+    if (token.depth !== depth) {
+      continue;
+    }
+    if (token.type !== "word") {
+      continue;
+    }
     const value = token.value.toLowerCase();
-    if (value === "from" || value === "join") return token;
+    if (value === "from" || value === "join") {
+      return token;
+    }
   }
   return null;
 };
@@ -749,7 +798,9 @@ export interface SqlSelectFieldRange {
 }
 
 const isIdentifierToken = (token: SqlToken) => {
-  if (token.type !== "word" && token.type !== "bracket") return false;
+  if (token.type !== "word" && token.type !== "bracket") {
+    return false;
+  }
   return !KEYWORDS.has(token.value.toLowerCase());
 };
 
@@ -760,7 +811,9 @@ export const extractSelectFieldRanges = (
   const selectIndex = tokens.findIndex(
     (token) => token.type === "word" && token.value.toLowerCase() === "select",
   );
-  if (selectIndex === -1) return [];
+  if (selectIndex === -1) {
+    return [];
+  }
   const selectToken = tokens.at(selectIndex);
   const fromIndex = tokens.findIndex(
     (token, index) =>
@@ -777,19 +830,25 @@ export const extractSelectFieldRanges = (
 
   clauseTokens.forEach((token) => {
     if (token.type === "symbol" && token.value === ",") {
-      if (current.length) segments.push(current);
+      if (current.length) {
+        segments.push(current);
+      }
       current = [];
       return;
     }
     current.push(token);
   });
-  if (current.length) segments.push(current);
+  if (current.length) {
+    segments.push(current);
+  }
 
   const ranges: SqlSelectFieldRange[] = [];
 
   segments.forEach((segment) => {
     const identifiers = segment.filter(isIdentifierToken);
-    if (identifiers.length === 0) return;
+    if (identifiers.length === 0) {
+      return;
+    }
 
     const asIndex = segment.findIndex(
       (token) => token.type === "word" && token.value.toLowerCase() === "as",
@@ -833,7 +892,9 @@ export const getSharedFolderIds = (folders: Folder[]) => {
   const sharedRoots = folders.filter(
     (folder) => folder.name.trim().toLowerCase() === "shared",
   );
-  if (sharedRoots.length === 0) return new Set<string>();
+  if (sharedRoots.length === 0) {
+    return new Set<string>();
+  }
 
   const byParent = new Map<string | null, Folder[]>();
   folders.forEach((folder) => {
@@ -847,7 +908,9 @@ export const getSharedFolderIds = (folders: Folder[]) => {
   const queue = [...sharedRoots];
   while (queue.length > 0) {
     const current = queue.shift();
-    if (!current) continue;
+    if (!current) {
+      continue;
+    }
     sharedIds.add(current.id);
     const children = byParent.get(current.id) ?? [];
     children.forEach((child) => queue.push(child));
@@ -1050,7 +1113,9 @@ export function isAfterComparisonOperator(
 ): boolean {
   // Get text before cursor, trimming trailing whitespace
   const textBefore = sql.slice(0, cursorIndex).trimEnd();
-  if (textBefore.length === 0) return false;
+  if (textBefore.length === 0) {
+    return false;
+  }
 
   // Check for two-character operators: !=, <>, <=, >=
   if (textBefore.length >= 2) {
@@ -1206,7 +1271,9 @@ export function isAtEndOfBracketedTableInFromJoin(
       inDoubleQuote = !inDoubleQuote;
       continue;
     }
-    if (inSingleQuote || inDoubleQuote) continue;
+    if (inSingleQuote || inDoubleQuote) {
+      continue;
+    }
 
     if (char === "]") {
       bracketDepth++;
@@ -1234,8 +1301,12 @@ export function isAtEndOfBracketedTableInFromJoin(
 
   for (let i = tokens.length - 1; i >= 0; i--) {
     const token = tokens.at(i);
-    if (!token) continue;
-    if (token.type !== "word") continue;
+    if (!token) {
+      continue;
+    }
+    if (token.type !== "word") {
+      continue;
+    }
     const value = token.value.toLowerCase();
 
     if (value === "from" || value === "join") {

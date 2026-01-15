@@ -1,10 +1,11 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { MceBridgeService } from './mce-bridge.service';
-import { AuthService } from '../auth/auth.service';
-import { ConfigService } from '@nestjs/config';
-import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { HttpException, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Test, TestingModule } from '@nestjs/testing';
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { AuthService } from '../auth/auth.service';
+import { MceBridgeService } from './mce-bridge.service';
 
 describe('MceBridgeService', () => {
   let service: MceBridgeService;

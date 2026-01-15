@@ -1,11 +1,12 @@
-import type { LintRule, LintContext, SqlDiagnostic } from "../types";
-import { createDiagnostic, isWordChar } from "../utils/helpers";
 import { MC } from "@/constants/marketing-cloud";
 import {
-  MCE_SQL_PROHIBITED_DML,
   MCE_SQL_PROHIBITED_DDL,
+  MCE_SQL_PROHIBITED_DML,
   MCE_SQL_PROHIBITED_PROCEDURAL,
 } from "@/constants/mce-sql";
+
+import type { LintContext, LintRule, SqlDiagnostic } from "../types";
+import { createDiagnostic, isWordChar } from "../utils/helpers";
 
 const getKeywordDiagnostics = (sql: string): SqlDiagnostic[] => {
   const diagnostics: SqlDiagnostic[] = [];

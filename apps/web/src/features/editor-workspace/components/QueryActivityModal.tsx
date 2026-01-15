@@ -1,23 +1,24 @@
-import { useMemo, useState, useRef, useEffect } from "react";
-import type {
-  DataExtension,
-  QueryActivityDraft,
-} from "@/features/editor-workspace/types";
+import {
+  AltArrowDown,
+  CloseCircle,
+  Database,
+  InfoCircle,
+  Magnifer,
+  Rocket,
+} from "@solar-icons/react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import {
-  Database,
-  Rocket,
-  Magnifer,
-  InfoCircle,
-  AltArrowDown,
-  CloseCircle,
-} from "@solar-icons/react";
+import type {
+  DataExtension,
+  QueryActivityDraft,
+} from "@/features/editor-workspace/types";
 import { cn } from "@/lib/utils";
 
 interface QueryActivityModalProps {
@@ -61,7 +62,9 @@ export function QueryActivityModal({
 
   const filteredTargets = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term && !isSearchFocused) return [];
+    if (!term && !isSearchFocused) {
+      return [];
+    }
     return dataExtensions
       .filter((de) => {
         return (
@@ -73,7 +76,7 @@ export function QueryActivityModal({
   }, [dataExtensions, search, isSearchFocused]);
 
   const selectedTarget = useMemo(() => {
-    return dataExtensions.find((de) => de.id === selectedTargetId) || null;
+    return dataExtensions.find((de) => de.id === selectedTargetId) ?? null;
   }, [dataExtensions, selectedTargetId]);
 
   const canCreate = Boolean(activityName.trim()) && Boolean(selectedTargetId);
@@ -107,10 +110,14 @@ export function QueryActivityModal({
           {/* Identity Section */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1">
+              <label
+                htmlFor="activity-name"
+                className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1"
+              >
                 Activity Name
               </label>
               <input
+                id="activity-name"
                 value={activityName}
                 onChange={(e) => setActivityName(e.target.value)}
                 placeholder="e.g. Daily Active Subscribers"
@@ -118,13 +125,17 @@ export function QueryActivityModal({
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1 flex justify-between items-center">
+              <label
+                htmlFor="activity-external-key"
+                className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1 flex justify-between items-center"
+              >
                 External Key
                 <span className="text-[8px] font-normal lowercase opacity-60 italic">
                   Optional
                 </span>
               </label>
               <input
+                id="activity-external-key"
                 value={externalKey}
                 onChange={(e) => setExternalKey(e.target.value)}
                 placeholder="Auto-generated if blank"
@@ -134,10 +145,14 @@ export function QueryActivityModal({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1">
+            <label
+              htmlFor="activity-description"
+              className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1"
+            >
               Description
             </label>
             <textarea
+              id="activity-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Explain what this query does for your future self..."
@@ -150,7 +165,10 @@ export function QueryActivityModal({
           {/* Configuration Section */}
           <div className="space-y-5 bg-muted/30 p-5 rounded-xl border border-border/50">
             <div className="space-y-1.5 relative" ref={searchRef}>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1">
+              <label
+                htmlFor="activity-target-de"
+                className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1"
+              >
                 Target Data Extension
               </label>
 
@@ -184,6 +202,7 @@ export function QueryActivityModal({
                       className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors"
                     />
                     <input
+                      id="activity-target-de"
                       value={search}
                       onChange={(e) => {
                         setSearch(e.target.value);
@@ -203,7 +222,7 @@ export function QueryActivityModal({
                 )}
 
                 {/* Dropdown Results */}
-                {isSearchFocused && (
+                {isSearchFocused ? (
                   <div className="absolute z-10 top-full mt-1 w-full bg-background border border-border rounded-lg shadow-xl max-h-[200px] overflow-y-auto overflow-x-hidden py-1 animate-in fade-in slide-in-from-top-2 duration-200">
                     {filteredTargets.length > 0 ? (
                       filteredTargets.map((de) => (
@@ -238,18 +257,28 @@ export function QueryActivityModal({
                       </div>
                     )}
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
 
             <div className="space-y-2.5">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1">
+              <span
+                id="data-action-label"
+                className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground ml-1"
+              >
                 Data Action
-              </label>
-              <div className="grid grid-cols-3 gap-2 p-1 bg-background/50 rounded-lg border border-border">
+              </span>
+              <div
+                role="radiogroup"
+                aria-labelledby="data-action-label"
+                className="grid grid-cols-3 gap-2 p-1 bg-background/50 rounded-lg border border-border"
+              >
                 {(["Overwrite", "Append", "Update"] as const).map((action) => (
                   <button
                     key={action}
+                    type="button"
+                    role="radio"
+                    aria-checked={dataAction === action}
                     onClick={() => setDataAction(action)}
                     className={cn(
                       "flex flex-col items-center gap-1 py-2 px-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all",
@@ -286,7 +315,9 @@ export function QueryActivityModal({
             <Button
               disabled={!canCreate}
               onClick={() => {
-                if (!selectedTargetId) return;
+                if (!selectedTargetId) {
+                  return;
+                }
                 onCreate?.({
                   name: activityName.trim(),
                   externalKey: externalKey.trim() || undefined,

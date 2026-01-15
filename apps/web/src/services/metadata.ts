@@ -1,10 +1,10 @@
 import api from "@/services/api";
-import { getSystemDataViewFields } from "@/services/system-data-views";
 import type {
   DataExtensionFieldResponseDto,
   DataExtensionResponseDto,
   DataFolderResponseDto,
 } from "@/services/metadata.types";
+import { getSystemDataViewFields } from "@/services/system-data-views";
 
 export type {
   DataExtensionFieldResponseDto,

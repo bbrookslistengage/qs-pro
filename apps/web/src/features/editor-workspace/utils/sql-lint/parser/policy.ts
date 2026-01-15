@@ -12,9 +12,10 @@
  * 5. Unsupported functions detection
  */
 
-import type { SqlDiagnostic } from "../types";
-import { MCE_SQL_UNSUPPORTED_FUNCTIONS } from "@/constants/mce-sql";
 import { MC } from "@/constants/marketing-cloud";
+import { MCE_SQL_UNSUPPORTED_FUNCTIONS } from "@/constants/mce-sql";
+
+import type { SqlDiagnostic } from "../types";
 
 // Statement types that are allowed in MCE Query Studio
 const ALLOWED_STATEMENT_TYPES = new Set(["select"]);
@@ -202,7 +203,9 @@ function findFunctionsInExpression(
   expr: AstExpression | null | undefined,
   functions: DetectedFunction[],
 ): void {
-  if (!expr) return;
+  if (!expr) {
+    return;
+  }
 
   // Check if this node is a function call
   if (expr.type === "function" || expr.type === "aggr_func") {
@@ -222,8 +225,12 @@ function findFunctionsInExpression(
   }
 
   // Recurse into binary expressions
-  if (expr.left) findFunctionsInExpression(expr.left, functions);
-  if (expr.right) findFunctionsInExpression(expr.right, functions);
+  if (expr.left) {
+    findFunctionsInExpression(expr.left, functions);
+  }
+  if (expr.right) {
+    findFunctionsInExpression(expr.right, functions);
+  }
 
   // Recurse into nested expressions
   if (expr.expr) {
@@ -244,13 +251,11 @@ function findFunctionsInExpression(
   // Check for subqueries in value (e.g., IN clause: `value: [{ ast: {...} }]`)
   if (expr.value && Array.isArray(expr.value)) {
     for (const val of expr.value) {
-      if (
-        val &&
-        typeof val === "object" &&
-        "ast" in val &&
-        (val as SubqueryValue).ast
-      ) {
-        findFunctionsInStatement((val as SubqueryValue).ast!, functions);
+      if (val && typeof val === "object" && "ast" in val) {
+        const subquery = val as SubqueryValue;
+        if (subquery.ast) {
+          findFunctionsInStatement(subquery.ast, functions);
+        }
       }
     }
   }
@@ -267,7 +272,9 @@ function findFunctionsInArgs(
     | null,
   functions: DetectedFunction[],
 ): void {
-  if (!args) return;
+  if (!args) {
+    return;
+  }
 
   if (Array.isArray(args)) {
     for (const arg of args) {

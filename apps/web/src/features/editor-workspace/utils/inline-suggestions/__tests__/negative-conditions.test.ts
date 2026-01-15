@@ -1,11 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
+
 import {
-  isInsideString,
-  isInsideComment,
-  isInsideBrackets,
   isAfterComparisonOperator,
+  isInsideBrackets,
+  isInsideComment,
   isInsideFunctionParens,
-} from "../../sql-context";
+  isInsideString,
+} from "@/features/editor-workspace/utils/sql-context";
 
 describe("isInsideString", () => {
   it("isInsideString_CursorInsideSingleQuotedString_ReturnsTrue", () => {

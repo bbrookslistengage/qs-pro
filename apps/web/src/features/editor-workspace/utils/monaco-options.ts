@@ -1,19 +1,28 @@
 import type { editor } from "monaco-editor";
+
 import { registerMceSqlTokenizer } from "./mce-sql-tokenizer";
 
 export const MONACO_THEME_NAME = "qs-pro-sql";
 
 const getCssVarValue = (name: string, fallbackName?: string) => {
-  if (typeof window === "undefined") return "";
+  if (typeof window === "undefined") {
+    return "";
+  }
   const root = getComputedStyle(document.documentElement);
   const value = root.getPropertyValue(name).trim();
-  if (value) return value;
-  if (!fallbackName) return value;
+  if (value) {
+    return value;
+  }
+  if (!fallbackName) {
+    return value;
+  }
   return root.getPropertyValue(fallbackName).trim();
 };
 
 const getThemeBase = () => {
-  if (typeof document === "undefined") return "vs";
+  if (typeof document === "undefined") {
+    return "vs";
+  }
   return document.documentElement.classList.contains("dark") ? "vs-dark" : "vs";
 };
 
@@ -49,7 +58,9 @@ export const getEditorOptions =
   });
 
 export const applyMonacoTheme = (monaco: typeof import("monaco-editor")) => {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined") {
+    return;
+  }
 
   registerMceSqlTokenizer(monaco);
 

@@ -4,7 +4,9 @@ let listenerInitialized = false;
 function isAllowedMceOrigin(origin: string): boolean {
   try {
     const url = new URL(origin);
-    if (url.protocol !== "https:") return false;
+    if (url.protocol !== "https:") {
+      return false;
+    }
     const host = url.hostname.toLowerCase();
     return (
       host === "mc.exacttarget.com" ||
@@ -25,7 +27,9 @@ function extractJwtFromUnknown(value: unknown): string | null {
     return trimmed && isProbablyJwt(trimmed) ? trimmed : null;
   }
 
-  if (!value || typeof value !== "object") return null;
+  if (!value || typeof value !== "object") {
+    return null;
+  }
 
   const record = value as Record<string, unknown>;
   const candidate =
@@ -37,23 +41,35 @@ function extractJwtFromUnknown(value: unknown): string | null {
     record.ssoToken ??
     record.sso_token;
 
-  if (typeof candidate !== "string") return null;
+  if (typeof candidate !== "string") {
+    return null;
+  }
   const trimmed = candidate.trim();
   return trimmed && isProbablyJwt(trimmed) ? trimmed : null;
 }
 
 export function startEmbeddedJwtListener(): void {
-  if (listenerInitialized || typeof window === "undefined") return;
+  if (listenerInitialized || typeof window === "undefined") {
+    return;
+  }
   listenerInitialized = true;
 
   window.addEventListener("message", (event: MessageEvent) => {
     // Only accept SSO JWTs from the parent MCE frame.
-    if (window.self === window.top) return;
-    if (event.source !== window.parent) return;
-    if (!isAllowedMceOrigin(event.origin)) return;
+    if (window.self === window.top) {
+      return;
+    }
+    if (event.source !== window.parent) {
+      return;
+    }
+    if (!isAllowedMceOrigin(event.origin)) {
+      return;
+    }
 
     const jwt = extractJwtFromUnknown(event.data);
-    if (!jwt) return;
+    if (!jwt) {
+      return;
+    }
     bufferedJwt = jwt;
   });
 }

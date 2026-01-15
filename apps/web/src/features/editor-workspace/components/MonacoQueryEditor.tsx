@@ -1,23 +1,28 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { useTheme } from "next-themes";
 import Editor, { type OnMount } from "@monaco-editor/react";
-import type * as Monaco from "monaco-editor";
 import { useQueryClient } from "@tanstack/react-query";
+import type * as Monaco from "monaco-editor";
+import { useTheme } from "next-themes";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+
+import { MIN_TRIGGER_CHARS } from "@/features/editor-workspace/constants/autocomplete-config";
+import {
+  buildFieldsQueryOptions,
+  metadataQueryKeys,
+} from "@/features/editor-workspace/hooks/use-metadata";
 import type {
   DataExtension,
   DataExtensionField,
   Folder,
 } from "@/features/editor-workspace/types";
-import {
-  buildFieldsQueryOptions,
-  metadataQueryKeys,
-} from "@/features/editor-workspace/hooks/use-metadata";
+import { getContextualKeywords } from "@/features/editor-workspace/utils/autocomplete-keyword";
+import { getInlineCompletionReplacementEndOffset } from "@/features/editor-workspace/utils/inline-completion-range";
+import type { InlineSuggestionContext } from "@/features/editor-workspace/utils/inline-suggestions";
+import { evaluateInlineSuggestions } from "@/features/editor-workspace/utils/inline-suggestions";
 import {
   applyMonacoTheme,
   getEditorOptions,
   MONACO_THEME_NAME,
 } from "@/features/editor-workspace/utils/monaco-options";
-import { MIN_TRIGGER_CHARS } from "@/features/editor-workspace/constants/autocomplete-config";
 import {
   buildDataExtensionSuggestions,
   buildFieldSuggestions,
@@ -25,17 +30,13 @@ import {
   resolveTableForAlias,
 } from "@/features/editor-workspace/utils/sql-autocomplete";
 import {
+  extractSelectFieldRanges,
   extractTableReferences,
   getSharedFolderIds,
   getSqlCursorContext,
-  extractSelectFieldRanges,
 } from "@/features/editor-workspace/utils/sql-context";
 import type { SqlDiagnostic } from "@/features/editor-workspace/utils/sql-diagnostics";
 import { toMonacoMarkers } from "@/features/editor-workspace/utils/sql-diagnostics";
-import { getContextualKeywords } from "@/features/editor-workspace/utils/autocomplete-keyword";
-import { evaluateInlineSuggestions } from "@/features/editor-workspace/utils/inline-suggestions";
-import type { InlineSuggestionContext } from "@/features/editor-workspace/utils/inline-suggestions";
-import { getInlineCompletionReplacementEndOffset } from "@/features/editor-workspace/utils/inline-completion-range";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { cn } from "@/lib/utils";
 
@@ -139,7 +140,9 @@ export function MonacoQueryEditor({
 
   const fetchFields = useCallback(
     async (customerKey: string, signal?: AbortSignal) => {
-      if (!tenantIdRef.current) return [];
+      if (!tenantIdRef.current) {
+        return [];
+      }
       try {
         const options = buildFieldsQueryOptions(
           tenantIdRef.current,
@@ -165,12 +168,18 @@ export function MonacoQueryEditor({
 
   const getFieldsCount = useCallback(
     async (customerKey: string, shouldFetch: boolean) => {
-      if (!tenantIdRef.current) return null;
+      if (!tenantIdRef.current) {
+        return null;
+      }
       const cached = queryClient.getQueryData<DataExtensionField[]>(
         metadataQueryKeys.fields(tenantIdRef.current, customerKey),
       );
-      if (cached) return cached.length;
-      if (!shouldFetch) return null;
+      if (cached) {
+        return cached.length;
+      }
+      if (!shouldFetch) {
+        return null;
+      }
       const fields = await fetchFields(customerKey);
       return fields.length;
     },
@@ -340,7 +349,7 @@ export function MonacoQueryEditor({
                   fields = await fetchFields(customerKey);
                 }
 
-                const prefix = table.alias || "";
+                const prefix = table.alias ?? "";
 
                 for (const field of fields) {
                   const fieldName = field.name.includes(" ")
@@ -460,7 +469,9 @@ export function MonacoQueryEditor({
                 sqlContext.aliasBeforeDot,
                 sqlContext.tablesInScope,
               );
-              if (!table) return { suggestions: [] };
+              if (!table) {
+                return { suggestions: [] };
+              }
 
               let fields: DataExtensionField[] = [];
               const ownerLabel = table.isSubquery
@@ -574,7 +585,9 @@ export function MonacoQueryEditor({
 
             if (sqlContext.isAfterSelect) {
               const primaryTable = getPrimaryTable(sqlContext.tablesInScope);
-              if (!primaryTable) return { suggestions: keywordSuggestions };
+              if (!primaryTable) {
+                return { suggestions: keywordSuggestions };
+              }
 
               let fields: DataExtensionField[] = [];
               const ownerLabel = primaryTable.isSubquery
@@ -676,7 +689,7 @@ export function MonacoQueryEditor({
                   insertText: suggestion.text,
                   range: buildInlineRangeForInsertText(suggestion.text),
                 },
-                ...(suggestion.alternatives || []).map((alt) => ({
+                ...(suggestion.alternatives ?? []).map((alt) => ({
                   insertText: alt,
                   range: buildInlineRangeForInsertText(alt),
                 })),
@@ -747,13 +760,21 @@ export function MonacoQueryEditor({
       autoBracketDisposableRef.current?.dispose();
       autoBracketDisposableRef.current = editorInstance.onDidChangeModelContent(
         (event) => {
-          if (autoBracketRef.current) return;
+          if (autoBracketRef.current) {
+            return;
+          }
           const model = editorInstance.getModel();
-          if (!model) return;
+          if (!model) {
+            return;
+          }
 
           const latestChange = event.changes[event.changes.length - 1];
-          if (!latestChange) return;
-          if (!latestChange.text) return;
+          if (!latestChange) {
+            return;
+          }
+          if (!latestChange.text) {
+            return;
+          }
 
           const changeEnd = latestChange.rangeOffset + latestChange.text.length;
           const prefixStart = Math.max(0, changeEnd - 7);
@@ -763,7 +784,9 @@ export function MonacoQueryEditor({
             .toLowerCase();
           const shouldInsert = /\b(from|join)\s$/.test(prefix);
 
-          if (!shouldInsert) return;
+          if (!shouldInsert) {
+            return;
+          }
 
           const position = model.getPositionAt(changeEnd);
           const nextChar = model.getValueInRange({
@@ -773,7 +796,9 @@ export function MonacoQueryEditor({
             endColumn: position.column + 1,
           });
 
-          if (nextChar.startsWith("[")) return;
+          if (nextChar.startsWith("[")) {
+            return;
+          }
 
           autoBracketRef.current = true;
           editorInstance.trigger("keyboard", "type", { text: "[" });
@@ -785,20 +810,32 @@ export function MonacoQueryEditor({
       suggestRetriggerDisposableRef.current =
         editorInstance.onDidChangeModelContent((event) => {
           const model = editorInstance.getModel();
-          if (!model) return;
+          if (!model) {
+            return;
+          }
 
           const latestChange = event.changes[event.changes.length - 1];
-          if (!latestChange) return;
+          if (!latestChange) {
+            return;
+          }
 
           const insertedText = latestChange.text;
-          if (!insertedText || insertedText.length !== 1) return;
-          if (!/[a-zA-Z0-9_]/.test(insertedText)) return;
+          if (insertedText?.length !== 1) {
+            return;
+          }
+          if (!/[a-zA-Z0-9_]/.test(insertedText)) {
+            return;
+          }
 
           const changeEnd = latestChange.rangeOffset + insertedText.length;
-          if (changeEnd < 2) return;
+          if (changeEnd < 2) {
+            return;
+          }
 
           const charBeforeInsert = model.getValue().charAt(changeEnd - 2);
-          if (charBeforeInsert !== ".") return;
+          if (charBeforeInsert !== ".") {
+            return;
+          }
 
           editorInstance.trigger(
             "retrigger",
@@ -808,14 +845,18 @@ export function MonacoQueryEditor({
         });
 
       editorInstance.onKeyDown((event) => {
-        if (event.keyCode !== monacoInstance.KeyCode.Tab) return;
+        if (event.keyCode !== monacoInstance.KeyCode.Tab) {
+          return;
+        }
         if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) {
           return;
         }
 
         const model = editorInstance.getModel();
         const position = editorInstance.getPosition();
-        if (!model || !position) return;
+        if (!model || !position) {
+          return;
+        }
 
         const offset = model.getOffsetAt(position);
         const wordInfo = model.getWordUntilPosition(position);
@@ -827,19 +868,25 @@ export function MonacoQueryEditor({
           endColumn: position.column,
         });
 
-        if (/\s/.test(charBefore)) return;
+        if (/\s/.test(charBefore)) {
+          return;
+        }
 
         const fromJoinMatch = currentWord.match(
           /^(?:f|fr|fro|from|j|jo|joi|join)$/i,
         );
         const isFromOrJoinPrefix =
           wordInfo.endColumn === position.column && fromJoinMatch !== null;
-        if (!isFromOrJoinPrefix) return;
+        if (!isFromOrJoinPrefix) {
+          return;
+        }
 
         const expandedKeyword = /^f/i.test(currentWord) ? "FROM" : "JOIN";
 
         const sqlContext = getSqlCursorContext(model.getValue(), offset);
-        if (sqlContext.hasFromJoinTable) return;
+        if (sqlContext.hasFromJoinTable) {
+          return;
+        }
 
         event.preventDefault();
         event.stopPropagation();
@@ -894,7 +941,7 @@ export function MonacoQueryEditor({
       editorInstance.addCommand(
         monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.Slash,
         () => {
-          editorInstance.getAction("editor.action.commentLine")?.run();
+          void editorInstance.getAction("editor.action.commentLine")?.run();
         },
       );
 
@@ -902,7 +949,9 @@ export function MonacoQueryEditor({
       cursorPositionDisposableRef.current =
         editorInstance.onDidChangeCursorPosition((event) => {
           const model = editorInstance.getModel();
-          if (!model) return;
+          if (!model) {
+            return;
+          }
           const offset = model.getOffsetAt(event.position);
           onCursorPositionChangeRef.current?.(offset);
         });
@@ -936,9 +985,13 @@ export function MonacoQueryEditor({
   useEffect(() => {
     const editor = editorRef.current;
     const monaco = monacoRef.current;
-    if (!editor || !monaco) return;
+    if (!editor || !monaco) {
+      return;
+    }
     const model = editor.getModel();
-    if (!model) return;
+    if (!model) {
+      return;
+    }
 
     monaco.editor.setModelMarkers(
       model,
@@ -950,10 +1003,14 @@ export function MonacoQueryEditor({
   useEffect(() => {
     const editor = editorRef.current;
     const monaco = monacoRef.current;
-    if (!editor || !monaco) return;
+    if (!editor || !monaco) {
+      return;
+    }
 
     const model = editor.getModel();
-    if (!model) return;
+    if (!model) {
+      return;
+    }
 
     const references = extractTableReferences(model.getValue()).filter(
       (reference) => !reference.isSubquery,

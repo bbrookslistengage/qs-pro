@@ -75,14 +75,20 @@ export function tryRecoverUnbracketedDE(
 
   for (const target of targets) {
     // Skip subqueries and bracketed names
-    if (target.isSubquery || target.isBracketed) continue;
+    if (target.isSubquery || target.isBracketed) {
+      continue;
+    }
 
     // Skip dot-qualified names unless they have ENT. prefix
-    if (target.hasDot && !target.hasEntPrefix) continue;
+    if (target.hasDot && !target.hasEntPrefix) {
+      continue;
+    }
 
     // Only recover for high-confidence cases: 3+ words with spaces
     const hasSpaces = target.rawText.includes(" ");
-    if (target.wordCount < 3 || !hasSpaces) continue;
+    if (target.wordCount < 3 || !hasSpaces) {
+      continue;
+    }
 
     // Check if the error is near this target
     if (isNearTarget(errorOffset, target.startIndex, target.endIndex)) {

@@ -1,14 +1,15 @@
-import { Module, NestModule, MiddlewareConsumer } from "@nestjs/common";
-import { ConfigModule, ConfigService } from "@nestjs/config";
-import { BullModule } from "@nestjs/bullmq";
-import { HealthModule } from "./health/health.module";
-import { ShellQueryModule } from "./shell-query/shell-query.module";
-import { RedisModule } from "./redis/redis.module";
-import { MetricsModule } from "./metrics/metrics.module";
-import { BullBoardModule } from "@bull-board/nestjs";
 import { FastifyAdapter } from "@bull-board/fastify";
-import { DatabaseModule, MceModule, AuthModule } from "@qs-pro/backend-shared";
+import { BullBoardModule } from "@bull-board/nestjs";
+import { BullModule } from "@nestjs/bullmq";
+import { MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { AuthModule, DatabaseModule, MceModule } from "@qs-pro/backend-shared";
+
 import { AdminAuthMiddleware } from "./common/middleware/admin-auth.middleware";
+import { HealthModule } from "./health/health.module";
+import { MetricsModule } from "./metrics/metrics.module";
+import { RedisModule } from "./redis/redis.module";
+import { ShellQueryModule } from "./shell-query/shell-query.module";
 
 @Module({
   imports: [

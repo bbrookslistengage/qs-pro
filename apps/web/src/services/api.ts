@@ -1,6 +1,7 @@
 import axios, { type AxiosRequestConfig } from "axios";
-import { useAuthStore } from "@/store/auth-store";
 import { toast } from "sonner";
+
+import { useAuthStore } from "@/store/auth-store";
 
 type RetriableRequestConfig = AxiosRequestConfig & { _retry?: boolean };
 

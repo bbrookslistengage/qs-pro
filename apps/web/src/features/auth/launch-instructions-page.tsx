@@ -1,3 +1,5 @@
+import { Rocket } from "@solar-icons/react";
+
 import {
   Card,
   CardContent,
@@ -5,7 +7,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Rocket } from "@solar-icons/react";
 
 export function LaunchInstructionsPage() {
   return (

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
-import { evaluateInlineSuggestions } from "./rule-engine";
+
 import { getSqlCursorContext } from "../sql-context";
+import { evaluateInlineSuggestions } from "./rule-engine";
 import type { InlineSuggestionContext } from "./types";
 
 const buildContext = (

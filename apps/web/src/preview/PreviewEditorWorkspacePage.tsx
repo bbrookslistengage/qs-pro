@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+
 import { EditorWorkspace } from "@/features/editor-workspace/components/EditorWorkspace";
 import { useMetadata } from "@/features/editor-workspace/hooks/use-metadata";
 import type {
@@ -6,8 +7,8 @@ import type {
   ExecutionResult,
   QueryTab,
 } from "@/features/editor-workspace/types";
-import { useAuthStore } from "@/store/auth-store";
 import previewCatalogJson from "@/preview/fixtures/preview-catalog.json";
+import { useAuthStore } from "@/store/auth-store";
 
 type PreviewCatalog = {
   rowsByKey: Map<string, Record<string, ExecutionCell>[]>;

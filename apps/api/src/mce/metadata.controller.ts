@@ -1,9 +1,10 @@
-import { Controller, Get, Query, UseGuards, UseFilters } from '@nestjs/common';
-import { MetadataService } from './metadata.service';
+import { Controller, Get, Query, UseFilters, UseGuards } from '@nestjs/common';
+
 import { SessionGuard } from '../auth/session.guard';
-import { GlobalExceptionFilter } from '../common/filters/global-exception.filter';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { UserSession } from '../common/decorators/current-user.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { GlobalExceptionFilter } from '../common/filters/global-exception.filter';
+import { MetadataService } from './metadata.service';
 
 @Controller('metadata')
 @UseGuards(SessionGuard)

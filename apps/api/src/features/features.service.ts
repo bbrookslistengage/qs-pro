@@ -1,15 +1,15 @@
 import {
-  Injectable,
   Inject,
-  NotFoundException,
+  Injectable,
   InternalServerErrorException,
+  NotFoundException,
 } from '@nestjs/common';
 import type {
   IFeatureOverrideRepository,
   ITenantRepository,
 } from '@qs-pro/database';
-import { getTierFeatures, ALL_FEATURE_KEYS } from '@qs-pro/shared-types';
-import type { TenantFeatures, FeatureKey } from '@qs-pro/shared-types';
+import type { FeatureKey, TenantFeatures } from '@qs-pro/shared-types';
+import { ALL_FEATURE_KEYS, getTierFeatures } from '@qs-pro/shared-types';
 
 @Injectable()
 export class FeaturesService {
@@ -44,6 +44,7 @@ export class FeaturesService {
     for (const override of overrides) {
       const key = override.featureKey as FeatureKey;
       if (ALL_FEATURE_KEYS.includes(key)) {
+        // eslint-disable-next-line security/detect-object-injection -- `key` is validated against ALL_FEATURE_KEYS allowlist
         features[key] = override.enabled;
       }
     }

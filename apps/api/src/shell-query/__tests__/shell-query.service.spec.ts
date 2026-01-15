@@ -1,13 +1,15 @@
-import { Test, type TestingModule } from '@nestjs/testing';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import * as crypto from 'node:crypto';
+
 import { getQueueToken } from '@nestjs/bullmq';
+import { Test, type TestingModule } from '@nestjs/testing';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { MceBridgeService } from '../../mce/mce-bridge.service';
 import {
-  ShellQueryService,
   type ShellQueryContext,
+  ShellQueryService,
 } from '../shell-query.service';
 import type { ShellQueryRunRepository } from '../shell-query-run.repository';
-import { MceBridgeService } from '../../mce/mce-bridge.service';
-import * as crypto from 'node:crypto';
 
 describe('ShellQueryService', () => {
   let service: ShellQueryService;

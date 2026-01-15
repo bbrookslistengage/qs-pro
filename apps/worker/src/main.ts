@@ -1,10 +1,11 @@
+import { Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import {
   FastifyAdapter,
   NestFastifyApplication,
 } from "@nestjs/platform-fastify";
+
 import { AppModule } from "./app.module";
-import { Logger } from "@nestjs/common";
 import { JsonLogger } from "./common/logger/json-logger.service";
 
 async function bootstrap() {

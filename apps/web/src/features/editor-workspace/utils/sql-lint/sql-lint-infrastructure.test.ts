@@ -1,8 +1,10 @@
 import { describe, expect, test } from "vitest";
+
 import type { DataExtension } from "@/features/editor-workspace/types";
+
 import { lintSql } from "./index";
-import type { LintRule, LintContext } from "./types";
 import { prohibitedKeywordsRule } from "./rules/prohibited-keywords";
+import type { LintContext, LintRule } from "./types";
 import { tokenizeSql } from "./utils/tokenizer";
 
 describe("linter infrastructure", () => {

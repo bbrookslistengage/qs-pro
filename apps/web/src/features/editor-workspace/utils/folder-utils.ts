@@ -8,7 +8,9 @@ export function getFolderAncestors(
   folders: Folder[],
   folderId: string | null,
 ): Folder[] {
-  if (!folderId) return [];
+  if (!folderId) {
+    return [];
+  }
 
   const ancestors: Folder[] = [];
   let currentId: string | null = folderId;
@@ -16,13 +18,17 @@ export function getFolderAncestors(
 
   while (currentId) {
     const folder = folderMap.get(currentId);
-    if (!folder) break;
+    if (!folder) {
+      break;
+    }
 
     ancestors.unshift(folder);
     currentId = folder.parentId;
 
     // Prevent infinite loops if there's a circular reference in the data
-    if (ancestors.length > folders.length) break;
+    if (ancestors.length > folders.length) {
+      break;
+    }
   }
 
   return ancestors;

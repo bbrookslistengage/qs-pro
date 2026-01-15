@@ -1,7 +1,9 @@
-import { Test, type TestingModule } from '@nestjs/testing';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
+
 import { HttpException } from '@nestjs/common';
+import { Test, type TestingModule } from '@nestjs/testing';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { ShellQuerySseService } from '../shell-query-sse.service';
 
 type Subscriber = EventEmitter & {

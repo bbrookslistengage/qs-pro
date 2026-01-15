@@ -1,5 +1,6 @@
-import type { SqlCursorContext, SqlTableReference } from "../sql-context";
 import type { DataExtensionField } from "@/features/editor-workspace/types";
+
+import type { SqlCursorContext, SqlTableReference } from "../sql-context";
 
 /**
  * Context provided to inline suggestion rules for evaluation.

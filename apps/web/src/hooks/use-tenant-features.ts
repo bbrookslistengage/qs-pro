@@ -1,5 +1,6 @@
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import type { TenantFeatures } from "@qs-pro/shared-types";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+
 import { getTenantFeatures } from "@/services/features";
 
 export const featuresQueryKeys = {

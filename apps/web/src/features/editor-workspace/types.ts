@@ -25,6 +25,8 @@ export type SFMCFieldType =
   | "Decimal";
 
 export interface DataExtensionField {
+  /** Client-generated ID for React key prop when editing. Not persisted to server. */
+  id?: string;
   name: string;
   type: SFMCFieldType;
   length?: number;

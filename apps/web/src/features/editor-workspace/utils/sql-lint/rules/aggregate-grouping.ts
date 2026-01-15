@@ -1,4 +1,4 @@
-import type { LintRule, LintContext, SqlDiagnostic } from "../types";
+import type { LintContext, LintRule, SqlDiagnostic } from "../types";
 import { createDiagnostic, isWordChar } from "../utils/helpers";
 
 /**
@@ -165,13 +165,17 @@ const extractSelectClause = (tokens: Token[]): Token[] => {
   const selectIndex = tokens.findIndex(
     (token) => token.type === "word" && token.value.toLowerCase() === "select",
   );
-  if (selectIndex === -1) return [];
+  if (selectIndex === -1) {
+    return [];
+  }
 
   const endKeywords = ["from", "where", "group", "order", "having", "union"];
   let endIndex = tokens.length;
   for (let i = selectIndex + 1; i < tokens.length; i += 1) {
     const token = tokens.at(i);
-    if (!token) continue;
+    if (!token) {
+      continue;
+    }
     if (
       token.type === "word" &&
       endKeywords.includes(token.value.toLowerCase())
@@ -190,7 +194,9 @@ const extractSelectClause = (tokens: Token[]): Token[] => {
 const hasGroupByClause = (tokens: Token[]): boolean => {
   for (let i = 0; i < tokens.length - 1; i += 1) {
     const currentToken = tokens.at(i);
-    if (!currentToken) continue;
+    if (!currentToken) {
+      continue;
+    }
     if (
       currentToken.type === "word" &&
       currentToken.value.toLowerCase() === "group" &&
@@ -200,16 +206,16 @@ const hasGroupByClause = (tokens: Token[]): boolean => {
       let nextIndex = i + 1;
       while (nextIndex < tokens.length) {
         const nextToken = tokens.at(nextIndex);
-        if (!nextToken) break;
-        if (nextToken.type !== "whitespace") break;
+        if (!nextToken) {
+          break;
+        }
+        if (nextToken.type !== "whitespace") {
+          break;
+        }
         nextIndex += 1;
       }
       const byToken = tokens.at(nextIndex);
-      if (
-        byToken &&
-        byToken.type === "word" &&
-        byToken.value.toLowerCase() === "by"
-      ) {
+      if (byToken?.type === "word" && byToken.value.toLowerCase() === "by") {
         return true;
       }
     }
@@ -225,7 +231,9 @@ const extractGroupByColumns = (tokens: Token[]): Set<string> => {
 
   for (let i = 0; i < tokens.length - 1; i += 1) {
     const currentToken = tokens.at(i);
-    if (!currentToken) continue;
+    if (!currentToken) {
+      continue;
+    }
     if (
       currentToken.type === "word" &&
       currentToken.value.toLowerCase() === "group"
@@ -234,21 +242,23 @@ const extractGroupByColumns = (tokens: Token[]): Set<string> => {
       let byIndex = i + 1;
       while (byIndex < tokens.length) {
         const byToken = tokens.at(byIndex);
-        if (!byToken) break;
-        if (byToken.type !== "whitespace") break;
+        if (!byToken) {
+          break;
+        }
+        if (byToken.type !== "whitespace") {
+          break;
+        }
         byIndex += 1;
       }
       const byToken = tokens.at(byIndex);
-      if (
-        byToken &&
-        byToken.type === "word" &&
-        byToken.value.toLowerCase() === "by"
-      ) {
+      if (byToken?.type === "word" && byToken.value.toLowerCase() === "by") {
         // Extract columns after BY
         let currentIndex = byIndex + 1;
         while (currentIndex < tokens.length) {
           const token = tokens.at(currentIndex);
-          if (!token) break;
+          if (!token) {
+            break;
+          }
 
           // Stop at next major keyword
           if (
@@ -265,11 +275,7 @@ const extractGroupByColumns = (tokens: Token[]): Set<string> => {
             // Skip table qualifiers (e.g., "t." in "t.column")
             const nextNonWhitespace = currentIndex + 1;
             const nextToken = tokens.at(nextNonWhitespace);
-            if (
-              nextToken &&
-              nextToken.type === "symbol" &&
-              nextToken.value === "."
-            ) {
+            if (nextToken?.type === "symbol" && nextToken.value === ".") {
               // This is a table qualifier, skip it
               currentIndex += 2;
               continue;
@@ -355,7 +361,9 @@ const analyzeSelectExpressions = (
 
     for (let j = 0; j < exprTokens.length; j += 1) {
       const t = exprTokens.at(j);
-      if (!t) continue;
+      if (!t) {
+        continue;
+      }
 
       if (t.type === "word") {
         const lowerValue = t.value.toLowerCase();
@@ -366,16 +374,16 @@ const analyzeSelectExpressions = (
           let nextIndex = j + 1;
           while (nextIndex < exprTokens.length) {
             const nextToken = exprTokens.at(nextIndex);
-            if (!nextToken) break;
-            if (nextToken.type !== "whitespace") break;
+            if (!nextToken) {
+              break;
+            }
+            if (nextToken.type !== "whitespace") {
+              break;
+            }
             nextIndex += 1;
           }
           const parenToken = exprTokens.at(nextIndex);
-          if (
-            parenToken &&
-            parenToken.type === "symbol" &&
-            parenToken.value === "("
-          ) {
+          if (parenToken?.type === "symbol" && parenToken.value === "(") {
             hasAggregates = true;
             isAggregated = true;
             break;
@@ -446,16 +454,22 @@ const getAggregateGroupingDiagnostics = (sql: string): SqlDiagnostic[] => {
 
   // Check if query has aggregates
   const selectTokens = extractSelectClause(tokens);
-  if (selectTokens.length === 0) return diagnostics;
+  if (selectTokens.length === 0) {
+    return diagnostics;
+  }
 
   const { hasAggregates, nonAggregatedColumns } =
     analyzeSelectExpressions(selectTokens);
 
   // If no aggregates, no problem
-  if (!hasAggregates) return diagnostics;
+  if (!hasAggregates) {
+    return diagnostics;
+  }
 
   // If only aggregates (no non-aggregated columns), no problem
-  if (nonAggregatedColumns.length === 0) return diagnostics;
+  if (nonAggregatedColumns.length === 0) {
+    return diagnostics;
+  }
 
   // Check for GROUP BY clause
   const hasGroupBy = hasGroupByClause(tokens);

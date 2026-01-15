@@ -1,9 +1,10 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
-import { FeaturesService } from './features.service';
-import { SessionGuard } from '../auth/session.guard';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
-import type { UserSession } from '../common/decorators/current-user.decorator';
 import type { TenantFeatures } from '@qs-pro/shared-types';
+
+import { SessionGuard } from '../auth/session.guard';
+import type { UserSession } from '../common/decorators/current-user.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { FeaturesService } from './features.service';
 
 @Controller('features')
 @UseGuards(SessionGuard)

@@ -1,16 +1,17 @@
-import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
-import { server } from "@/test/mocks/server";
+import type { ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
 import { WorkspaceSidebar } from "@/features/editor-workspace/components/WorkspaceSidebar";
 import {
   DataExtension,
   Folder,
   SavedQuery,
 } from "@/features/editor-workspace/types";
+import { server } from "@/test/mocks/server";
 
 const createQueryClient = () =>
   new QueryClient({

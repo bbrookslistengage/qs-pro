@@ -1,14 +1,14 @@
-import { Injectable, Logger, Inject } from "@nestjs/common";
-import { MceBridgeService } from "@qs-pro/backend-shared";
-import { RlsContextService } from "@qs-pro/backend-shared";
-import { tenantSettings, eq, and } from "@qs-pro/database";
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { MceBridgeService, RlsContextService } from "@qs-pro/backend-shared";
+import { and, eq, tenantSettings } from "@qs-pro/database";
+
 import {
-  ShellQueryJob,
   FlowResult,
   IFlowStrategy,
-  SoapRetrieveResponse,
+  ShellQueryJob,
   SoapCreateResponse,
   SoapPerformResponse,
+  SoapRetrieveResponse,
 } from "../shell-query.types";
 
 @Injectable()
@@ -17,6 +17,8 @@ export class RunToTempFlow implements IFlowStrategy {
 
   constructor(
     private readonly mceBridge: MceBridgeService,
+    // TODO: Wrap DB operations with rlsContext.runWithTenantContext for RLS consistency
+    // @ts-expect-error Intentionally kept for future RLS implementation
     private readonly rlsContext: RlsContextService,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     @Inject("DATABASE") private readonly db: any,
@@ -99,7 +101,7 @@ export class RunToTempFlow implements IFlowStrategy {
 
     if (results && (Array.isArray(results) ? results.length > 0 : true)) {
       const folder = Array.isArray(results) ? results[0] : results;
-      if (!folder.ID) {
+      if (!folder?.ID) {
         throw new Error("Folder ID not found in retrieve response");
       }
       folderId = parseInt(folder.ID, 10);

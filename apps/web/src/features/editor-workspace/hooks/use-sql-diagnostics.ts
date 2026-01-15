@@ -10,15 +10,16 @@
  * The merged diagnostics prioritize blocking issues and deduplicate overlapping errors.
  */
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import type { SqlDiagnostic } from "@/features/editor-workspace/utils/sql-lint/types";
-import { lintSql } from "@/features/editor-workspace/utils/sql-lint";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
 import type { DataExtension } from "@/features/editor-workspace/types";
+import { lintSql } from "@/features/editor-workspace/utils/sql-lint";
 import type {
   WorkerRequest,
   WorkerResponse,
 } from "@/features/editor-workspace/utils/sql-lint/parser/protocol";
 import { createRequestId } from "@/features/editor-workspace/utils/sql-lint/parser/protocol";
+import type { SqlDiagnostic } from "@/features/editor-workspace/utils/sql-lint/types";
 
 /** Configuration options for the hook */
 export interface UseSqlDiagnosticsOptions {
@@ -79,42 +80,6 @@ export function useSqlDiagnostics({
     [sql, dataExtensions, cursorPosition],
   );
 
-  // Initialize worker lazily
-  const getWorker = useCallback((): Worker | null => {
-    if (!enableAsyncLinting) return null;
-
-    if (!workerRef.current) {
-      try {
-        workerRef.current = new Worker(
-          new URL(
-            "@/features/editor-workspace/utils/sql-lint/parser/sql-lint.worker.ts",
-            import.meta.url,
-          ),
-          { type: "module" },
-        );
-
-        workerRef.current.onmessage = (event: MessageEvent<WorkerResponse>) => {
-          handleWorkerMessage(event.data);
-        };
-
-        workerRef.current.onerror = (error) => {
-          // eslint-disable-next-line no-console
-          console.error("[sql-lint.worker] Error:", error);
-          setIsAsyncLinting(false);
-        };
-
-        // Initialize worker
-        const initRequest: WorkerRequest = { type: "init" };
-        workerRef.current.postMessage(initRequest);
-      } catch {
-        // Worker creation failed - fall back to sync-only
-        return null;
-      }
-    }
-
-    return workerRef.current;
-  }, [enableAsyncLinting]);
-
   // Handle worker messages
   const handleWorkerMessage = useCallback((response: WorkerResponse) => {
     switch (response.type) {
@@ -132,7 +97,6 @@ export function useSqlDiagnostics({
         break;
 
       case "error":
-        // eslint-disable-next-line no-console
         console.error("[sql-lint.worker] Lint error:", response.message);
         if (response.requestId === currentRequestRef.current) {
           setIsAsyncLinting(false);
@@ -140,6 +104,43 @@ export function useSqlDiagnostics({
         break;
     }
   }, []);
+
+  // Initialize worker lazily
+  const getWorker = useCallback((): Worker | null => {
+    if (!enableAsyncLinting) {
+      return null;
+    }
+
+    if (!workerRef.current) {
+      try {
+        workerRef.current = new Worker(
+          new URL(
+            "@/features/editor-workspace/utils/sql-lint/parser/sql-lint.worker.ts",
+            import.meta.url,
+          ),
+          { type: "module" },
+        );
+
+        workerRef.current.onmessage = (event: MessageEvent<WorkerResponse>) => {
+          handleWorkerMessage(event.data);
+        };
+
+        workerRef.current.onerror = (error) => {
+          console.error("[sql-lint.worker] Error:", error);
+          setIsAsyncLinting(false);
+        };
+
+        // Initialize worker
+        const initRequest: WorkerRequest = { type: "init" };
+        workerRef.current.postMessage(initRequest);
+      } catch {
+        // Worker creation failed - fall back to sync-only
+        return null;
+      }
+    }
+
+    return workerRef.current;
+  }, [enableAsyncLinting, handleWorkerMessage]);
 
   // Cleanup worker on unmount
   useEffect(() => {
@@ -153,7 +154,9 @@ export function useSqlDiagnostics({
 
   // Debounced async lint effect
   useEffect(() => {
-    if (!enableAsyncLinting) return;
+    if (!enableAsyncLinting) {
+      return;
+    }
 
     // Skip async lint for empty SQL
     if (!sql.trim()) {
@@ -257,7 +260,9 @@ function mergeDiagnostics(
 
   // Sort by position, then severity
   return result.sort((a, b) => {
-    if (a.startIndex !== b.startIndex) return a.startIndex - b.startIndex;
+    if (a.startIndex !== b.startIndex) {
+      return a.startIndex - b.startIndex;
+    }
     // "error" first, then "prereq", then "warning"
     const severityOrder = { error: 0, prereq: 1, warning: 2 };
     return severityOrder[a.severity] - severityOrder[b.severity];
@@ -281,7 +286,9 @@ function rangesOverlap(
  */
 function messagesSimilar(msg1: string, msg2: string): boolean {
   // Exact match
-  if (msg1 === msg2) return true;
+  if (msg1 === msg2) {
+    return true;
+  }
 
   // Normalize and compare
   const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");

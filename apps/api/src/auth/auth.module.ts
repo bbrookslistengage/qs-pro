@@ -1,13 +1,14 @@
 import { Module } from '@nestjs/common';
-import { AuthController } from './auth.controller';
-import { AuthService } from './auth.service';
-import { DatabaseModule } from '../database/database.module';
-import { FeaturesModule } from '../features/features.module';
 import {
+  DrizzleCredentialsRepository,
   DrizzleTenantRepository,
   DrizzleUserRepository,
-  DrizzleCredentialsRepository,
 } from '@qs-pro/database';
+
+import { DatabaseModule } from '../database/database.module';
+import { FeaturesModule } from '../features/features.module';
+import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service';
 
 @Module({
   imports: [DatabaseModule, FeaturesModule],

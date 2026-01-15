@@ -1,47 +1,58 @@
+import * as Tooltip from "@radix-ui/react-tooltip";
 import {
-  useState,
-  type ReactNode,
-  useEffect,
+  AddCircle,
+  AltArrowLeft,
+  AltArrowRight,
+  AltArrowUp,
+  CloseCircle,
+  Code,
+  Database,
+  Diskette,
+  Download,
+  FileText,
+  MenuDots,
+  Play,
+  Rocket,
+} from "@solar-icons/react";
+import {
   type MouseEvent,
-  useRef,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
   useMemo,
+  useRef,
+  useState,
 } from "react";
+
+import { FeatureGate } from "@/components/FeatureGate";
 import type {
   EditorWorkspaceProps,
   QueryTab,
 } from "@/features/editor-workspace/types";
-import { WorkspaceSidebar } from "./WorkspaceSidebar";
-import { ResultsPane } from "./ResultsPane";
-import { MonacoQueryEditor } from "./MonacoQueryEditor";
-import { DataExtensionModal } from "./DataExtensionModal";
-import { QueryActivityModal } from "./QueryActivityModal";
-import { SaveQueryModal } from "./SaveQueryModal";
-import { ConfirmationDialog } from "./ConfirmationDialog";
-import * as Tooltip from "@radix-ui/react-tooltip";
+import { formatDiagnosticMessage } from "@/features/editor-workspace/utils/sql-diagnostics";
 import {
-  Play,
-  Diskette,
-  Download,
-  Rocket,
-  MenuDots,
-  Code,
-  Database,
-  AddCircle,
-  CloseCircle,
-  FileText,
-  AltArrowLeft,
-  AltArrowRight,
-  AltArrowUp,
-} from "@solar-icons/react";
-import { cn } from "@/lib/utils";
-import {
-  hasBlockingDiagnostics as checkHasBlockingDiagnostics,
   getFirstBlockingDiagnostic,
+  hasBlockingDiagnostics as checkHasBlockingDiagnostics,
 } from "@/features/editor-workspace/utils/sql-lint";
 import { useSqlDiagnostics } from "@/features/editor-workspace/utils/sql-lint/use-sql-diagnostics";
-import { formatDiagnosticMessage } from "@/features/editor-workspace/utils/sql-diagnostics";
-import { FeatureGate } from "@/components/FeatureGate";
+import { cn } from "@/lib/utils";
+
+import { ConfirmationDialog } from "./ConfirmationDialog";
+import { DataExtensionModal } from "./DataExtensionModal";
+import { MonacoQueryEditor } from "./MonacoQueryEditor";
+import { QueryActivityModal } from "./QueryActivityModal";
+import { ResultsPane } from "./ResultsPane";
+import { SaveQueryModal } from "./SaveQueryModal";
+import { WorkspaceSidebar } from "./WorkspaceSidebar";
+
+const createDefaultTab = (): QueryTab => ({
+  id: `t-${Date.now()}`,
+  name: "New Query",
+  content: "",
+  isDirty: false,
+  isNew: true,
+});
 
 export function EditorWorkspace({
   tenantId,
@@ -81,19 +92,19 @@ export function EditorWorkspace({
   const [tabToClose, setTabToClose] = useState<string | null>(null);
   const [isRunBlockedOpen, setIsRunBlockedOpen] = useState(false);
 
-  // Tab Management
-  const [tabs, setTabs] = useState<QueryTab[]>(
-    initialTabs || [
-      {
-        id: "t-1",
-        name: "New Query",
-        content: "",
-        isDirty: false,
-        isNew: true,
-      },
-    ],
-  );
-  const [activeTabId, setActiveTabId] = useState<string>(tabs[0]?.id || "");
+  // Tab Management - ensure tabs array is never empty
+  const [{ tabs, activeTabId }, setTabState] = useState(() => {
+    const initial = initialTabs ?? [];
+    const firstInitialTab = initial[0];
+    if (firstInitialTab) {
+      return { tabs: initial, activeTabId: firstInitialTab.id };
+    }
+    const defaultTab = createDefaultTab();
+    return { tabs: [defaultTab], activeTabId: defaultTab.id };
+  });
+  const setActiveTabId = useCallback((id: string) => {
+    setTabState((prev) => ({ ...prev, activeTabId: id }));
+  }, []);
   const [isTabRailExpanded, setIsTabRailExpanded] = useState(false);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [resultsHeight, setResultsHeight] = useState(280);
@@ -103,10 +114,35 @@ export function EditorWorkspace({
   );
   const workspaceRef = useRef<HTMLDivElement>(null);
 
-  const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
+  const safeSetTabs = useCallback(
+    (updater: QueryTab[] | ((prev: QueryTab[]) => QueryTab[])) => {
+      setTabState((prev) => {
+        const next =
+          typeof updater === "function" ? updater(prev.tabs) : updater;
+        if (next.length > 0) {
+          return { ...prev, tabs: next };
+        }
+        const defaultTab = createDefaultTab();
+        return { tabs: [defaultTab], activeTabId: defaultTab.id };
+      });
+    },
+    [],
+  );
+
+  const activeTab = useMemo(() => {
+    const found = tabs.find((t) => t.id === activeTabId);
+    if (found) {
+      return found;
+    }
+    const first = tabs[0];
+    if (!first) {
+      throw new Error("Invariant violated: tabs array should never be empty");
+    }
+    return first;
+  }, [tabs, activeTabId]);
 
   // Use the new hook that merges sync (legacy/prereq) and async (AST worker) diagnostics
-  const sqlDiagnostics = useSqlDiagnostics(activeTab?.content ?? "", {
+  const sqlDiagnostics = useSqlDiagnostics(activeTab.content, {
     dataExtensions,
     cursorPosition,
   });
@@ -126,12 +162,11 @@ export function EditorWorkspace({
   );
 
   const runBlockMessage = useMemo(() => {
-    if (!blockingDiagnostic) return null;
-    return formatDiagnosticMessage(
-      blockingDiagnostic,
-      activeTab?.content ?? "",
-    );
-  }, [activeTab?.content, blockingDiagnostic]);
+    if (!blockingDiagnostic) {
+      return null;
+    }
+    return formatDiagnosticMessage(blockingDiagnostic, activeTab.content);
+  }, [activeTab.content, blockingDiagnostic]);
   const runTooltipMessage = hasBlockingDiagnostics
     ? (runBlockMessage ?? "Query is missing required SQL.")
     : "Execute SQL (Ctrl+Enter)";
@@ -178,7 +213,7 @@ export function EditorWorkspace({
       isDirty: false,
       isNew: true,
     };
-    setTabs([...tabs, newTab]);
+    safeSetTabs([...tabs, newTab]);
     setActiveTabId(newId);
     onNewTab?.();
   };
@@ -204,20 +239,11 @@ export function EditorWorkspace({
 
   const handleCloseTab = (id: string) => {
     const newTabs = tabs.filter((t) => t.id !== id);
-    if (newTabs.length === 0) {
-      const defaultTab = {
-        id: "t-1",
-        name: "New Query",
-        content: "",
-        isDirty: false,
-        isNew: true,
-      };
-      setTabs([defaultTab]);
-      setActiveTabId(defaultTab.id);
-    } else {
-      setTabs(newTabs);
-      if (activeTabId === id) {
-        setActiveTabId(newTabs[newTabs.length - 1].id);
+    safeSetTabs(newTabs);
+    if (activeTabId === id) {
+      const fallbackTab = newTabs[newTabs.length - 1];
+      if (fallbackTab) {
+        setActiveTabId(fallbackTab.id);
       }
     }
     onTabClose?.(id);
@@ -225,7 +251,7 @@ export function EditorWorkspace({
   };
 
   const handleEditorChange = (content: string) => {
-    setTabs(
+    safeSetTabs(
       tabs.map((t) =>
         t.id === activeTabId ? { ...t, content, isDirty: true } : t,
       ),
@@ -236,7 +262,7 @@ export function EditorWorkspace({
     if (activeTab.isNew) {
       setIsSaveModalOpen(true);
     } else {
-      setTabs(
+      safeSetTabs(
         tabs.map((t) => (t.id === activeTabId ? { ...t, isDirty: false } : t)),
       );
       onSave?.(activeTab.id, activeTab.content);
@@ -244,7 +270,7 @@ export function EditorWorkspace({
   };
 
   const handleFinalSave = (name: string, folderId: string) => {
-    setTabs(
+    safeSetTabs(
       tabs.map((t) =>
         t.id === activeTabId ? { ...t, name, isDirty: false, isNew: false } : t,
       ),
@@ -268,7 +294,9 @@ export function EditorWorkspace({
   const handleResultsResizeStart = (
     event: ReactPointerEvent<HTMLDivElement>,
   ) => {
-    if (!workspaceRef.current) return;
+    if (!workspaceRef.current) {
+      return;
+    }
     event.preventDefault();
     const startY = event.clientY;
     const startHeight = resultsHeight;
@@ -326,7 +354,7 @@ export function EditorWorkspace({
                 setActiveTabId(existingTab.id);
               } else {
                 const newId = `t-${Date.now()}`;
-                setTabs([
+                safeSetTabs([
                   ...tabs,
                   {
                     id: newId,
@@ -435,9 +463,9 @@ export function EditorWorkspace({
                 </span>
                 <span className="text-[10px] font-bold text-primary flex items-center gap-1">
                   {activeTab.name}
-                  {activeTab.isDirty && (
+                  {activeTab.isDirty ? (
                     <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                  )}
+                  ) : null}
                 </span>
               </div>
               <FeatureGate feature="deployToAutomation" variant="button">
@@ -476,7 +504,7 @@ export function EditorWorkspace({
               {/* Monaco Editor Pane */}
               <div className="flex-1 relative bg-background/50 font-mono">
                 <MonacoQueryEditor
-                  value={activeTab?.content ?? ""}
+                  value={activeTab.content}
                   onChange={handleEditorChange}
                   onSave={handleSave}
                   onRunRequest={handleRunRequest}
@@ -694,7 +722,7 @@ export function EditorWorkspace({
           onClose={() => setIsQueryActivityModalOpen(false)}
           onCreate={(draft) => {
             onCreateQueryActivity?.(draft);
-            onDeploy?.(activeTab.queryId || activeTab.id);
+            onDeploy?.(activeTab.queryId ?? activeTab.id);
           }}
         />
 
@@ -728,7 +756,9 @@ export function EditorWorkspace({
             setTabToClose(null);
           }}
           onConfirm={() => {
-            if (tabToClose) handleCloseTab(tabToClose);
+            if (tabToClose) {
+              handleCloseTab(tabToClose);
+            }
           }}
         />
       </div>

@@ -1,7 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { onKeywordRule } from "./on-keyword-rule";
-import { getSqlCursorContext } from "../../sql-context";
+
+import { getSqlCursorContext } from "@/features/editor-workspace/utils/sql-context";
+
 import type { InlineSuggestionContext } from "../types";
+import { onKeywordRule } from "./on-keyword-rule";
 
 const buildContext = (sql: string): InlineSuggestionContext => {
   const cursorIndex = sql.length;

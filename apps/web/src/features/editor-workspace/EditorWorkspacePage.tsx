@@ -1,6 +1,7 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+
 import { EditorWorkspace } from "@/features/editor-workspace/components/EditorWorkspace";
 import {
   metadataQueryKeys,
@@ -33,7 +34,9 @@ export function EditorWorkspacePage() {
     useState<ExecutionResult>(emptyExecutionResult);
 
   const errorKey = useMemo(() => {
-    if (!error) return null;
+    if (!error) {
+      return null;
+    }
     const status = error.status ? String(error.status) : "";
     const path = error.path ?? "";
     return `${error.kind}:${status}:${path}:${error.title}:${error.description ?? ""}`;
@@ -42,8 +45,12 @@ export function EditorWorkspacePage() {
   const lastToastedErrorKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!errorKey || !error) return;
-    if (lastToastedErrorKeyRef.current === errorKey) return;
+    if (!errorKey || !error) {
+      return;
+    }
+    if (lastToastedErrorKeyRef.current === errorKey) {
+      return;
+    }
     lastToastedErrorKeyRef.current = errorKey;
 
     toast.error(error.title, {

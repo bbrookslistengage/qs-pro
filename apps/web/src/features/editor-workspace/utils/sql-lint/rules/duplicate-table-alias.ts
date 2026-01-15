@@ -1,7 +1,8 @@
-import type { LintRule, LintContext, SqlDiagnostic } from "../types";
-import { createDiagnostic } from "../utils/helpers";
-import { extractTableReferences } from "../../sql-context";
 import { MC } from "@/constants/marketing-cloud";
+import { extractTableReferences } from "@/features/editor-workspace/utils/sql-context";
+
+import type { LintContext, LintRule, SqlDiagnostic } from "../types";
+import { createDiagnostic } from "../utils/helpers";
 
 /**
  * Detects duplicate table aliases in FROM and JOIN clauses.
@@ -19,7 +20,9 @@ const getDuplicateTableAliasDiagnostics = (sql: string): SqlDiagnostic[] => {
   >();
 
   for (const ref of references) {
-    if (!ref.alias) continue;
+    if (!ref.alias) {
+      continue;
+    }
 
     const aliasLower = ref.alias.toLowerCase();
     const existing = aliasMap.get(aliasLower) ?? [];
@@ -41,7 +44,9 @@ const getDuplicateTableAliasDiagnostics = (sql: string): SqlDiagnostic[] => {
       // Mark all occurrences after the first as errors
       for (let i = 1; i < occurrences.length; i++) {
         const occurrence = occurrences.at(i);
-        if (!occurrence) continue;
+        if (!occurrence) {
+          continue;
+        }
         diagnostics.push(
           createDiagnostic(
             `Duplicate table alias "${occurrence.alias}" — each table must have a unique alias. ${MC.SHORT} requires distinct aliases in JOINs.`,

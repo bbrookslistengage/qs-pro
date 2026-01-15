@@ -8,7 +8,7 @@ export function createDbProxy<T extends object>(defaultDb: T): T {
   return new Proxy(defaultDb, {
     get(target: T, property: string | symbol) {
       const dbFromContext = getDbFromContext();
-      const activeDb = (dbFromContext || target) as T;
+      const activeDb = (dbFromContext ?? target) as T;
       const value = Reflect.get(activeDb, property, activeDb);
 
       if (typeof value === 'function') {

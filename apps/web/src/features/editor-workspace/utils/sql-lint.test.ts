@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+
 import type { DataExtension } from "@/features/editor-workspace/types";
 import { lintSql } from "@/features/editor-workspace/utils/sql-lint";
 

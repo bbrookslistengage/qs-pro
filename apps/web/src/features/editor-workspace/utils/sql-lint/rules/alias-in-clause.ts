@@ -1,6 +1,7 @@
-import type { LintRule, LintContext, SqlDiagnostic } from "../types";
-import { createDiagnostic, isWordChar } from "../utils/helpers";
 import { MC } from "@/constants/marketing-cloud";
+
+import type { LintContext, LintRule, SqlDiagnostic } from "../types";
+import { createDiagnostic, isWordChar } from "../utils/helpers";
 
 interface ColumnAlias {
   alias: string;
@@ -68,7 +69,9 @@ const extractColumnAliases = (sql: string): ColumnAlias[] => {
 
   // Find SELECT clause boundaries
   const selectMatch = cleanSql.match(/\bSELECT\b/i);
-  if (!selectMatch || selectMatch.index === undefined) return aliases;
+  if (selectMatch?.index === undefined) {
+    return aliases;
+  }
 
   const selectStart = selectMatch.index + 6;
 
@@ -78,7 +81,7 @@ const extractColumnAliases = (sql: string): ColumnAlias[] => {
     /\b(FROM|WHERE|ORDER|GROUP|HAVING|UNION|EXCEPT|INTERSECT)\b/i,
   );
   const selectEnd =
-    clauseMatch && clauseMatch.index !== undefined
+    clauseMatch?.index !== undefined
       ? selectStart + clauseMatch.index
       : cleanSql.length;
 
@@ -89,6 +92,9 @@ const extractColumnAliases = (sql: string): ColumnAlias[] => {
   let match: RegExpExecArray | null;
   while ((match = bracketedAsPattern.exec(selectClause)) !== null) {
     const alias = match[1];
+    if (alias === undefined) {
+      continue;
+    }
     aliases.push({
       alias,
       aliasLower: alias.toLowerCase(),
@@ -99,6 +105,9 @@ const extractColumnAliases = (sql: string): ColumnAlias[] => {
   const identifierAsPattern = /\bAS\s+([A-Za-z_][A-Za-z0-9_]*)\b/gi;
   while ((match = identifierAsPattern.exec(selectClause)) !== null) {
     const alias = match[1];
+    if (alias === undefined) {
+      continue;
+    }
     aliases.push({
       alias,
       aliasLower: alias.toLowerCase(),
@@ -110,6 +119,9 @@ const extractColumnAliases = (sql: string): ColumnAlias[] => {
   const implicitAliasPattern = /\)\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:,|$)/g;
   while ((match = implicitAliasPattern.exec(selectClause)) !== null) {
     const alias = match[1];
+    if (alias === undefined) {
+      continue;
+    }
     const aliasLower = alias.toLowerCase();
     // Skip SQL keywords
     const sqlKeywords = new Set([
@@ -180,8 +192,12 @@ const extractTableAliases = (sql: string): Set<string> => {
   ]);
 
   const readWord = (): string | null => {
-    if (parser.atEnd()) return null;
-    if (!isWordChar(parser.char())) return null;
+    if (parser.atEnd()) {
+      return null;
+    }
+    if (!isWordChar(parser.char())) {
+      return null;
+    }
 
     const start = parser.index;
     let end = start + 1;
@@ -193,8 +209,12 @@ const extractTableAliases = (sql: string): Set<string> => {
   };
 
   const readBracketedIdentifier = (): string | null => {
-    if (parser.atEnd()) return null;
-    if (parser.char() !== "[") return null;
+    if (parser.atEnd()) {
+      return null;
+    }
+    if (parser.char() !== "[") {
+      return null;
+    }
 
     const start = parser.index;
     parser.advance();
@@ -220,11 +240,15 @@ const extractTableAliases = (sql: string): Set<string> => {
   };
 
   const skipSubquery = (): boolean => {
-    if (parser.char() !== "(") return false;
+    if (parser.char() !== "(") {
+      return false;
+    }
     let depth = 0;
 
     while (!parser.atEnd()) {
-      if (parser.skipQuotesAndComments()) continue;
+      if (parser.skipQuotesAndComments()) {
+        continue;
+      }
 
       const char = parser.char();
       if (char === "(") {
@@ -235,7 +259,9 @@ const extractTableAliases = (sql: string): Set<string> => {
       if (char === ")") {
         depth -= 1;
         parser.advance();
-        if (depth === 0) return true;
+        if (depth === 0) {
+          return true;
+        }
         continue;
       }
       parser.advance();
@@ -252,14 +278,18 @@ const extractTableAliases = (sql: string): Set<string> => {
     }
 
     const firstSegment = readIdentifierToken();
-    if (!firstSegment) return false;
+    if (!firstSegment) {
+      return false;
+    }
 
     skipWhitespace();
     while (!parser.atEnd() && parser.char() === ".") {
       parser.advance();
       skipWhitespace();
       const nextSegment = readIdentifierToken();
-      if (!nextSegment) break;
+      if (!nextSegment) {
+        break;
+      }
       skipWhitespace();
     }
 
@@ -267,7 +297,9 @@ const extractTableAliases = (sql: string): Set<string> => {
   };
 
   while (!parser.atEnd()) {
-    if (parser.skipQuotesAndComments()) continue;
+    if (parser.skipQuotesAndComments()) {
+      continue;
+    }
 
     if (isWordChar(parser.char())) {
       const word = readWord();
@@ -281,19 +313,23 @@ const extractTableAliases = (sql: string): Set<string> => {
         continue;
       }
 
-      if (!consumeTableReference()) continue;
+      if (!consumeTableReference()) {
+        continue;
+      }
 
       skipWhitespace();
       const maybeAsIndex = parser.index;
       const maybeAs = readWord();
-      if (!maybeAs || maybeAs.toLowerCase() !== "as") {
+      if (maybeAs?.toLowerCase() !== "as") {
         parser.index = maybeAsIndex;
       } else {
         skipWhitespace();
       }
 
       const aliasToken = readIdentifierToken();
-      if (!aliasToken) continue;
+      if (!aliasToken) {
+        continue;
+      }
 
       const aliasLower = aliasToken.toLowerCase();
       if (keywordsToSkip.has(normalizeAliasForKeywordCheck(aliasLower))) {
@@ -443,7 +479,9 @@ const findRestrictedClauses = (sql: string): ClauseLocation[] => {
   ]);
 
   while (!parser.atEnd()) {
-    if (parser.skipQuotesAndComments()) continue;
+    if (parser.skipQuotesAndComments()) {
+      continue;
+    }
 
     if (isWordChar(parser.char())) {
       const start = parser.index;
@@ -471,7 +509,9 @@ const findRestrictedClauses = (sql: string): ClauseLocation[] => {
           subParser.index = clauseStart;
 
           while (!subParser.atEnd()) {
-            if (subParser.skipQuotesAndComments()) continue;
+            if (subParser.skipQuotesAndComments()) {
+              continue;
+            }
 
             if (isWordChar(subParser.char())) {
               const wStart = subParser.index;
@@ -511,7 +551,9 @@ const findRestrictedClauses = (sql: string): ClauseLocation[] => {
         subParser.index = clauseStart;
 
         while (!subParser.atEnd()) {
-          if (subParser.skipQuotesAndComments()) continue;
+          if (subParser.skipQuotesAndComments()) {
+            continue;
+          }
 
           if (isWordChar(subParser.char())) {
             const wStart = subParser.index;
@@ -554,7 +596,9 @@ const getAliasInClauseDiagnostics = (sql: string): SqlDiagnostic[] => {
   const diagnostics: SqlDiagnostic[] = [];
 
   const columnAliases = extractColumnAliases(sql);
-  if (columnAliases.length === 0) return diagnostics;
+  if (columnAliases.length === 0) {
+    return diagnostics;
+  }
 
   const tableAliases = extractTableAliases(sql);
   const restrictedClauses = findRestrictedClauses(sql);
@@ -595,7 +639,9 @@ const getAliasInClauseDiagnostics = (sql: string): SqlDiagnostic[] => {
 
       // Handle comments
       if (inLineComment) {
-        if (char === "\n") inLineComment = false;
+        if (char === "\n") {
+          inLineComment = false;
+        }
         i++;
         continue;
       }

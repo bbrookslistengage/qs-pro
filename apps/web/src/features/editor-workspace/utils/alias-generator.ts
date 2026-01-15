@@ -14,7 +14,7 @@ export function generateSmartAlias(
 
   const initials = words
     .slice(0, MAX_INITIALS)
-    .map((w) => w[0]?.toLowerCase() || "")
+    .map((w) => w[0]?.toLowerCase() ?? "")
     .join("");
 
   if (initials && !existingAliases.has(initials)) {

@@ -1,10 +1,11 @@
+import { timingSafeEqual } from 'node:crypto';
+
 import {
   CanActivate,
   ExecutionContext,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { timingSafeEqual } from 'node:crypto';
 
 @Injectable()
 export class CsrfGuard implements CanActivate {

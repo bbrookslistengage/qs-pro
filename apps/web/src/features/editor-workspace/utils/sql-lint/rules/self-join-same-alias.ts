@@ -1,7 +1,8 @@
-import type { LintRule, LintContext, SqlDiagnostic } from "../types";
-import { createDiagnostic } from "../utils/helpers";
-import { extractTableReferences } from "../../sql-context";
 import { MC } from "@/constants/marketing-cloud";
+import { extractTableReferences } from "@/features/editor-workspace/utils/sql-context";
+
+import type { LintContext, LintRule, SqlDiagnostic } from "../types";
+import { createDiagnostic } from "../utils/helpers";
 
 /**
  * Normalizes table names for comparison (removes brackets, lowercases).
@@ -22,7 +23,9 @@ const getSelfJoinSameAliasDiagnostics = (sql: string): SqlDiagnostic[] => {
     (ref) => !ref.isSubquery,
   );
 
-  if (references.length < 2) return diagnostics;
+  if (references.length < 2) {
+    return diagnostics;
+  }
 
   // Track table names and their aliases
   const tableOccurrences = new Map<
@@ -49,21 +52,24 @@ const getSelfJoinSameAliasDiagnostics = (sql: string): SqlDiagnostic[] => {
 
   // Check for self-joins
   for (const occurrences of tableOccurrences.values()) {
-    if (occurrences.length < 2) continue;
+    if (occurrences.length < 2) {
+      continue;
+    }
 
     // This is a self-join - check if aliases are distinct
     for (let i = 0; i < occurrences.length; i++) {
       for (let j = i + 1; j < occurrences.length; j++) {
         const first = occurrences.at(i);
         const second = occurrences.at(j);
-        if (!first || !second) continue;
+        if (!first || !second) {
+          continue;
+        }
 
         // Check if both have no alias, or if they have the same alias
         const bothNoAlias = !first.alias && !second.alias;
         const sameAlias =
           first.alias &&
-          second.alias &&
-          first.alias.toLowerCase() === second.alias.toLowerCase();
+          first.alias.toLowerCase() === second.alias?.toLowerCase();
 
         if (bothNoAlias || sameAlias) {
           // Report error on the second occurrence

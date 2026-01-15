@@ -1,13 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
+
 import {
-  SFMC_IDENTITY_FIELDS,
+  DROPDOWN_CLOSE_CHARS,
+  GHOST_TEXT_DEBOUNCE,
   IDENTITY_FIELD_PATTERNS,
   IMMEDIATE_TRIGGER_CHARS,
-  MIN_TRIGGER_CHARS,
   MAX_SUGGESTIONS,
-  GHOST_TEXT_DEBOUNCE,
-  DROPDOWN_CLOSE_CHARS,
+  MIN_TRIGGER_CHARS,
   NO_TRIGGER_CHARS,
+  SFMC_IDENTITY_FIELDS,
 } from "./autocomplete-config";
 
 describe("AutocompleteConfig", () => {

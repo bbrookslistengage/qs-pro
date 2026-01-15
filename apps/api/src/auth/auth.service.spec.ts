@@ -1,25 +1,25 @@
-import { Test, TestingModule } from '@nestjs/testing';
-
-import { AuthService } from './auth.service';
 import { ConfigService } from '@nestjs/config';
-import { setupServer } from 'msw/node';
-import { http, HttpResponse } from 'msw';
-import {
-  describe,
-  it,
-  expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-  vi,
-} from 'vitest';
+import { Test, TestingModule } from '@nestjs/testing';
 import type {
+  ICredentialsRepository,
   ITenantRepository,
   IUserRepository,
-  ICredentialsRepository,
 } from '@qs-pro/database';
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
+
 import { RlsContextService } from '../database/rls-context.service';
 import { SeatLimitService } from '../features/seat-limit.service';
+import { AuthService } from './auth.service';
 
 const server = setupServer(
   http.post(
@@ -78,12 +78,18 @@ describe('AuthService', () => {
           provide: ConfigService,
           useValue: {
             get: vi.fn((key: string) => {
-              if (key === 'MCE_CLIENT_ID') return 'client-id';
-              if (key === 'MCE_CLIENT_SECRET') return 'client-secret';
-              if (key === 'MCE_REDIRECT_URI')
+              if (key === 'MCE_CLIENT_ID') {
+                return 'client-id';
+              }
+              if (key === 'MCE_CLIENT_SECRET') {
+                return 'client-secret';
+              }
+              if (key === 'MCE_REDIRECT_URI') {
                 return 'http://localhost/callback';
-              if (key === 'ENCRYPTION_KEY')
+              }
+              if (key === 'ENCRYPTION_KEY') {
                 return '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
+              }
               return null;
             }),
           },

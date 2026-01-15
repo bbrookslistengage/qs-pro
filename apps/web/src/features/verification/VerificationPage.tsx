@@ -1,4 +1,5 @@
 import { useState } from "react";
+
 import { useAuthStore } from "@/store/auth-store";
 
 export function VerificationPage() {
@@ -42,6 +43,7 @@ export function VerificationPage() {
 
         <button
           onClick={() =>
+            // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- Empty EID is invalid, fallback to empty string for API call
             fetchData("data-extensions", { eid: tenant?.eid || "" })
           }
           className="bg-secondary text-secondary-foreground px-4 py-2 rounded-md hover:bg-secondary/80 transition-colors"
@@ -68,7 +70,7 @@ export function VerificationPage() {
       <div className="mt-4 border rounded-md p-4 bg-muted/50 max-h-[500px] overflow-auto font-mono text-xs">
         {loading ? (
           <div className="flex items-center gap-2">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary" />
             Loading...
           </div>
         ) : (

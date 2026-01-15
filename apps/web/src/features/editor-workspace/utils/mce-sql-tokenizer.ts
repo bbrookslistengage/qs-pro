@@ -1,8 +1,9 @@
 import type { languages } from "monaco-editor";
+
 import {
+  MCE_SQL_DATA_TYPES,
   MCE_SQL_KEYWORDS,
   MCE_SQL_SUPPORTED_FUNCTIONS,
-  MCE_SQL_DATA_TYPES,
 } from "@/constants/mce-sql";
 
 const keywordsArray = Array.from(MCE_SQL_KEYWORDS);

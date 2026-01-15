@@ -1,8 +1,10 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+import type { DataExtensionField } from "@/features/editor-workspace/types";
+import { getSqlCursorContext } from "@/features/editor-workspace/utils/sql-context";
+
 import { aliasSuggestionRule } from "../rules/alias-suggestion-rule";
 import type { InlineSuggestionContext } from "../types";
-import type { DataExtensionField } from "@/features/editor-workspace/types";
-import { getSqlCursorContext } from "../../sql-context";
 
 /**
  * Helper to create mock context for testing inline suggestion rules.
@@ -22,12 +24,12 @@ function createMockContext(
     sql,
     cursorIndex,
     sqlContext,
-    tablesInScope: options.tablesInScope || [],
-    existingAliases: new Set(options.existingAliases || []),
+    tablesInScope: options.tablesInScope ?? [],
+    existingAliases: new Set(options.existingAliases ?? []),
     getFieldsForTable: vi.fn(async (table) => {
       const tableName = table.qualifiedName;
-      const fieldDataMap = new Map(Object.entries(options.fieldData || {}));
-      return fieldDataMap.get(tableName) || [];
+      const fieldDataMap = new Map(Object.entries(options.fieldData ?? {}));
+      return fieldDataMap.get(tableName) ?? [];
     }),
   };
 }

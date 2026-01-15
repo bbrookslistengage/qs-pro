@@ -1,0 +1,12 @@
+{
+  "eslint.enable": true,
+  "eslint.run": "onSave",
+  "editor.formatOnSave": false,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "never",
+    "source.fixAll": "never"
+  },
+  "eslint.codeActionsOnSave.mode": "problems",
+  "typescript.preferences.importModuleSpecifier": "non-relative",
+  "javascript.preferences.importModuleSpecifier": "non-relative"
+}

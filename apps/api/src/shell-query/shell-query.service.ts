@@ -1,13 +1,14 @@
+import { InjectQueue } from '@nestjs/bullmq';
 import {
+  ConflictException,
+  Inject,
   Injectable,
   Logger,
-  Inject,
   NotFoundException,
-  ConflictException,
 } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import * as crypto from 'crypto';
+
 import { MceBridgeService } from '../mce/mce-bridge.service';
 import type { ShellQueryRunRepository } from './shell-query-run.repository';
 

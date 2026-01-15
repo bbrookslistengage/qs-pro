@@ -1,11 +1,11 @@
 import {
-  Injectable,
-  NestMiddleware,
   HttpException,
   HttpStatus,
+  Injectable,
+  NestMiddleware,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { FastifyRequest, FastifyReply } from "fastify";
+import { FastifyReply, FastifyRequest } from "fastify";
 
 @Injectable()
 export class AdminAuthMiddleware implements NestMiddleware {
@@ -13,7 +13,7 @@ export class AdminAuthMiddleware implements NestMiddleware {
 
   use(
     req: FastifyRequest,
-    res: FastifyReply,
+    _res: FastifyReply,
     next: (error?: Error | HttpException) => void,
   ) {
     const adminApiKey = this.configService.get<string>("ADMIN_API_KEY");

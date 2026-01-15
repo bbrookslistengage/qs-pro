@@ -1,20 +1,21 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { HttpStatus, HttpException } from '@nestjs/common';
+import { HttpException, HttpStatus } from '@nestjs/common';
 import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
+import { Test, TestingModule } from '@nestjs/testing';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { SessionGuard } from '../src/auth/session.guard';
 import { ShellQueryController } from '../src/shell-query/shell-query.controller';
 import { ShellQueryService } from '../src/shell-query/shell-query.service';
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { SessionGuard } from '../src/auth/session.guard';
+import { ShellQuerySseService } from '../src/shell-query/shell-query-sse.service';
 import {
   createRedisStub,
+  createSessionGuardMock,
   createShellQueryServiceStub,
   createTenantRepoStub,
-  createSessionGuardMock,
 } from './stubs';
-import { ShellQuerySseService } from '../src/shell-query/shell-query-sse.service';
 
 let mockRedis: ReturnType<typeof createRedisStub>;
 let mockShellQueryService: ReturnType<typeof createShellQueryServiceStub>;

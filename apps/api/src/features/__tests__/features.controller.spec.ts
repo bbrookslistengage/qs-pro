@@ -1,11 +1,12 @@
+import { UnauthorizedException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { TenantFeatures } from '@qs-pro/shared-types';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { SessionGuard } from '../../auth/session.guard';
+import type { UserSession } from '../../common/decorators/current-user.decorator';
 import { FeaturesController } from '../features.controller';
 import { FeaturesService } from '../features.service';
-import { SessionGuard } from '../../auth/session.guard';
-import { UnauthorizedException } from '@nestjs/common';
-import type { TenantFeatures } from '@qs-pro/shared-types';
-import type { UserSession } from '../../common/decorators/current-user.decorator';
 
 describe('FeaturesController', () => {
   let controller: FeaturesController;

@@ -1,6 +1,7 @@
-import type { LintRule, LintContext, SqlDiagnostic } from "../types";
-import { createDiagnostic, isWordChar } from "../utils/helpers";
 import { MC } from "@/constants/marketing-cloud";
+
+import type { LintContext, LintRule, SqlDiagnostic } from "../types";
+import { createDiagnostic, isWordChar } from "../utils/helpers";
 
 const skipWhitespace = (sql: string, index: number): number => {
   let i = index;
@@ -14,8 +15,12 @@ const consumeWord = (
   sql: string,
   index: number,
 ): { value: string; end: number } | null => {
-  if (index >= sql.length) return null;
-  if (!isWordChar(sql.charAt(index))) return null;
+  if (index >= sql.length) {
+    return null;
+  }
+  if (!isWordChar(sql.charAt(index))) {
+    return null;
+  }
   const start = index;
   let end = index + 1;
   while (end < sql.length && isWordChar(sql.charAt(end))) {
@@ -28,7 +33,9 @@ const consumeBracketIdentifier = (
   sql: string,
   index: number,
 ): { end: number } | null => {
-  if (sql.charAt(index) !== "[") return null;
+  if (sql.charAt(index) !== "[") {
+    return null;
+  }
   let i = index + 1;
   while (i < sql.length) {
     const char = sql.charAt(i);
@@ -49,9 +56,13 @@ const consumeIdentifier = (
   sql: string,
   index: number,
 ): { end: number } | null => {
-  if (sql.charAt(index) === "[") return consumeBracketIdentifier(sql, index);
+  if (sql.charAt(index) === "[") {
+    return consumeBracketIdentifier(sql, index);
+  }
   const word = consumeWord(sql, index);
-  if (!word) return null;
+  if (!word) {
+    return null;
+  }
   return { end: word.end };
 };
 
@@ -59,7 +70,9 @@ const consumeColumnList = (
   sql: string,
   index: number,
 ): { end: number } | null => {
-  if (sql.charAt(index) !== "(") return null;
+  if (sql.charAt(index) !== "(") {
+    return null;
+  }
   let i = index + 1;
   let inBracket = false;
   let inDoubleQuote = false;
@@ -116,9 +129,13 @@ const consumeKeyword = (
   keywordLower: string,
 ): { end: number } | null => {
   const slice = sql.slice(index, index + keywordLower.length);
-  if (slice.toLowerCase() !== keywordLower) return null;
+  if (slice.toLowerCase() !== keywordLower) {
+    return null;
+  }
   const nextChar = sql.charAt(index + keywordLower.length);
-  if (nextChar && isWordChar(nextChar)) return null;
+  if (nextChar && isWordChar(nextChar)) {
+    return null;
+  }
   return { end: index + keywordLower.length };
 };
 
@@ -126,7 +143,9 @@ const looksLikeCte = (sql: string, withKeywordEnd: number): boolean => {
   let i = skipWhitespace(sql, withKeywordEnd);
 
   const cteName = consumeIdentifier(sql, i);
-  if (!cteName) return false;
+  if (!cteName) {
+    return false;
+  }
   i = skipWhitespace(sql, cteName.end);
 
   const columnList = consumeColumnList(sql, i);
@@ -135,7 +154,9 @@ const looksLikeCte = (sql: string, withKeywordEnd: number): boolean => {
   }
 
   const asKeyword = consumeKeyword(sql, i, "as");
-  if (!asKeyword) return false;
+  if (!asKeyword) {
+    return false;
+  }
   i = skipWhitespace(sql, asKeyword.end);
 
   return sql.charAt(i) === "(";

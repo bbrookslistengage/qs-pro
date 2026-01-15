@@ -1,5 +1,5 @@
-import { HttpException, HttpStatus, Injectable, Inject } from '@nestjs/common';
-import { Observable, filter, finalize, fromEventPattern, map } from 'rxjs';
+import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { filter, finalize, fromEventPattern, map, Observable } from 'rxjs';
 
 type RedisSubscriber = {
   subscribe(channel: string): Promise<unknown>;
@@ -61,7 +61,9 @@ export class ShellQuerySseService {
         },
         (handler) => {
           const wrappedHandler = wrappedHandlers.get(handler);
-          if (!wrappedHandler) return;
+          if (!wrappedHandler) {
+            return;
+          }
           wrappedHandlers.delete(handler);
           subRedis.off('message', wrappedHandler);
         },

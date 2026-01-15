@@ -14,17 +14,21 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+
 import type { DataExtension } from "@/features/editor-workspace/types";
-import type { SqlDiagnostic } from "./types";
+
 import { lintSql } from "./index";
 import type { WorkerRequest, WorkerResponse } from "./parser/protocol";
 import { createRequestId } from "./parser/protocol";
+import type { SqlDiagnostic } from "./types";
 
 // DEBUG: Enable/disable debug logging
 const DEBUG_DIAGNOSTICS = false;
 
 function debugLog(label: string, getArgs: () => unknown[]) {
-  if (!DEBUG_DIAGNOSTICS) return;
+  if (!DEBUG_DIAGNOSTICS) {
+    return;
+  }
   // eslint-disable-next-line no-console
   console.log(`[SQL-DIAG] ${label}`, ...getArgs());
 }
@@ -102,7 +106,9 @@ function dedupeAndSortDiagnostics(
  * Check if arrays of diagnostics are equal (shallow comparison)
  */
 function diagnosticsEqual(a: SqlDiagnostic[], b: SqlDiagnostic[]): boolean {
-  if (a.length !== b.length) return false;
+  if (a.length !== b.length) {
+    return false;
+  }
 
   for (let i = 0; i < a.length; i++) {
     const itemA = a.at(i);
@@ -244,12 +250,22 @@ export function useSqlDiagnostics(
       // Filter out generic parse errors when prereq exists
       filteredWorker = worker.filter((d) => {
         // Keep non-error diagnostics
-        if (d.severity !== "error") return true;
+        if (d.severity !== "error") {
+          return true;
+        }
         // Keep specific policy errors (MCE-related)
-        if (d.message.includes("MCE")) return true;
-        if (d.message.includes("not available")) return true;
-        if (d.message.includes("not supported")) return true;
-        if (d.message.includes("read-only")) return true;
+        if (d.message.includes("MCE")) {
+          return true;
+        }
+        if (d.message.includes("not available")) {
+          return true;
+        }
+        if (d.message.includes("not supported")) {
+          return true;
+        }
+        if (d.message.includes("read-only")) {
+          return true;
+        }
         // Filter out generic parse errors
         return false;
       });
@@ -267,7 +283,9 @@ export function useSqlDiagnostics(
       clearTimeout(debounceTimerRef.current);
     }
 
-    if (!workerRef.current) return;
+    if (!workerRef.current) {
+      return;
+    }
 
     // If SQL is empty or too large, invalidate any in-flight responses and clear worker diags.
     // This prevents stale results from reappearing after the user clears the editor.

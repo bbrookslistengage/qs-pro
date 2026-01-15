@@ -1,24 +1,25 @@
 import {
+  Body,
   Controller,
   Get,
-  Post,
-  Body,
-  Query,
-  Req,
-  UnauthorizedException,
-  Res,
-  Redirect,
-  Logger,
-  UseGuards,
   InternalServerErrorException,
+  Logger,
+  Post,
+  Query,
+  Redirect,
+  Req,
+  Res,
+  UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
-import { AuthService } from './auth.service';
 import { ConfigService } from '@nestjs/config';
-import type { FastifyReply, FastifyRequest } from 'fastify';
 import { randomBytes } from 'crypto';
-import { SessionGuard } from './session.guard';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
+import type { FastifyReply, FastifyRequest } from 'fastify';
+
 import type { UserSession } from '../common/decorators/current-user.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { AuthService } from './auth.service';
+import { SessionGuard } from './session.guard';
 
 type SecureSession = {
   get(key: string): unknown;
@@ -47,7 +48,9 @@ export class AuthController {
   ) {}
 
   private clearAuthSession(session: SecureSession | undefined): void {
-    if (!session) return;
+    if (!session) {
+      return;
+    }
     session.set('userId', undefined);
     session.set('tenantId', undefined);
     session.set('mid', undefined);
@@ -59,7 +62,9 @@ export class AuthController {
 
   private ensureCsrfToken(session: SecureSession): string {
     const existing = session.get('csrfToken');
-    if (typeof existing === 'string' && existing) return existing;
+    if (typeof existing === 'string' && existing) {
+      return existing;
+    }
 
     const token = randomBytes(32).toString('base64url');
     session.set('csrfToken', token);
@@ -297,10 +302,14 @@ export class AuthController {
   }
 
   private resolveAuthTssd(explicitTssd?: string): string | undefined {
-    if (explicitTssd) return this.normalizeTssd(explicitTssd);
+    if (explicitTssd) {
+      return this.normalizeTssd(explicitTssd);
+    }
 
     const configuredTssd = this.configService.get<string>('MCE_TSSD');
-    if (configuredTssd) return this.normalizeTssd(configuredTssd);
+    if (configuredTssd) {
+      return this.normalizeTssd(configuredTssd);
+    }
     return undefined;
   }
 
@@ -374,7 +383,9 @@ export class AuthController {
           ? this.normalizeTssd(parsed.tssd)
           : undefined;
       const nonce = typeof parsed.nonce === 'string' ? parsed.nonce : undefined;
-      if (!tssd || !nonce) return undefined;
+      if (!tssd || !nonce) {
+        return undefined;
+      }
       return { tssd, nonce };
     } catch {
       return undefined;
@@ -382,8 +393,12 @@ export class AuthController {
   }
 
   private extractJwt(body: unknown): string {
-    if (typeof body === 'string') return body.trim();
-    if (!body || typeof body !== 'object') return '';
+    if (typeof body === 'string') {
+      return body.trim();
+    }
+    if (!body || typeof body !== 'object') {
+      return '';
+    }
 
     const record = body as Record<string, unknown>;
     const candidate =

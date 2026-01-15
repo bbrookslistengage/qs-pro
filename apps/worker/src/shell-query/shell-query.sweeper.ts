@@ -1,7 +1,8 @@
-import { Injectable, Logger, Inject } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { MceBridgeService } from "@qs-pro/backend-shared";
 import { credentials } from "@qs-pro/database";
+
 import { SoapRetrieveResponse } from "./shell-query.types";
 
 @Injectable()
@@ -64,10 +65,17 @@ export class ShellQuerySweeper {
         searchSoap,
         "Retrieve",
       );
-    const folder = searchResponse.Body?.RetrieveResponseMsg?.Results;
-    if (!folder) return;
+    const results = searchResponse.Body?.RetrieveResponseMsg?.Results;
+    if (!results) {
+      return;
+    }
 
-    const folderId = Array.isArray(folder) ? folder[0].ID : folder.ID;
+    const folder = Array.isArray(results) ? results[0] : results;
+    if (!folder) {
+      return;
+    }
+
+    const folderId = folder.ID;
 
     // 2. Retrieve QueryDefinitions in that folder older than 24h
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -109,7 +117,9 @@ export class ShellQuerySweeper {
 
     if (queries && Array.isArray(queries)) {
       for (const q of queries) {
-        if (!q.CustomerKey) continue;
+        if (!q.CustomerKey) {
+          continue;
+        }
         await this.deleteAsset(
           tenantId,
           userId,

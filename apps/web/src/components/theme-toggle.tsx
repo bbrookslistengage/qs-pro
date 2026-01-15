@@ -1,5 +1,6 @@
-import { useTheme } from "next-themes";
 import { Moon, Sun } from "@solar-icons/react";
+import { useTheme } from "next-themes";
+
 import { cn } from "@/lib/utils";
 
 export function ThemeToggle() {

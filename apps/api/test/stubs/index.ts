@@ -1,6 +1,7 @@
-import { vi } from 'vitest';
-import { EMPTY } from 'rxjs';
 import { ExecutionContext } from '@nestjs/common';
+import { EMPTY } from 'rxjs';
+import { vi } from 'vitest';
+
 import { createMockUserSession } from '../factories';
 
 // Database stub
@@ -113,24 +114,24 @@ export function createShellQuerySseServiceStub() {
 
 // Session guard mock factory
 export function createSessionGuardMock(userSession = createMockUserSession()) {
-  const sessionData: Record<string, unknown> = {
-    userId: userSession.userId,
-    tenantId: userSession.tenantId,
-    mid: userSession.mid,
-    csrfToken: 'csrf-test',
-  };
+  const sessionData = new Map<string, unknown>([
+    ['userId', userSession.userId],
+    ['tenantId', userSession.tenantId],
+    ['mid', userSession.mid],
+    ['csrfToken', 'csrf-test'],
+  ]);
 
   return {
     canActivate: (context: ExecutionContext) => {
       const req = context.switchToHttp().getRequest();
       req.user = userSession;
       req.session = {
-        get: (key: string) => sessionData[key],
+        get: (key: string) => sessionData.get(key),
         set: (key: string, value: unknown) => {
-          sessionData[key] = value;
+          sessionData.set(key, value);
         },
         delete: () => {
-          for (const key of Object.keys(sessionData)) delete sessionData[key];
+          sessionData.clear();
         },
       };
       return true;

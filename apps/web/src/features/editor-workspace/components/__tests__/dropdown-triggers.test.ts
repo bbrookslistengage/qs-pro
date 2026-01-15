@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+
 import {
   IMMEDIATE_TRIGGER_CHARS,
   MIN_TRIGGER_CHARS,

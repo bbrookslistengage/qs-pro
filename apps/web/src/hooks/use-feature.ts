@@ -1,4 +1,5 @@
 import type { FeatureKey } from "@qs-pro/shared-types";
+
 import { useTenantFeatures } from "@/hooks/use-tenant-features";
 
 export function useFeature(featureKey: FeatureKey): boolean {

@@ -1,7 +1,7 @@
-import { Controller, Get } from "@nestjs/common";
 import { InjectQueue } from "@nestjs/bullmq";
-import { Queue } from "bullmq";
+import { Controller, Get } from "@nestjs/common";
 import { Inject } from "@nestjs/common";
+import { Queue } from "bullmq";
 
 @Controller("health")
 export class HealthController {

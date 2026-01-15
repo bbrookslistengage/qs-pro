@@ -1,10 +1,11 @@
-import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
-import { server } from "@/test/mocks/server";
+import type { ReactNode } from "react";
+import { beforeEach, describe, expect, it } from "vitest";
+
 import { useFeature } from "@/hooks/use-feature";
+import { server } from "@/test/mocks/server";
 
 const createWrapper = (queryClient: QueryClient) => {
   return function Wrapper({ children }: { children: ReactNode }) {

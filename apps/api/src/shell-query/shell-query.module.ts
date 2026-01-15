@@ -1,14 +1,15 @@
-import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
-import { ShellQueryService } from './shell-query.service';
-import { ShellQueryController } from './shell-query.controller';
-import { DatabaseModule } from '../database/database.module';
-import { MceModule } from '../mce/mce.module';
+import { Module } from '@nestjs/common';
 import { DrizzleTenantRepository } from '@qs-pro/database';
+
 import { CsrfGuard } from '../auth/csrf.guard';
-import { ShellQuerySseService } from './shell-query-sse.service';
-import { DrizzleShellQueryRunRepository } from './drizzle-shell-query-run.repository';
+import { DatabaseModule } from '../database/database.module';
 import { RlsContextService } from '../database/rls-context.service';
+import { MceModule } from '../mce/mce.module';
+import { DrizzleShellQueryRunRepository } from './drizzle-shell-query-run.repository';
+import { ShellQueryController } from './shell-query.controller';
+import { ShellQueryService } from './shell-query.service';
+import { ShellQuerySseService } from './shell-query-sse.service';
 
 @Module({
   imports: [

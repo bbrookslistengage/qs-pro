@@ -1,12 +1,13 @@
-import type { ExecutionResult } from "@/features/editor-workspace/types";
 import {
   AltArrowLeft,
   AltArrowRight,
-  InfoCircle,
-  LinkCircle,
   DoubleAltArrowLeft,
   DoubleAltArrowRight,
+  InfoCircle,
+  LinkCircle,
 } from "@solar-icons/react";
+
+import type { ExecutionResult } from "@/features/editor-workspace/types";
 import { cn } from "@/lib/utils";
 
 interface ResultsPaneProps {
@@ -36,7 +37,8 @@ export function ResultsPane({
     result.status === "success"
       ? `Query executed in ${result.runtime} • ${result.totalRows} records found`
       : result.status === "error"
-        ? result.errorMessage || "Query failed to execute."
+        ? // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- Empty error message should show default
+          result.errorMessage || "Query failed to execute."
         : result.status === "running"
           ? "Query running..."
           : "Run a query to see results.";
@@ -85,6 +87,7 @@ export function ResultsPane({
           <tbody className="divide-y divide-border/50">
             {result.rows.map((row, i) => (
               <tr
+                // eslint-disable-next-line react/no-array-index-key -- Query result rows are view-only, never reordered/mutated, have no stable IDs
                 key={i}
                 className="hover:bg-primary/5 transition-colors group"
               >

@@ -1,8 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { joinConditionRule } from "./join-condition-rule";
-import { getSqlCursorContext } from "../../sql-context";
-import type { InlineSuggestionContext } from "../types";
+
 import type { DataExtensionField } from "@/features/editor-workspace/types";
+import { getSqlCursorContext } from "@/features/editor-workspace/utils/sql-context";
+
+import type { InlineSuggestionContext } from "../types";
+import { joinConditionRule } from "./join-condition-rule";
 
 const makeFields = (names: string[]): DataExtensionField[] =>
   names.map((name) => ({
@@ -29,9 +31,10 @@ const buildContext = (
         .filter((a): a is string => Boolean(a)),
     ),
     getFieldsForTable: async (table) => {
+      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- Empty alias should fall back to table name
       const alias = table.alias?.toLowerCase() || table.name.toLowerCase();
       const fieldsMap = new Map(Object.entries(fieldsByAlias));
-      return makeFields(fieldsMap.get(alias) || []);
+      return makeFields(fieldsMap.get(alias) ?? []);
     },
   };
 };

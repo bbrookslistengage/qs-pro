@@ -1,12 +1,11 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import { MetadataController } from "./metadata.controller";
 import { MetadataService } from "./metadata.service";
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 describe("MetadataController", () => {
   let controller: MetadataController;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  let service: MetadataService;
 
   const mockService = {
     getFolders: vi.fn(),
@@ -26,7 +25,6 @@ describe("MetadataController", () => {
     }).compile();
 
     controller = module.get<MetadataController>(MetadataController);
-    service = module.get<MetadataService>(MetadataService);
   });
 
   afterEach(() => {

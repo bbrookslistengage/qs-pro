@@ -1,6 +1,7 @@
-import type { LintRule, LintContext, SqlDiagnostic } from "../types";
-import { createDiagnostic } from "../utils/helpers";
 import { MC } from "@/constants/marketing-cloud";
+
+import type { LintContext, LintRule, SqlDiagnostic } from "../types";
+import { createDiagnostic } from "../utils/helpers";
 
 interface ColumnAlias {
   alias: string;
@@ -62,7 +63,9 @@ const extractColumnAliases = (sql: string): ColumnAlias[] => {
 
   // Find SELECT clause boundaries
   const selectMatch = cleanSql.match(/\bSELECT\b/i);
-  if (!selectMatch || selectMatch.index === undefined) return aliases;
+  if (selectMatch?.index === undefined) {
+    return aliases;
+  }
 
   const selectStart = selectMatch.index + 6;
 
@@ -72,7 +75,7 @@ const extractColumnAliases = (sql: string): ColumnAlias[] => {
     /\b(FROM|WHERE|ORDER|GROUP|HAVING|UNION|EXCEPT|INTERSECT)\b/i,
   );
   const selectEnd =
-    clauseMatch && clauseMatch.index !== undefined
+    clauseMatch?.index !== undefined
       ? selectStart + clauseMatch.index
       : cleanSql.length;
 
@@ -83,6 +86,9 @@ const extractColumnAliases = (sql: string): ColumnAlias[] => {
   let match: RegExpExecArray | null;
   while ((match = bracketedAsPattern.exec(selectClause)) !== null) {
     const alias = match[1];
+    if (alias === undefined) {
+      continue;
+    }
     const absoluteStart = selectStart + match.index + match[0].indexOf(alias);
     aliases.push({
       alias,
@@ -95,6 +101,9 @@ const extractColumnAliases = (sql: string): ColumnAlias[] => {
   const identifierAsPattern = /\bAS\s+([A-Za-z_][A-Za-z0-9_]*)\b/gi;
   while ((match = identifierAsPattern.exec(selectClause)) !== null) {
     const alias = match[1];
+    if (alias === undefined) {
+      continue;
+    }
     const absoluteStart = selectStart + match.index + match[0].indexOf(alias);
     aliases.push({
       alias,
@@ -108,6 +117,9 @@ const extractColumnAliases = (sql: string): ColumnAlias[] => {
   const implicitAliasPattern = /\)\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:,|$)/g;
   while ((match = implicitAliasPattern.exec(selectClause)) !== null) {
     const alias = match[1];
+    if (alias === undefined) {
+      continue;
+    }
     const aliasLower = alias.toLowerCase();
     // Skip SQL keywords
     const sqlKeywords = new Set([
@@ -151,7 +163,9 @@ const getDuplicateColumnAliasDiagnostics = (sql: string): SqlDiagnostic[] => {
   const diagnostics: SqlDiagnostic[] = [];
   const columnAliases = extractColumnAliases(sql);
 
-  if (columnAliases.length === 0) return diagnostics;
+  if (columnAliases.length === 0) {
+    return diagnostics;
+  }
 
   // Track aliases we've seen
   const aliasMap = new Map<string, ColumnAlias[]>();
@@ -169,7 +183,9 @@ const getDuplicateColumnAliasDiagnostics = (sql: string): SqlDiagnostic[] => {
       // Mark all occurrences after the first as errors
       for (let i = 1; i < occurrences.length; i++) {
         const occurrence = occurrences.at(i);
-        if (!occurrence) continue;
+        if (!occurrence) {
+          continue;
+        }
         diagnostics.push(
           createDiagnostic(
             `Duplicate column alias "${occurrence.alias}" — each column must have a unique alias. ${MC.SHORT} requires distinct column names in SELECT.`,

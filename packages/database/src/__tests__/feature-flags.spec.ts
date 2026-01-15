@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { PostgresJsDatabase, drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-import { tenants, tenantFeatureOverrides } from "../schema";
 import { eq } from "drizzle-orm";
+import { drizzle, PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { tenantFeatureOverrides, tenants } from "../schema";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -43,6 +44,9 @@ describe("Feature Flags Schema", () => {
         subscriptionTier: "free",
       })
       .returning();
+    if (!freeTenant) {
+      throw new Error("Insert failed");
+    }
     tenantId = freeTenant.id;
 
     expect(freeTenant.subscriptionTier).toBe("free");
@@ -52,6 +56,9 @@ describe("Feature Flags Schema", () => {
       .set({ subscriptionTier: "pro" })
       .where(eq(tenants.id, tenantId))
       .returning();
+    if (!updated) {
+      throw new Error("Update failed");
+    }
 
     expect(updated.subscriptionTier).toBe("pro");
 
@@ -60,6 +67,9 @@ describe("Feature Flags Schema", () => {
       .set({ subscriptionTier: "enterprise" })
       .where(eq(tenants.id, tenantId))
       .returning();
+    if (!enterprise) {
+      throw new Error("Update failed");
+    }
 
     expect(enterprise.subscriptionTier).toBe("enterprise");
   });
@@ -75,6 +85,9 @@ describe("Feature Flags Schema", () => {
         enabled: true,
       })
       .returning();
+    if (!override) {
+      throw new Error("Insert failed");
+    }
 
     expect(override.id).toBeDefined();
     expect(override.tenantId).toBe(tenantId);
@@ -107,6 +120,9 @@ describe("Feature Flags Schema", () => {
       .set({ seatLimit: 10 })
       .where(eq(tenants.id, tenantId))
       .returning();
+    if (!withLimit) {
+      throw new Error("Update failed");
+    }
 
     expect(withLimit.seatLimit).toBe(10);
 
@@ -115,6 +131,9 @@ describe("Feature Flags Schema", () => {
       .set({ seatLimit: null })
       .where(eq(tenants.id, tenantId))
       .returning();
+    if (!unlimited) {
+      throw new Error("Update failed");
+    }
 
     expect(unlimited.seatLimit).toBeNull();
   });

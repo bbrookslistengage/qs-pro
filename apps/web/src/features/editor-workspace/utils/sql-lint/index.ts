@@ -1,50 +1,50 @@
 import type { DataExtension } from "@/features/editor-workspace/types";
-import { tokenizeSql } from "./utils/tokenizer";
-// Original rules
-import { prohibitedKeywordsRule } from "./rules/prohibited-keywords";
-import { cteDetectionRule } from "./rules/cte-detection";
-import { selectClauseRule } from "./rules/select-clause";
-import { unbracketedNamesRule } from "./rules/unbracketed-names";
-import { ambiguousFieldsRule } from "./rules/ambiguous-fields";
-import { limitProhibitionRule } from "./rules/limit-prohibition";
-import { offsetWithoutOrderByRule } from "./rules/offset-without-order-by";
-import { unsupportedFunctionsRule } from "./rules/unsupported-functions";
+
 import { aggregateGroupingRule } from "./rules/aggregate-grouping";
-import { commaValidationRule } from "./rules/comma-validation";
+import { aggregateInWhereRule } from "./rules/aggregate-in-where";
 import { aliasInClauseRule } from "./rules/alias-in-clause";
-// New syntax error rules
-import { trailingSemicolonRule } from "./rules/trailing-semicolon";
-import { unmatchedDelimitersRule } from "./rules/unmatched-delimiters";
-import { emptyInClauseRule } from "./rules/empty-in-clause";
-import { variableUsageRule } from "./rules/variable-usage";
+import { ambiguousFieldsRule } from "./rules/ambiguous-fields";
+import { commaValidationRule } from "./rules/comma-validation";
+import { cteDetectionRule } from "./rules/cte-detection";
+import { duplicateColumnAliasRule } from "./rules/duplicate-column-alias";
 // New identifier error rules
 import { duplicateTableAliasRule } from "./rules/duplicate-table-alias";
-import { duplicateColumnAliasRule } from "./rules/duplicate-column-alias";
-import { selectStarWithJoinRule } from "./rules/select-star-with-join";
-import { selfJoinSameAliasRule } from "./rules/self-join-same-alias";
+import { emptyInClauseRule } from "./rules/empty-in-clause";
+import { limitProhibitionRule } from "./rules/limit-prohibition";
+import { missingJoinOnRule } from "./rules/missing-join-on";
+import { notEqualStyleRule } from "./rules/not-equal-style";
+import { notInSubqueryRule } from "./rules/not-in-subquery";
+import { offsetWithoutOrderByRule } from "./rules/offset-without-order-by";
 // New advanced error rules
 import { orderByInSubqueryRule } from "./rules/order-by-in-subquery";
-import { missingJoinOnRule } from "./rules/missing-join-on";
-import { aggregateInWhereRule } from "./rules/aggregate-in-where";
-import { subqueryWithoutAliasRule } from "./rules/subquery-without-alias";
+// Original rules
+import { prohibitedKeywordsRule } from "./rules/prohibited-keywords";
+import { selectClauseRule } from "./rules/select-clause";
 // Warning rules
 import { selectStarSingleRule } from "./rules/select-star-single";
+import { selectStarWithJoinRule } from "./rules/select-star-with-join";
+import { selfJoinSameAliasRule } from "./rules/self-join-same-alias";
+import { subqueryWithoutAliasRule } from "./rules/subquery-without-alias";
+// New syntax error rules
+import { trailingSemicolonRule } from "./rules/trailing-semicolon";
+import { unbracketedNamesRule } from "./rules/unbracketed-names";
+import { unmatchedDelimitersRule } from "./rules/unmatched-delimiters";
+import { unsupportedFunctionsRule } from "./rules/unsupported-functions";
+import { variableUsageRule } from "./rules/variable-usage";
 import { withNolockRule } from "./rules/with-nolock";
-import { notInSubqueryRule } from "./rules/not-in-subquery";
-import { notEqualStyleRule } from "./rules/not-equal-style";
+import { tokenizeSql } from "./utils/tokenizer";
 
 export type {
+  LintContext,
+  LintRule,
   SqlDiagnostic,
   SqlDiagnosticSeverity,
-  LintRule,
-  LintContext,
 } from "./types";
-
 export {
   BLOCKING_SEVERITIES,
-  isBlockingDiagnostic,
   getFirstBlockingDiagnostic,
   hasBlockingDiagnostics,
+  isBlockingDiagnostic,
 } from "./types";
 
 interface LintOptions {

@@ -9,8 +9,8 @@
  *   worker.postMessage({ type: 'lint', requestId: '...', sql: '...' })
  */
 
-import type { WorkerRequest, WorkerResponse } from "./protocol";
 import { parseAndLint } from "./ast-parser";
+import type { WorkerRequest, WorkerResponse } from "./protocol";
 
 /**
  * Handle incoming messages from main thread

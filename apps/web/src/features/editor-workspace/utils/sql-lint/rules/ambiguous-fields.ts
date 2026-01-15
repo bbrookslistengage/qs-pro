@@ -1,8 +1,9 @@
-import type { LintRule, LintContext, SqlDiagnostic } from "../types";
-import type { SqlToken } from "../../sql-context";
-import { createDiagnostic } from "../utils/helpers";
-import { extractTableReferences } from "../../sql-context";
 import { MC } from "@/constants/marketing-cloud";
+import type { SqlToken } from "@/features/editor-workspace/utils/sql-context";
+import { extractTableReferences } from "@/features/editor-workspace/utils/sql-context";
+
+import type { LintContext, LintRule, SqlDiagnostic } from "../types";
+import { createDiagnostic } from "../utils/helpers";
 
 const normalizeIdentifier = (value: string) => {
   return value
@@ -11,13 +12,17 @@ const normalizeIdentifier = (value: string) => {
     .toLowerCase();
 };
 
-const getSelectClauseTokens = (sql: string, tokens: SqlToken[]) => {
+const getSelectClauseTokens = (_sql: string, tokens: SqlToken[]) => {
   const selectIndex = tokens.findIndex(
     (token) => token.type === "word" && token.value.toLowerCase() === "select",
   );
-  if (selectIndex === -1) return [];
+  if (selectIndex === -1) {
+    return [];
+  }
   const selectToken = tokens.at(selectIndex);
-  if (!selectToken) return [];
+  if (!selectToken) {
+    return [];
+  }
   const fromIndex = tokens.findIndex(
     (token, index) =>
       index > selectIndex &&
@@ -34,18 +39,33 @@ const getUnqualifiedFieldTokens = (sql: string, tokens: SqlToken[]) => {
   const candidates: { token: SqlToken; index: number }[] = [];
 
   selectClauseTokens.forEach((token, index) => {
-    if (token.type !== "word" && token.type !== "bracket") return;
-    const value = token.value.toLowerCase();
-    if (value === "as" || value === "*" || value === "distinct") return;
-    if (["select", "from", "where", "group", "order", "having"].includes(value))
+    if (token.type !== "word" && token.type !== "bracket") {
       return;
+    }
+    const value = token.value.toLowerCase();
+    if (value === "as" || value === "*" || value === "distinct") {
+      return;
+    }
+    if (
+      ["select", "from", "where", "group", "order", "having"].includes(value)
+    ) {
+      return;
+    }
 
     const prev = selectClauseTokens.at(index - 1);
     const next = selectClauseTokens.at(index + 1);
-    if (prev?.type === "symbol" && prev.value === ".") return;
-    if (next?.type === "symbol" && next.value === ".") return;
-    if (prev?.type === "word" && prev.value.toLowerCase() === "as") return;
-    if (next?.type === "symbol" && next.value === "(") return;
+    if (prev?.type === "symbol" && prev.value === ".") {
+      return;
+    }
+    if (next?.type === "symbol" && next.value === ".") {
+      return;
+    }
+    if (prev?.type === "word" && prev.value.toLowerCase() === "as") {
+      return;
+    }
+    if (next?.type === "symbol" && next.value === "(") {
+      return;
+    }
 
     candidates.push({ token, index });
   });
@@ -58,12 +78,16 @@ const getAmbiguousFieldDiagnostics = (
   tokens: SqlToken[],
   dataExtensions: LintContext["dataExtensions"],
 ): SqlDiagnostic[] => {
-  if (!dataExtensions || dataExtensions.length === 0) return [];
+  if (!dataExtensions || dataExtensions.length === 0) {
+    return [];
+  }
 
   const references = extractTableReferences(sql).filter(
     (reference) => !reference.isSubquery,
   );
-  if (references.length < 2) return [];
+  if (references.length < 2) {
+    return [];
+  }
 
   const referenceFields = references
     .map((reference) => {
@@ -84,7 +108,9 @@ const getAmbiguousFieldDiagnostics = (
     })
     .filter((entry) => entry.fields.size > 0);
 
-  if (referenceFields.length < 2) return [];
+  if (referenceFields.length < 2) {
+    return [];
+  }
 
   const ambiguousFields = new Set<string>();
   const fieldTokens = getUnqualifiedFieldTokens(sql, tokens);
@@ -98,7 +124,9 @@ const getAmbiguousFieldDiagnostics = (
     }
   }
 
-  if (ambiguousFields.size === 0) return [];
+  if (ambiguousFields.size === 0) {
+    return [];
+  }
 
   return fieldTokens
     .filter((token) => ambiguousFields.has(normalizeIdentifier(token.value)))

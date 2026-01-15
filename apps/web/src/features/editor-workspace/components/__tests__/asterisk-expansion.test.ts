@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+
 import type { DataExtensionField } from "@/features/editor-workspace/types";
 import type { SqlTableReference } from "@/features/editor-workspace/utils/sql-context";
 
@@ -35,7 +36,7 @@ const expandAsterisk = async (
 
   for (const table of tablesInScope) {
     const fields = await getFieldsForTable(table);
-    const prefix = table.alias || "";
+    const prefix = table.alias ?? "";
 
     for (const field of fields) {
       const fieldName = field.name.includes(" ")
@@ -270,22 +271,21 @@ describe("Asterisk Expansion", () => {
             isNullable: true,
           },
         ];
-      } else {
-        return [
-          {
-            name: "OrderID",
-            type: "Number" as const,
-            isPrimaryKey: true,
-            isNullable: false,
-          },
-          {
-            name: "OrderDate",
-            type: "Date" as const,
-            isPrimaryKey: false,
-            isNullable: true,
-          },
-        ];
       }
+      return [
+        {
+          name: "OrderID",
+          type: "Number" as const,
+          isPrimaryKey: true,
+          isNullable: false,
+        },
+        {
+          name: "OrderDate",
+          type: "Date" as const,
+          isPrimaryKey: false,
+          isNullable: true,
+        },
+      ];
     };
 
     // Act

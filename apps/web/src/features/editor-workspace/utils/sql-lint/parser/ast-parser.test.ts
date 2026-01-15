@@ -4,8 +4,11 @@
  * These tests verify the AST-based linting for MCE SQL.
  */
 
-import { describe, test, expect } from "vitest";
-import { parseAndLint, canParse, getAst } from "./ast-parser";
+import { describe, expect, test } from "vitest";
+
+import { assertDefined } from "@/test-utils";
+
+import { canParse, getAst, parseAndLint } from "./ast-parser";
 
 describe("AST Parser", () => {
   describe("canParse", () => {
@@ -18,7 +21,6 @@ describe("AST Parser", () => {
     });
 
     test("valid_select_returns_true", () => {
-      // Note: "Table" is reserved, use bracketed or different name
       expect(canParse("SELECT * FROM [Table]")).toBe(true);
       expect(canParse("SELECT * FROM Contacts")).toBe(true);
     });
@@ -81,7 +83,6 @@ describe("AST Parser", () => {
 
   describe("parseAndLint - Empty SQL", () => {
     test("empty_string_returns_no_diagnostics", () => {
-      // Empty SQL is handled by prereq rules, not parser
       expect(parseAndLint("")).toHaveLength(0);
     });
 
@@ -92,40 +93,41 @@ describe("AST Parser", () => {
 
   describe("parseAndLint - Syntax Errors", () => {
     test("unexpected_comma_returns_error", () => {
-      // Leading comma in SELECT is definitely an error
       const sql = "SELECT , Name FROM Contacts";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics.length).toBeGreaterThan(0);
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
     });
 
     test("syntax_error_has_location_info", () => {
       const sql = "SELECT , FROM Contacts";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics.length).toBe(1);
-      expect(diagnostics[0].startIndex).toBeGreaterThanOrEqual(0);
-      expect(diagnostics[0].endIndex).toBeGreaterThan(
-        diagnostics[0].startIndex,
-      );
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.startIndex).toBeGreaterThanOrEqual(0);
+      expect(diagnostic.endIndex).toBeGreaterThan(diagnostic.startIndex);
     });
 
     test("unmatched_parenthesis_returns_error", () => {
       const sql = "SELECT COUNT( FROM Contacts";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics.length).toBeGreaterThan(0);
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
     });
 
     test("unterminated_string_returns_error", () => {
       const sql = "SELECT 'unclosed FROM Contacts";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics.length).toBeGreaterThan(0);
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
     });
-
-    // Note: "SELECT * WHERE" without FROM actually parses successfully
-    // in node-sql-parser (sets from: null). This is handled by existing
-    // token-based prereq rules that check for FROM clause.
   });
 
   describe("parseAndLint - Policy: Prohibited Statements", () => {
@@ -133,25 +135,31 @@ describe("AST Parser", () => {
       const sql = "INSERT INTO Contacts (Name) VALUES ('Test')";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics.length).toBe(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("INSERT");
-      expect(diagnostics[0].message).toContain("not allowed");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("INSERT");
+      expect(diagnostic.message).toContain("not allowed");
     });
 
     test("update_statement_returns_error", () => {
       const sql = "UPDATE Contacts SET Name = 'Test'";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics.length).toBe(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("UPDATE");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("UPDATE");
     });
 
     test("delete_statement_returns_error", () => {
       const sql = "DELETE FROM Contacts WHERE ID = 1";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics.length).toBe(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("DELETE");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("DELETE");
     });
   });
 
@@ -165,8 +173,10 @@ describe("AST Parser", () => {
       `;
       const diagnostics = parseAndLint(sql);
       expect(diagnostics.length).toBe(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("Common Table Expression");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("Common Table Expression");
     });
 
     test("multiple_ctes_returns_error", () => {
@@ -177,8 +187,10 @@ describe("AST Parser", () => {
       `;
       const diagnostics = parseAndLint(sql);
       expect(diagnostics.length).toBeGreaterThanOrEqual(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("Common Table Expression");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("Common Table Expression");
     });
   });
 
@@ -187,9 +199,11 @@ describe("AST Parser", () => {
       const sql = "SELECT * FROM Contacts LIMIT 10";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics.length).toBe(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("LIMIT");
-      expect(diagnostics[0].message).toContain("TOP");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("LIMIT");
+      expect(diagnostic.message).toContain("TOP");
     });
 
     test("limit_with_offset_returns_error", () => {
@@ -208,7 +222,6 @@ describe("AST Parser", () => {
     });
 
     test("offset_fetch_is_allowed", () => {
-      // T-SQL OFFSET/FETCH is valid and should not be flagged
       const sql = `
         SELECT ID, Name FROM Contacts
         ORDER BY Name
@@ -235,15 +248,18 @@ describe("AST Parser", () => {
       const sql = "SELECT ,";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics.length).toBe(1);
-      // Should not contain verbose parser internal messages
-      expect(diagnostics[0].message).not.toContain("Expected");
-      expect(diagnostics[0].message.length).toBeLessThan(200);
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).not.toContain("Expected");
+      expect(diagnostic.message.length).toBeLessThan(200);
     });
 
     test("unexpected_comma_has_helpful_message", () => {
       const sql = "SELECT , FROM Contacts";
       const diagnostics = parseAndLint(sql);
-      expect(diagnostics[0].message).toContain("comma");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain("comma");
     });
   });
 
@@ -253,19 +269,22 @@ describe("AST Parser", () => {
       const diagnostics = parseAndLint(sql);
 
       expect(diagnostics.length).toBe(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("brackets");
-      expect(diagnostics[0].message).toContain("[My Data Extension]");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("brackets");
+      expect(diagnostic.message).toContain("[My Data Extension]");
     });
 
     test("four_word_de_name_returns_bracket_guidance", () => {
-      // Multi-word names consistently cause parse errors that we can recover from
       const sql = "SELECT * FROM My Very Long Name";
       const diagnostics = parseAndLint(sql);
 
       expect(diagnostics.length).toBe(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("brackets");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("brackets");
     });
 
     test("ent_prefix_multi_word_returns_bracket_guidance", () => {
@@ -273,28 +292,27 @@ describe("AST Parser", () => {
       const diagnostics = parseAndLint(sql);
 
       expect(diagnostics.length).toBe(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("ENT.[My Data Extension]");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("ENT.[My Data Extension]");
     });
 
     test("regular_syntax_error_still_returns_generic_message", () => {
-      // This should NOT trigger bracket recovery - it's just a syntax error
       const sql = "SELECT , FROM Contacts";
       const diagnostics = parseAndLint(sql);
 
       expect(diagnostics.length).toBe(1);
-      expect(diagnostics[0].severity).toBe("error");
-      // Should be generic parse error, not bracket guidance
-      expect(diagnostics[0].message).not.toContain("brackets");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).not.toContain("brackets");
     });
 
     test("two_word_table_alias_does_not_trigger_recovery", () => {
-      // "Contacts c" looks like table + alias, not multi-word DE name
-      // The parser should handle this without bracket recovery
       const sql = "SELECT * FROM Contacts c WHERE c.ID > 0";
       const diagnostics = parseAndLint(sql);
 
-      // Should parse successfully (no errors) - Contacts c is valid
       expect(diagnostics).toHaveLength(0);
     });
 

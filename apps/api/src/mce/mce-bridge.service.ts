@@ -1,12 +1,12 @@
 import {
-  Injectable,
   HttpException,
   HttpStatus,
+  Injectable,
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import axios, { AxiosRequestConfig } from 'axios';
+
 import { AuthService } from '../auth/auth.service';
 import { parseSoapXml } from './soap-xml.util';
 
@@ -23,10 +23,7 @@ export interface ProblemDetails {
 export class MceBridgeService {
   private readonly logger = new Logger(MceBridgeService.name);
 
-  constructor(
-    private authService: AuthService,
-    private configService: ConfigService,
-  ) {}
+  constructor(private authService: AuthService) {}
 
   /**
    * Constructs a SOAP Envelope for MCE
@@ -64,6 +61,7 @@ export class MceBridgeService {
 
       const response = await axios.request<T>({
         ...config,
+        // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- Empty baseURL should use default
         baseURL: config.baseURL || baseUrl,
         headers: {
           ...config.headers,
@@ -144,10 +142,14 @@ export class MceBridgeService {
         /<faultstring>\s*Login Failed\s*<\/faultstring>/i.test(raw);
       const hasSecurityFaultCode =
         /<faultcode[^>]*>[^<]*Security[^<]*<\/faultcode>/i.test(raw);
-      if (hasFaultString && hasSecurityFaultCode) return true;
+      if (hasFaultString && hasSecurityFaultCode) {
+        return true;
+      }
     }
 
-    if (!parsed || typeof parsed !== 'object') return false;
+    if (!parsed || typeof parsed !== 'object') {
+      return false;
+    }
     const record = parsed as Record<string, unknown>;
     const body = record.Body as Record<string, unknown> | undefined;
     const fault = body?.Fault as Record<string, unknown> | undefined;
@@ -181,11 +183,12 @@ export class MceBridgeService {
       const problem: ProblemDetails = {
         type: `https://httpstatuses.com/${status}`,
         title: statusText || 'An error occurred',
-        status: status,
+        status,
         detail:
           typeof data === 'string'
             ? data
-            : data?.message || JSON.stringify(data),
+            : // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- Empty message should show stringified data
+              data?.message || JSON.stringify(data),
       };
 
       throw new HttpException(problem, status);

@@ -1,22 +1,23 @@
 import { describe, expect, test, vi } from "vitest";
-import {
-  getSqlCursorContext,
-  isInsideString,
-  isInsideComment,
-  isInsideBrackets,
-} from "@/features/editor-workspace/utils/sql-context";
+
 import {
   IMMEDIATE_TRIGGER_CHARS,
   MIN_TRIGGER_CHARS,
   NO_TRIGGER_CHARS,
   SFMC_IDENTITY_FIELDS,
 } from "@/features/editor-workspace/constants";
-import type { InlineSuggestionContext } from "@/features/editor-workspace/utils/inline-suggestions/types";
-import { joinKeywordRule } from "@/features/editor-workspace/utils/inline-suggestions/rules/join-keyword-rule";
-import { aliasSuggestionRule } from "@/features/editor-workspace/utils/inline-suggestions/rules/alias-suggestion-rule";
-import { onKeywordRule } from "@/features/editor-workspace/utils/inline-suggestions/rules/on-keyword-rule";
-import { joinConditionRule } from "@/features/editor-workspace/utils/inline-suggestions/rules/join-condition-rule";
 import type { SFMCFieldType } from "@/features/editor-workspace/types";
+import { aliasSuggestionRule } from "@/features/editor-workspace/utils/inline-suggestions/rules/alias-suggestion-rule";
+import { joinConditionRule } from "@/features/editor-workspace/utils/inline-suggestions/rules/join-condition-rule";
+import { joinKeywordRule } from "@/features/editor-workspace/utils/inline-suggestions/rules/join-keyword-rule";
+import { onKeywordRule } from "@/features/editor-workspace/utils/inline-suggestions/rules/on-keyword-rule";
+import type { InlineSuggestionContext } from "@/features/editor-workspace/utils/inline-suggestions/types";
+import {
+  getSqlCursorContext,
+  isInsideBrackets,
+  isInsideComment,
+  isInsideString,
+} from "@/features/editor-workspace/utils/sql-context";
 
 /**
  * Autocomplete Integration Tests
@@ -173,16 +174,15 @@ describe("Autocomplete Integration - Complete User Workflows", () => {
               isNullable: true,
             },
           ];
-        } else {
-          return [
-            {
-              name: "SubscriberKey",
-              type: "Text" as SFMCFieldType,
-              isPrimaryKey: false,
-              isNullable: true,
-            },
-          ];
         }
+        return [
+          {
+            name: "SubscriberKey",
+            type: "Text" as SFMCFieldType,
+            isPrimaryKey: false,
+            isNullable: true,
+          },
+        ];
       });
 
       // Act

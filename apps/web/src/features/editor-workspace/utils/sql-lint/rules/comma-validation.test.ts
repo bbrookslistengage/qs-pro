@@ -1,6 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { commaValidationRule } from "./comma-validation";
+
+import { assertDefined } from "@/test-utils";
+
 import { tokenizeSql } from "../utils/tokenizer";
+import { commaValidationRule } from "./comma-validation";
 
 const checkRule = (sql: string) => {
   const tokens = tokenizeSql(sql);
@@ -12,50 +15,64 @@ describe("commaValidationRule", () => {
     test("lintSql_WithTrailingCommaBeforeFrom_ReturnsError", () => {
       const diagnostics = checkRule("SELECT a, b, FROM [T]");
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain("comma before FROM");
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain("comma before FROM");
+      expect(diagnostic.severity).toBe("error");
     });
 
     test("lintSql_WithTrailingCommaBeforeWhere_ReturnsError", () => {
       const diagnostics = checkRule("SELECT a, WHERE x = 1");
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain("comma before WHERE");
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain("comma before WHERE");
+      expect(diagnostic.severity).toBe("error");
     });
 
     test("lintSql_WithTrailingCommaBeforeGroupBy_ReturnsError", () => {
       const diagnostics = checkRule("SELECT a, GROUP BY a");
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain("comma before GROUP");
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain("comma before GROUP");
+      expect(diagnostic.severity).toBe("error");
     });
 
     test("lintSql_WithTrailingCommaBeforeOrderBy_ReturnsError", () => {
       const diagnostics = checkRule("SELECT a, ORDER BY a");
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain("comma before ORDER");
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain("comma before ORDER");
+      expect(diagnostic.severity).toBe("error");
     });
 
     test("lintSql_WithTrailingCommaBeforeHaving_ReturnsError", () => {
       const diagnostics = checkRule("SELECT COUNT(*), HAVING COUNT(*) > 1");
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain("comma before HAVING");
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain("comma before HAVING");
+      expect(diagnostic.severity).toBe("error");
     });
 
     test("lintSql_WithTrailingCommaBeforeJoin_ReturnsError", () => {
       const diagnostics = checkRule("SELECT a, INNER JOIN [T2] ON 1=1");
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain("comma before INNER");
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain("comma before INNER");
+      expect(diagnostic.severity).toBe("error");
     });
 
     test("lintSql_WithTrailingCommaBeforeUnion_ReturnsError", () => {
       const diagnostics = checkRule("SELECT a, UNION SELECT b");
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain("comma before UNION");
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain("comma before UNION");
+      expect(diagnostic.severity).toBe("error");
     });
   });
 
@@ -63,15 +80,19 @@ describe("commaValidationRule", () => {
     test("lintSql_WithLeadingCommaInSelect_ReturnsError", () => {
       const diagnostics = checkRule("SELECT , a FROM [T]");
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain("Missing column before comma");
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain("Missing column before comma");
+      expect(diagnostic.severity).toBe("error");
     });
 
     test("lintSql_WithLeadingCommaAfterSelectWithWhitespace_ReturnsError", () => {
       const diagnostics = checkRule("SELECT \n  , a FROM [T]");
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain("Missing column before comma");
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain("Missing column before comma");
+      expect(diagnostic.severity).toBe("error");
     });
   });
 
@@ -79,22 +100,28 @@ describe("commaValidationRule", () => {
     test("lintSql_WithDoubleComma_ReturnsError", () => {
       const diagnostics = checkRule("SELECT a,, b FROM [T]");
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain("Double comma");
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain("Double comma");
+      expect(diagnostic.severity).toBe("error");
     });
 
     test("lintSql_WithDoubleCommaWithWhitespace_ReturnsError", () => {
       const diagnostics = checkRule("SELECT a, , b FROM [T]");
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain("Double comma");
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain("Double comma");
+      expect(diagnostic.severity).toBe("error");
     });
 
     test("lintSql_WithDoubleCommaWithNewline_ReturnsError", () => {
       const diagnostics = checkRule("SELECT a,\n, b FROM [T]");
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain("Double comma");
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain("Double comma");
+      expect(diagnostic.severity).toBe("error");
     });
   });
 
@@ -102,25 +129,31 @@ describe("commaValidationRule", () => {
     test("lintSql_WithTrailingCommaInGroupBy_ReturnsError", () => {
       const diagnostics = checkRule("SELECT a FROM [T] GROUP BY a, b,");
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain("Trailing comma");
-      expect(diagnostics[0].message).toContain("GROUP BY");
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain("Trailing comma");
+      expect(diagnostic.message).toContain("GROUP BY");
+      expect(diagnostic.severity).toBe("error");
     });
 
     test("lintSql_WithTrailingCommaInOrderBy_ReturnsError", () => {
       const diagnostics = checkRule("SELECT a FROM [T] ORDER BY a,");
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain("Trailing comma");
-      expect(diagnostics[0].message).toContain("ORDER BY");
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain("Trailing comma");
+      expect(diagnostic.message).toContain("ORDER BY");
+      expect(diagnostic.severity).toBe("error");
     });
 
     test("lintSql_WithTrailingCommaInOrderByWithWhitespace_ReturnsError", () => {
       const diagnostics = checkRule("SELECT a FROM [T] ORDER BY a, b, \n");
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain("Trailing comma");
-      expect(diagnostics[0].message).toContain("ORDER BY");
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain("Trailing comma");
+      expect(diagnostic.message).toContain("ORDER BY");
+      expect(diagnostic.severity).toBe("error");
     });
   });
 
@@ -191,7 +224,6 @@ describe("commaValidationRule", () => {
     });
 
     test("lintSql_WithTrailingCommaInSubquery_IgnoresIt", () => {
-      // Trailing comma inside subquery should be ignored at depth 0 check
       const diagnostics = checkRule("SELECT (SELECT a, FROM [T2]) FROM [T]");
       expect(diagnostics).toHaveLength(0);
     });
@@ -201,7 +233,6 @@ describe("commaValidationRule", () => {
     test("lintSql_WithMultipleErrors_ReturnsAllErrors", () => {
       const diagnostics = checkRule("SELECT a,, b, FROM [T]");
       expect(diagnostics.length).toBeGreaterThan(0);
-      // Should detect both double comma and trailing comma before FROM
       const hasDoubleComma = diagnostics.some((d) =>
         d.message.includes("Double comma"),
       );
@@ -220,13 +251,17 @@ describe("commaValidationRule", () => {
     test("lintSql_WithCaseInsensitiveKeywords_ReturnsError", () => {
       const diagnostics = checkRule("select a, from [T]");
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain("comma before FROM");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain("comma before FROM");
     });
 
     test("lintSql_WithMixedCaseKeywords_ReturnsError", () => {
       const diagnostics = checkRule("SeLeCt a, FrOm [T]");
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain("comma before FROM");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain("comma before FROM");
     });
 
     test("lintSql_WithNestedSubqueriesAndCommas_ReturnsNoError", () => {

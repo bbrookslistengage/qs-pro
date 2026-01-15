@@ -1,19 +1,20 @@
-import { eq, and, count } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import { tenants, users, credentials, tenantFeatureOverrides } from "../schema";
+
 import {
-  ITenantRepository,
-  IUserRepository,
+  Credential,
   ICredentialsRepository,
   IFeatureOverrideRepository,
-  Tenant,
-  NewTenant,
-  User,
-  NewUser,
-  Credential,
+  ITenantRepository,
+  IUserRepository,
   NewCredential,
+  NewTenant,
+  NewUser,
+  Tenant,
   TenantFeatureOverride,
+  User,
 } from "../interfaces";
+import { credentials, tenantFeatureOverrides, tenants, users } from "../schema";
 
 export class DrizzleTenantRepository implements ITenantRepository {
   constructor(private db: PostgresJsDatabase) {}
@@ -43,6 +44,9 @@ export class DrizzleTenantRepository implements ITenantRepository {
         set: { tssd: tenant.tssd },
       })
       .returning();
+    if (!result) {
+      throw new Error("Tenant upsert failed to return a result");
+    }
     return result;
   }
 
@@ -84,6 +88,9 @@ export class DrizzleUserRepository implements IUserRepository {
         },
       })
       .returning();
+    if (!result) {
+      throw new Error("User upsert failed to return a result");
+    }
     return result;
   }
 }
@@ -127,6 +134,9 @@ export class DrizzleCredentialsRepository implements ICredentialsRepository {
         },
       })
       .returning();
+    if (!result) {
+      throw new Error("Credential upsert failed to return a result");
+    }
     return result;
   }
 }

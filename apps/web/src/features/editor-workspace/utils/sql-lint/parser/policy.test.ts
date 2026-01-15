@@ -10,7 +10,10 @@
  * - Unsupported functions
  */
 
-import { describe, test, expect } from "vitest";
+import { describe, expect, test } from "vitest";
+
+import { assertDefined } from "@/test-utils";
+
 import { parseAndLint } from "./ast-parser";
 
 describe("Policy Validation Layer", () => {
@@ -45,49 +48,56 @@ describe("Policy Validation Layer", () => {
       const sql = "INSERT INTO Contacts (Name) VALUES ('Test')";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("INSERT");
-      expect(diagnostics[0].message).toContain("read-only");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("INSERT");
+      expect(diagnostic.message).toContain("read-only");
     });
 
     test("update_returns_error", () => {
       const sql = "UPDATE Contacts SET Name = 'Test' WHERE ID = 1";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("UPDATE");
-      expect(diagnostics[0].message).toContain("read-only");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("UPDATE");
+      expect(diagnostic.message).toContain("read-only");
     });
 
     test("delete_returns_error", () => {
       const sql = "DELETE FROM Contacts WHERE ID = 1";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("DELETE");
-      expect(diagnostics[0].message).toContain("read-only");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("DELETE");
+      expect(diagnostic.message).toContain("read-only");
     });
 
     test("merge_returns_error", () => {
-      // Note: MERGE may not fully parse in transactsql dialect
-      // but we test the policy message if it does
       const sql = `
         MERGE INTO Target t
         USING Source s ON t.ID = s.ID
         WHEN MATCHED THEN UPDATE SET Name = s.Name
       `;
       const diagnostics = parseAndLint(sql);
-      // If parse fails, that's also acceptable
       expect(diagnostics.length).toBeGreaterThan(0);
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
     });
 
     test("truncate_returns_error", () => {
       const sql = "TRUNCATE TABLE Contacts";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("TRUNCATE");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("TRUNCATE");
     });
   });
 
@@ -96,24 +106,30 @@ describe("Policy Validation Layer", () => {
       const sql = "CREATE TABLE Test (ID INT)";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("CREATE");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("CREATE");
     });
 
     test("drop_table_returns_error", () => {
       const sql = "DROP TABLE Contacts";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("DROP");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("DROP");
     });
 
     test("alter_table_returns_error", () => {
       const sql = "ALTER TABLE Contacts ADD Email VARCHAR(100)";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("ALTER");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("ALTER");
     });
   });
 
@@ -127,9 +143,11 @@ describe("Policy Validation Layer", () => {
       `;
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("Common Table Expression");
-      expect(diagnostics[0].message).toContain("WITH");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("Common Table Expression");
+      expect(diagnostic.message).toContain("WITH");
     });
 
     test("multiple_ctes_returns_error", () => {
@@ -140,8 +158,10 @@ describe("Policy Validation Layer", () => {
       `;
       const diagnostics = parseAndLint(sql);
       expect(diagnostics.length).toBeGreaterThanOrEqual(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("Common Table Expression");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("Common Table Expression");
     });
 
     test("recursive_cte_returns_error", () => {
@@ -155,18 +175,20 @@ describe("Policy Validation Layer", () => {
         SELECT * FROM Recursive
       `;
       const diagnostics = parseAndLint(sql);
-      // May fail to parse due to UNION ALL in CTE, but if it parses, should flag CTE
       expect(diagnostics.length).toBeGreaterThanOrEqual(1);
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
     });
 
     test("cte_error_highlights_with_keyword", () => {
       const sql = "WITH CTE AS (SELECT 1 AS ID) SELECT * FROM CTE";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(1);
-      // endIndex should be at or near 'WITH' keyword end
-      expect(diagnostics[0].startIndex).toBe(0);
-      expect(diagnostics[0].endIndex).toBeGreaterThanOrEqual(4); // At least 'WITH'
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.startIndex).toBe(0);
+      expect(diagnostic.endIndex).toBeGreaterThanOrEqual(4);
     });
   });
 
@@ -175,9 +197,11 @@ describe("Policy Validation Layer", () => {
       const sql = "SELECT * FROM Contacts LIMIT 10";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("LIMIT");
-      expect(diagnostics[0].message).toContain("TOP");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("LIMIT");
+      expect(diagnostic.message).toContain("TOP");
     });
 
     test("limit_with_offset_returns_error", () => {
@@ -191,8 +215,9 @@ describe("Policy Validation Layer", () => {
       const sql = "SELECT ID FROM Contacts LIMIT 10";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(1);
-      // Should highlight starting at LIMIT position
-      expect(diagnostics[0].startIndex).toBe(sql.indexOf("LIMIT"));
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.startIndex).toBe(sql.indexOf("LIMIT"));
     });
   });
 
@@ -234,10 +259,10 @@ describe("Policy Validation Layer", () => {
         FETCH FIRST 5 ROWS ONLY
       `;
       const diagnostics = parseAndLint(sql);
-      // Parser limitation: does not recognize FETCH FIRST, only FETCH NEXT
-      // Returns a parse error, which is acceptable
       expect(diagnostics.length).toBeGreaterThanOrEqual(1);
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
     });
   });
 
@@ -246,42 +271,52 @@ describe("Policy Validation Layer", () => {
       const sql = "SELECT * FROM STRING_SPLIT('a,b,c', ',')";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("STRING_SPLIT");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("STRING_SPLIT");
     });
 
     test("try_convert_returns_error_with_alternative", () => {
       const sql = "SELECT TRY_CONVERT(INT, '123') FROM Contacts";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("TRY_CONVERT");
-      expect(diagnostics[0].message).toContain("CONVERT");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("TRY_CONVERT");
+      expect(diagnostic.message).toContain("CONVERT");
     });
 
     test("try_cast_returns_error_with_alternative", () => {
       const sql = "SELECT TRY_CAST('123' AS INT) FROM Contacts";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("TRY_CAST");
-      expect(diagnostics[0].message).toContain("CAST");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("TRY_CAST");
+      expect(diagnostic.message).toContain("CAST");
     });
 
     test("openjson_returns_error", () => {
       const sql = "SELECT * FROM OPENJSON('{\"a\":1}')";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("OPENJSON");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("OPENJSON");
     });
 
     test("isjson_returns_error", () => {
       const sql = "SELECT ISJSON('{\"a\":1}') FROM Contacts";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("ISJSON");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("ISJSON");
     });
 
     test("unsupported_function_in_subquery", () => {
@@ -291,8 +326,10 @@ describe("Policy Validation Layer", () => {
       `;
       const diagnostics = parseAndLint(sql);
       expect(diagnostics.length).toBeGreaterThanOrEqual(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("OPENJSON");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("OPENJSON");
     });
 
     test("multiple_unsupported_functions", () => {
@@ -300,15 +337,18 @@ describe("Policy Validation Layer", () => {
         "SELECT TRY_CAST('1' AS INT), TRY_CONVERT(INT, '2') FROM Contacts";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics.length).toBeGreaterThanOrEqual(2);
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
     });
 
     test("unsupported_function_error_position", () => {
       const sql = "SELECT ID, TRY_CONVERT(INT, '123') FROM Contacts";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(1);
-      // startIndex should be at TRY_CONVERT position
-      expect(diagnostics[0].startIndex).toBe(
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.startIndex).toBe(
         sql.toLowerCase().indexOf("try_convert"),
       );
     });

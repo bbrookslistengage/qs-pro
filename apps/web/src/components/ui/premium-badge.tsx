@@ -1,8 +1,9 @@
-import * as React from "react";
 import * as Popover from "@radix-ui/react-popover";
-import { cva, type VariantProps } from "class-variance-authority";
 import { CrownStar } from "@solar-icons/react";
-import { motion, AnimatePresence } from "framer-motion";
+import { cva, type VariantProps } from "class-variance-authority";
+import { AnimatePresence, motion } from "framer-motion";
+import * as React from "react";
+
 import { cn } from "@/lib/utils";
 
 const premiumBadgeVariants = cva(
@@ -154,7 +155,7 @@ const PremiumPopoverContent = React.forwardRef<
 
     return (
       <AnimatePresence>
-        {isOpen && (
+        {isOpen ? (
           <Popover.Content
             ref={ref}
             asChild
@@ -293,7 +294,7 @@ const PremiumPopoverContent = React.forwardRef<
                 </div>
 
                 {/* CTA Button */}
-                {onCtaClick && (
+                {onCtaClick ? (
                   <button
                     onClick={onCtaClick}
                     className={cn(
@@ -306,11 +307,11 @@ const PremiumPopoverContent = React.forwardRef<
                       <CrownStar weight="Bold" className="h-3 w-3" />
                     </span>
                   </button>
-                )}
+                ) : null}
               </div>
             </motion.div>
           </Popover.Content>
-        )}
+        ) : null}
       </AnimatePresence>
     );
   },
@@ -376,6 +377,6 @@ PremiumBadge.displayName = "PremiumBadge";
 export {
   PremiumBadge,
   PremiumBadgeIcon,
-  PremiumPopoverContent,
   premiumBadgeVariants,
+  PremiumPopoverContent,
 };

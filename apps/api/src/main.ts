@@ -1,18 +1,19 @@
+import formBody from '@fastify/formbody';
+import secureSession from '@fastify/secure-session';
+import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
-import { AppModule } from './app.module';
-import secureSession from '@fastify/secure-session';
-import formBody from '@fastify/formbody';
-import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
-import { ConfigService } from '@nestjs/config';
-import { Logger } from '@nestjs/common';
 import { createDatabaseFromClient } from '@qs-pro/database';
-import type { Sql } from 'postgres';
-import { getDbFromContext, runWithDbContext } from './database/db-context';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { Sql } from 'postgres';
+
+import { AppModule } from './app.module';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
+import { getDbFromContext, runWithDbContext } from './database/db-context';
 
 type Session = {
   get(key: string): unknown;
@@ -137,7 +138,7 @@ async function bootstrap() {
     .getInstance()
     .addHook(
       'onSend',
-      (req: FastifyRequest, reply: FastifyReply, _payload, done) => {
+      (_req: FastifyRequest, reply: FastifyReply, _payload, done) => {
         setSecurityHeaders(reply, cookieSecure);
         done();
       },
@@ -185,20 +186,28 @@ async function bootstrap() {
   // With FORCE RLS enabled, all DB reads/writes must run on a connection where these settings are set.
   // Use `runWithDbContext(db, done)` to reliably propagate AsyncLocalStorage through Fastify/Nest.
   adapter.getInstance().addHook('onRequest', (req, _reply, done) => {
-    if (getDbFromContext()) return done();
-    if (req.method === 'OPTIONS') return done();
+    if (getDbFromContext()) {
+      return done();
+    }
+    if (req.method === 'OPTIONS') {
+      return done();
+    }
 
     const session = (req as unknown as { session: Session }).session;
     const tenantId = session?.get('tenantId');
     const mid = session?.get('mid');
-    if (typeof tenantId !== 'string' || typeof mid !== 'string') return done();
+    if (typeof tenantId !== 'string' || typeof mid !== 'string') {
+      return done();
+    }
 
     void (async () => {
       const reserved = await sqlClient.reserve();
       let released = false;
 
       const cleanup = async () => {
-        if (released) return;
+        if (released) {
+          return;
+        }
         released = true;
         try {
           await reserved`RESET app.tenant_id`;
@@ -232,14 +241,20 @@ async function bootstrap() {
   // We securely hand off `code` + `state` to the API callback endpoint without processing tokens in the browser.
   adapter.getInstance().addHook('onRequest', (req, reply, done) => {
     try {
-      if (req.method !== 'GET') return done();
+      if (req.method !== 'GET') {
+        return done();
+      }
       const rawUrl = req.url ?? '/';
-      if (rawUrl.startsWith('/api/')) return done();
+      if (rawUrl.startsWith('/api/')) {
+        return done();
+      }
 
       const parsed = new URL(rawUrl, 'http://localhost');
       const code = parsed.searchParams.get('code');
       const state = parsed.searchParams.get('state');
-      if (!code || !state) return done();
+      if (!code || !state) {
+        return done();
+      }
 
       const qs = new URLSearchParams({ code, state }).toString();
       void reply.redirect(`/api/auth/callback?${qs}`, 302);

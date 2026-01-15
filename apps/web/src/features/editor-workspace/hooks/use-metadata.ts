@@ -1,4 +1,3 @@
-import { useEffect, useMemo } from "react";
 import {
   useIsFetching,
   useQuery,
@@ -6,25 +5,27 @@ import {
   type UseQueryOptions,
 } from "@tanstack/react-query";
 import axios from "axios";
+import { useEffect, useMemo } from "react";
+
 import type {
   DataExtension,
   DataExtensionField,
   Folder,
   SFMCFieldType,
 } from "@/features/editor-workspace/types";
+import { useFeature } from "@/hooks/use-feature";
 import {
-  getDataExtensions,
-  getFields,
-  getFolders,
   type DataExtensionFieldResponseDto,
   type DataExtensionResponseDto,
   type DataFolderResponseDto,
+  getDataExtensions,
+  getFields,
+  getFolders,
 } from "@/services/metadata";
 import {
-  getSystemDataViewFolders,
   getSystemDataViewExtensions,
+  getSystemDataViewFolders,
 } from "@/services/system-data-views";
-import { useFeature } from "@/hooks/use-feature";
 
 interface MetadataState {
   folders: Folder[];
@@ -83,19 +84,25 @@ export const metadataQueryKeys = {
 };
 
 const normalizeId = (value?: string | number) => {
-  if (value === null || value === undefined) return null;
+  if (value === null || value === undefined) {
+    return null;
+  }
   const text = String(value).trim();
   return text.length > 0 ? text : null;
 };
 
 const normalizeParentId = (value?: string | number) => {
   const normalized = normalizeId(value);
-  if (!normalized || normalized === "0") return null;
+  if (!normalized || normalized === "0") {
+    return null;
+  }
   return normalized;
 };
 
 const parseBoolean = (value?: boolean | string) => {
-  if (typeof value === "boolean") return value;
+  if (typeof value === "boolean") {
+    return value;
+  }
   if (typeof value === "string") {
     return value.toLowerCase() === "true";
   }
@@ -114,7 +121,9 @@ const FIELD_TYPE_MAP = new Map<string, SFMCFieldType>([
 ]);
 
 const mapFieldType = (value?: string): SFMCFieldType => {
-  if (!value) return "Text";
+  if (!value) {
+    return "Text";
+  }
   const normalized = value.trim();
   return FIELD_TYPE_MAP.get(normalized) ?? "Text";
 };
@@ -123,7 +132,9 @@ const mapFolders = (raw: DataFolderResponse[]): Folder[] => {
   return raw
     .map((item) => {
       const id = normalizeId(item.ID);
-      if (!id) return null;
+      if (!id) {
+        return null;
+      }
       const parentId = normalizeParentId(item.ParentFolder?.ID);
       return {
         id,
@@ -140,7 +151,9 @@ const mapDataExtensions = (raw: DataExtensionResponse[]): DataExtension[] => {
     .map((item) => {
       const id = normalizeId(item.CustomerKey);
       const folderId = normalizeParentId(item.CategoryID);
-      if (!id) return null;
+      if (!id) {
+        return null;
+      }
       const fields: DataExtensionField[] = [];
       return {
         id,
@@ -158,7 +171,9 @@ const mapFields = (raw: DataExtensionFieldResponse[]): DataExtensionField[] => {
   return raw
     .map((item) => {
       const name = item.Name?.trim();
-      if (!name) return null;
+      if (!name) {
+        return null;
+      }
       const length =
         item.MaxLength === undefined || item.MaxLength === null
           ? undefined
@@ -246,7 +261,9 @@ const fetchFolders = async (eid?: string): Promise<Folder[]> => {
 };
 
 const fetchDataExtensions = async (eid?: string): Promise<DataExtension[]> => {
-  if (!eid) return [];
+  if (!eid) {
+    return [];
+  }
   const data = await getDataExtensions(eid);
   return mapDataExtensions(Array.isArray(data) ? data : []);
 };
@@ -281,7 +298,9 @@ export const buildFieldsQueryOptions = (
 ): UseQueryOptions<DataExtensionField[], Error> => ({
   queryKey: metadataQueryKeys.fields(tenantId, customerKey),
   queryFn: async () => {
-    if (!customerKey) return [];
+    if (!customerKey) {
+      return [];
+    }
     const data = await getFields(customerKey);
     return mapFields(Array.isArray(data) ? data : []);
   },
@@ -324,7 +343,9 @@ export function usePrefetchDataExtensions({
   );
 
   useEffect(() => {
-    if (!enabled || !eid) return;
+    if (!enabled || !eid) {
+      return;
+    }
     void queryClient.prefetchQuery(options);
   }, [enabled, eid, options, queryClient]);
 }

@@ -441,10 +441,14 @@ export function MonacoQueryEditor({
 
             if (sqlContext.aliasBeforeDot) {
               const lineContent = model.getLineContent(position.lineNumber);
-              const textBeforeCursor = lineContent.slice(0, position.column - 1);
-              const dotIndex = textBeforeCursor.lastIndexOf('.');
+              const textBeforeCursor = lineContent.slice(
+                0,
+                position.column - 1,
+              );
+              const dotIndex = textBeforeCursor.lastIndexOf(".");
 
-              const fieldStartColumn = dotIndex >= 0 ? dotIndex + 2 : wordInfo.startColumn;
+              const fieldStartColumn =
+                dotIndex >= 0 ? dotIndex + 2 : wordInfo.startColumn;
               const fieldRange = new monacoInstance.Range(
                 position.lineNumber,
                 fieldStartColumn,
@@ -698,8 +702,7 @@ export function MonacoQueryEditor({
         ],
         onEnterRules: [
           {
-            beforeText:
-              /^\s*SELECT(\s+DISTINCT)?(\s+TOP\s+\d+)?\s*$/i,
+            beforeText: /^\s*SELECT(\s+DISTINCT)?(\s+TOP\s+\d+)?\s*$/i,
             action: {
               indentAction: monacoInstance.languages.IndentAction.Indent,
             },
@@ -793,7 +796,11 @@ export function MonacoQueryEditor({
           const charBeforeInsert = model.getValue().charAt(changeEnd - 2);
           if (charBeforeInsert !== ".") return;
 
-          editorInstance.trigger("retrigger", "editor.action.triggerSuggest", {});
+          editorInstance.trigger(
+            "retrigger",
+            "editor.action.triggerSuggest",
+            {},
+          );
         });
 
       editorInstance.onKeyDown((event) => {
@@ -823,7 +830,7 @@ export function MonacoQueryEditor({
           wordInfo.endColumn === position.column && fromJoinMatch !== null;
         if (!isFromOrJoinPrefix) return;
 
-        const expandedKeyword = /^f/i.test(currentWord) ? 'FROM' : 'JOIN';
+        const expandedKeyword = /^f/i.test(currentWord) ? "FROM" : "JOIN";
 
         const sqlContext = getSqlCursorContext(model.getValue(), offset);
         if (sqlContext.hasFromJoinTable) return;

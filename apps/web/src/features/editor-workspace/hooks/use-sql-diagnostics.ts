@@ -284,7 +284,6 @@ function messagesSimilar(msg1: string, msg2: string): boolean {
   if (msg1 === msg2) return true;
 
   // Normalize and compare
-  const normalize = (s: string) =>
-    s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
   return normalize(msg1) === normalize(msg2);
 }

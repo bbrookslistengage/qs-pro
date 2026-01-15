@@ -9,4 +9,3 @@ export const getInlineCompletionReplacementEndOffset = (
 
   return shouldReplaceClosingBracket ? cursorIndex + 1 : cursorIndex;
 };
-

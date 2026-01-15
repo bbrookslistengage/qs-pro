@@ -308,7 +308,9 @@ describe("Policy Validation Layer", () => {
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(1);
       // startIndex should be at TRY_CONVERT position
-      expect(diagnostics[0].startIndex).toBe(sql.toLowerCase().indexOf("try_convert"));
+      expect(diagnostics[0].startIndex).toBe(
+        sql.toLowerCase().indexOf("try_convert"),
+      );
     });
   });
 
@@ -320,37 +322,43 @@ describe("Policy Validation Layer", () => {
     });
 
     test("sum_avg_min_max_are_allowed", () => {
-      const sql = "SELECT SUM(Amount), AVG(Amount), MIN(Amount), MAX(Amount) FROM Orders";
+      const sql =
+        "SELECT SUM(Amount), AVG(Amount), MIN(Amount), MAX(Amount) FROM Orders";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(0);
     });
 
     test("string_agg_is_allowed", () => {
-      const sql = "SELECT STRING_AGG(Name, ',') FROM Contacts GROUP BY Category";
+      const sql =
+        "SELECT STRING_AGG(Name, ',') FROM Contacts GROUP BY Category";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(0);
     });
 
     test("string_functions_are_allowed", () => {
-      const sql = "SELECT LEN(Name), UPPER(Name), LOWER(Name), LTRIM(Name) FROM Contacts";
+      const sql =
+        "SELECT LEN(Name), UPPER(Name), LOWER(Name), LTRIM(Name) FROM Contacts";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(0);
     });
 
     test("date_functions_are_allowed", () => {
-      const sql = "SELECT GETDATE(), YEAR(Created), DATEADD(DAY, 1, Created) FROM Contacts";
+      const sql =
+        "SELECT GETDATE(), YEAR(Created), DATEADD(DAY, 1, Created) FROM Contacts";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(0);
     });
 
     test("conversion_functions_are_allowed", () => {
-      const sql = "SELECT CAST(ID AS VARCHAR), CONVERT(VARCHAR, ID, 1) FROM Contacts";
+      const sql =
+        "SELECT CAST(ID AS VARCHAR), CONVERT(VARCHAR, ID, 1) FROM Contacts";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(0);
     });
 
     test("null_handling_functions_are_allowed", () => {
-      const sql = "SELECT ISNULL(Name, ''), COALESCE(Name, ''), NULLIF(Name, 'N/A') FROM Contacts";
+      const sql =
+        "SELECT ISNULL(Name, ''), COALESCE(Name, ''), NULLIF(Name, 'N/A') FROM Contacts";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(0);
     });
@@ -362,7 +370,8 @@ describe("Policy Validation Layer", () => {
     });
 
     test("window_functions_are_allowed", () => {
-      const sql = "SELECT ID, ROW_NUMBER() OVER (ORDER BY ID) AS RowNum FROM Contacts";
+      const sql =
+        "SELECT ID, ROW_NUMBER() OVER (ORDER BY ID) AS RowNum FROM Contacts";
       const diagnostics = parseAndLint(sql);
       expect(diagnostics).toHaveLength(0);
     });

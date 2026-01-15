@@ -52,15 +52,18 @@ function pickDefaultRows(): {
 
 export function PreviewEditorWorkspacePage() {
   const { tenant } = useAuthStore();
-  const { folders, dataExtensions, isLoading, isDataExtensionsFetching, error } =
-    useMetadata({ tenantId: tenant?.id, eid: tenant?.eid });
+  const {
+    folders,
+    dataExtensions,
+    isLoading,
+    isDataExtensionsFetching,
+    error,
+  } = useMetadata({ tenantId: tenant?.id, eid: tenant?.eid });
 
   const [{ customerKey, rows: allRows }] = useState(() => pickDefaultRows());
 
   const initialTabs = useMemo<QueryTab[]>(() => {
-    const query = customerKey
-      ? `SELECT *\nFROM [${customerKey}]`
-      : "SELECT 1";
+    const query = customerKey ? `SELECT *\nFROM [${customerKey}]` : "SELECT 1";
     return [
       {
         id: "preview-tab-1",
@@ -143,4 +146,3 @@ export function PreviewEditorWorkspacePage() {
     </div>
   );
 }
-

@@ -29,7 +29,8 @@ const isCursorAtEndOfIncompleteJoin = (
 
   // Check if remaining text starts with a clause keyword (WHERE, GROUP, etc.)
   // If so, user has moved on and we should show the error
-  const clauseKeywords = /^(where|group|having|order|union|except|intersect|join|inner|left|right|full|cross|on)\b/i;
+  const clauseKeywords =
+    /^(where|group|having|order|union|except|intersect|join|inner|left|right|full|cross|on)\b/i;
   if (clauseKeywords.test(remainingText)) return false;
 
   // User is still in the "typing zone" - suppress the error
@@ -363,7 +364,12 @@ const getMissingJoinOnDiagnostics = (
     if (!foundOn) {
       const shouldSuppress =
         cursorPosition !== undefined &&
-        isCursorAtEndOfIncompleteJoin(sql, cursorPosition, join.end, checkIndex);
+        isCursorAtEndOfIncompleteJoin(
+          sql,
+          cursorPosition,
+          join.end,
+          checkIndex,
+        );
 
       if (!shouldSuppress) {
         diagnostics.push(

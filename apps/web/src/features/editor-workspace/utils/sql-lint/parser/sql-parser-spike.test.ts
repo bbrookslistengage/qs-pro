@@ -49,9 +49,7 @@ function tryParse(sql: string): ParseResult {
 }
 
 // Helper to normalize AST to array format
-function getAstStatements(
-  ast: unknown,
-): Array<Record<string, unknown>> | null {
+function getAstStatements(ast: unknown): Array<Record<string, unknown>> | null {
   if (!ast) return null;
   if (Array.isArray(ast)) return ast as Array<Record<string, unknown>>;
   // Single statement is returned as object directly
@@ -330,7 +328,10 @@ describe("node-sql-parser Feasibility Spike", () => {
       // Document if OFFSET without FETCH is supported
       if (!result.parses) {
         // eslint-disable-next-line no-console
-        console.log("OFFSET without FETCH not supported:", result.error?.message);
+        console.log(
+          "OFFSET without FETCH not supported:",
+          result.error?.message,
+        );
       }
       expect(typeof result.parses).toBe("boolean");
     });
@@ -864,7 +865,12 @@ describe("node-sql-parser Feasibility Spike", () => {
       if (result.error?.location?.start) {
         const { line, column, offset } = result.error.location.start;
         // eslint-disable-next-line no-console
-        console.log("Error location: line=%d, column=%d, offset=%d", line, column, offset);
+        console.log(
+          "Error location: line=%d, column=%d, offset=%d",
+          line,
+          column,
+          offset,
+        );
 
         // If offset is provided, we can use it directly
         // If not, we need to calculate from line/column

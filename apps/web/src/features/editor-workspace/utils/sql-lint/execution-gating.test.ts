@@ -78,22 +78,42 @@ describe("Execution Gating", () => {
 
     test("returns_true_when_prereq_present", () => {
       const diagnostics: SqlDiagnostic[] = [
-        { message: "Missing SELECT", severity: "prereq", startIndex: 0, endIndex: 0 },
+        {
+          message: "Missing SELECT",
+          severity: "prereq",
+          startIndex: 0,
+          endIndex: 0,
+        },
       ];
       expect(hasBlockingDiagnostics(diagnostics)).toBe(true);
     });
 
     test("returns_false_when_only_warnings_present", () => {
       const diagnostics: SqlDiagnostic[] = [
-        { message: "Warning 1", severity: "warning", startIndex: 0, endIndex: 10 },
-        { message: "Warning 2", severity: "warning", startIndex: 20, endIndex: 30 },
+        {
+          message: "Warning 1",
+          severity: "warning",
+          startIndex: 0,
+          endIndex: 10,
+        },
+        {
+          message: "Warning 2",
+          severity: "warning",
+          startIndex: 20,
+          endIndex: 30,
+        },
       ];
       expect(hasBlockingDiagnostics(diagnostics)).toBe(false);
     });
 
     test("returns_true_when_error_and_warnings_present", () => {
       const diagnostics: SqlDiagnostic[] = [
-        { message: "Warning", severity: "warning", startIndex: 0, endIndex: 10 },
+        {
+          message: "Warning",
+          severity: "warning",
+          startIndex: 0,
+          endIndex: 10,
+        },
         { message: "Error", severity: "error", startIndex: 20, endIndex: 30 },
       ];
       expect(hasBlockingDiagnostics(diagnostics)).toBe(true);
@@ -107,8 +127,18 @@ describe("Execution Gating", () => {
 
     test("returns_null_when_only_warnings_present", () => {
       const diagnostics: SqlDiagnostic[] = [
-        { message: "Warning 1", severity: "warning", startIndex: 0, endIndex: 10 },
-        { message: "Warning 2", severity: "warning", startIndex: 20, endIndex: 30 },
+        {
+          message: "Warning 1",
+          severity: "warning",
+          startIndex: 0,
+          endIndex: 10,
+        },
+        {
+          message: "Warning 2",
+          severity: "warning",
+          startIndex: 20,
+          endIndex: 30,
+        },
       ];
       expect(getFirstBlockingDiagnostic(diagnostics)).toBeNull();
     });
@@ -218,7 +248,8 @@ describe("Execution Gating", () => {
       // SELECT * FROM Table is valid but generates a warning about SELECT *
       const warningDiagnostics: SqlDiagnostic[] = [
         {
-          message: "SELECT * is allowed for simple queries but may cause issues",
+          message:
+            "SELECT * is allowed for simple queries but may cause issues",
           severity: "warning",
           startIndex: 0,
           endIndex: 8,

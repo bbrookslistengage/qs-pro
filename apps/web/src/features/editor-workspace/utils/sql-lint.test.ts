@@ -642,9 +642,6 @@ describe("sql lint", () => {
     const errorDiagnostics = diagnostics.filter(
       (diag) => diag.severity === "error",
     );
-    const warningDiagnostics = diagnostics.filter(
-      (diag) => diag.severity === "warning",
-    );
 
     // Unbracketed name error (My Data has spaces and is not bracketed) - upgraded to error
     expect(errorDiagnostics.some((d) => d.message.includes("bracket"))).toBe(

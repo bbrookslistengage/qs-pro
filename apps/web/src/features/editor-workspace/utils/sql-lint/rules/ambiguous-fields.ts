@@ -12,7 +12,7 @@ const normalizeIdentifier = (value: string) => {
     .toLowerCase();
 };
 
-const getSelectClauseTokens = (sql: string, tokens: SqlToken[]) => {
+const getSelectClauseTokens = (_sql: string, tokens: SqlToken[]) => {
   const selectIndex = tokens.findIndex(
     (token) => token.type === "word" && token.value.toLowerCase() === "select",
   );

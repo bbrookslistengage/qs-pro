@@ -27,7 +27,12 @@ export const joinKeywordRule: InlineSuggestionRule = {
       return false;
     }
 
-    const lastWord = match[1].toLowerCase();
+    const capturedWord = match[1];
+    if (capturedWord === undefined) {
+      return false;
+    }
+
+    const lastWord = capturedWord.toLowerCase();
     if (!JOIN_MODIFIERS.has(lastWord)) {
       return false;
     }

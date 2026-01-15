@@ -397,6 +397,9 @@ export function WorkspaceSidebar({
        */
       // eslint-disable-next-line security/detect-object-injection
       const result = searchResults[activeIndex];
+      if (!result) {
+        return;
+      }
       handleSelectResult(result.id, result.type);
     } else if (e.key === "Escape") {
       setIsSearchOpen(false);
@@ -707,7 +710,7 @@ export function WorkspaceSidebar({
             showClear={Boolean(focusedItemId || searchQuery)}
           />
           <SidebarSearchResults
-            isOpen={isSearchOpen ? searchResults.length > 0 : null}
+            isOpen={isSearchOpen ? searchResults.length > 0 : false}
           >
             {searchResults.map((result, idx) => (
               <SidebarSearchResultItem

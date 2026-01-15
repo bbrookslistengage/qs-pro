@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { DataExtension } from "@/features/editor-workspace/types";
+import { assertDefined } from "@/test-utils";
 
 import type { LintContext } from "../types";
 import { unbracketedNamesRule } from "./unbracketed-names";
@@ -31,8 +32,10 @@ describe("unbracketedNamesRule", () => {
       const diagnostics = unbracketedNamesRule.check(createContext(sql));
 
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("FROM [My Data Extension]");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("FROM [My Data Extension]");
     });
 
     it("should detect 3-word name with metadata for better suggestion", () => {
@@ -42,8 +45,10 @@ describe("unbracketedNamesRule", () => {
       );
 
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("[My Data Extension]");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("[My Data Extension]");
     });
 
     it("should detect 4+ word names", () => {
@@ -51,7 +56,9 @@ describe("unbracketedNamesRule", () => {
       const diagnostics = unbracketedNamesRule.check(createContext(sql));
 
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
     });
   });
 
@@ -79,8 +86,10 @@ describe("unbracketedNamesRule", () => {
       );
 
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("[My Data]");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("[My Data]");
     });
 
     it("should match by customerKey", () => {
@@ -90,7 +99,9 @@ describe("unbracketedNamesRule", () => {
       );
 
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain("[Display Name]");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain("[Display Name]");
     });
 
     it("should NOT detect 2-word name without matching metadata", () => {
@@ -132,8 +143,10 @@ describe("unbracketedNamesRule", () => {
       const diagnostics = unbracketedNamesRule.check(createContext(sql));
 
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].severity).toBe("error");
-      expect(diagnostics[0].message).toContain("ENT.[My Data Extension]");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
+      expect(diagnostic.message).toContain("ENT.[My Data Extension]");
     });
 
     it("should NOT flag ENT.SingleWord", () => {
@@ -183,7 +196,9 @@ describe("unbracketedNamesRule", () => {
       const diagnostics = unbracketedNamesRule.check(createContext(sql));
 
       expect(diagnostics.length).toBeGreaterThan(0);
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.severity).toBe("error");
     });
   });
 

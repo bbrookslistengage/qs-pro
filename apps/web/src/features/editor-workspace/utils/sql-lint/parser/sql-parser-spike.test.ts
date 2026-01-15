@@ -11,7 +11,8 @@
 import { Parser } from "node-sql-parser";
 import { assert, describe, expect, test } from "vitest";
 
-// Create parser instance - T-SQL / SQL Server dialect
+import { assertDefined } from "@/test-utils";
+
 const parser = new Parser();
 const DIALECT = "transactsql";
 
@@ -48,7 +49,6 @@ function tryParse(sql: string): ParseResult {
   }
 }
 
-// Helper to normalize AST to array format
 function getAstStatements(ast: unknown): Array<Record<string, unknown>> | null {
   if (!ast) {
     return null;
@@ -56,30 +56,24 @@ function getAstStatements(ast: unknown): Array<Record<string, unknown>> | null {
   if (Array.isArray(ast)) {
     return ast as Array<Record<string, unknown>>;
   }
-  // Single statement is returned as object directly
   return [ast as Record<string, unknown>];
 }
 
 describe("node-sql-parser Feasibility Spike", () => {
   describe("Browser Bundle Verification", () => {
     test("Parser_Instantiation_WorksInVite", () => {
-      // Arrange & Act
       const p = new Parser();
 
-      // Assert
       expect(p).toBeDefined();
       expect(typeof p.astify).toBe("function");
       expect(typeof p.sqlify).toBe("function");
     });
 
     test("Parser_TSQLDialect_IsSupported", () => {
-      // Arrange
       const sql = "SELECT TOP 10 * FROM Users";
 
-      // Act
       const result = tryParse(sql);
 
-      // Assert
       expect(result.parses).toBe(true);
     });
   });
@@ -214,7 +208,6 @@ describe("node-sql-parser Feasibility Spike", () => {
         SELECT ID FROM TableB
       `;
       const result = tryParse(sql);
-      // Document INTERSECT support status
       if (!result.parses) {
         // eslint-disable-next-line no-console
         console.log("INTERSECT not supported:", result.error?.message);
@@ -229,7 +222,6 @@ describe("node-sql-parser Feasibility Spike", () => {
         SELECT ID FROM TableB
       `;
       const result = tryParse(sql);
-      // Document EXCEPT support status
       if (!result.parses) {
         // eslint-disable-next-line no-console
         console.log("EXCEPT not supported:", result.error?.message);
@@ -267,12 +259,10 @@ describe("node-sql-parser Feasibility Spike", () => {
         GROUP BY ROLLUP(Region, City)
       `;
       const result = tryParse(sql);
-      // Document if ROLLUP is supported
       if (!result.parses) {
         // eslint-disable-next-line no-console
         console.log("ROLLUP not supported:", result.error?.message);
       }
-      // ROLLUP may not parse - document the result
       expect(typeof result.parses).toBe("boolean");
     });
 
@@ -283,7 +273,6 @@ describe("node-sql-parser Feasibility Spike", () => {
         GROUP BY CUBE(Region, City)
       `;
       const result = tryParse(sql);
-      // Document if CUBE is supported
       if (!result.parses) {
         // eslint-disable-next-line no-console
         console.log("CUBE not supported:", result.error?.message);
@@ -329,7 +318,6 @@ describe("node-sql-parser Feasibility Spike", () => {
         OFFSET 10 ROWS
       `;
       const result = tryParse(sql);
-      // Document if OFFSET without FETCH is supported
       if (!result.parses) {
         // eslint-disable-next-line no-console
         console.log(
@@ -366,7 +354,6 @@ describe("node-sql-parser Feasibility Spike", () => {
     });
 
     test("Subquery_WithORDERBY_Parses", () => {
-      // Per MCE reference: ORDER BY in subquery requires TOP or OFFSET
       const sql = `
         SELECT *
         FROM (
@@ -401,7 +388,6 @@ describe("node-sql-parser Feasibility Spike", () => {
         FROM Events
       `;
       const result = tryParse(sql);
-      // Document if AT TIME ZONE is supported
       if (!result.parses) {
         // eslint-disable-next-line no-console
         console.log("AT TIME ZONE not supported:", result.error?.message);
@@ -528,7 +514,6 @@ describe("node-sql-parser Feasibility Spike", () => {
         FROM Contacts WITH (NOLOCK)
       `;
       const result = tryParse(sql);
-      // Document if table hints are supported
       if (!result.parses) {
         // eslint-disable-next-line no-console
         console.log("WITH (NOLOCK) not supported:", result.error?.message);
@@ -538,8 +523,6 @@ describe("node-sql-parser Feasibility Spike", () => {
   });
 
   describe("Prohibited Constructs (Should Still Parse)", () => {
-    // Note: We want to parse these to detect and report them, not reject at parse time
-
     test("CTE_WITH_Parses", () => {
       const sql = `
         WITH CTE AS (
@@ -548,7 +531,6 @@ describe("node-sql-parser Feasibility Spike", () => {
         SELECT * FROM CTE
       `;
       const result = tryParse(sql);
-      // CTEs should parse (even though prohibited in MCE) so we can detect them
       expect(result.parses).toBe(true);
     });
 
@@ -558,7 +540,6 @@ describe("node-sql-parser Feasibility Spike", () => {
         SELECT TOP (@Count) * FROM Contacts
       `;
       const result = tryParse(sql);
-      // Variables may or may not parse - document the result
       if (!result.parses) {
         // eslint-disable-next-line no-console
         console.log("DECLARE not parsed:", result.error?.message);
@@ -587,15 +568,13 @@ describe("node-sql-parser Feasibility Spike", () => {
     });
 
     test("LIMIT_Parses_InTSQL_ForDetection", () => {
-      // LIMIT is MySQL syntax but parser accepts it for T-SQL dialect
-      // This is fine - we can detect it in AST and flag as MCE-unsupported
       const sql = `SELECT * FROM Contacts LIMIT 10`;
       const result = tryParse(sql);
-      // Document: parser accepts LIMIT, so we need AST-based detection
       if (result.parses) {
         const stmts = getAstStatements(result.ast);
+        const stmt = stmts?.[0];
         // eslint-disable-next-line no-console
-        console.log("LIMIT clause in AST:", stmts?.[0]?.limit);
+        console.log("LIMIT clause in AST:", stmt?.limit);
       }
       expect(typeof result.parses).toBe("boolean");
     });
@@ -603,7 +582,6 @@ describe("node-sql-parser Feasibility Spike", () => {
     test("INSERT_Parses", () => {
       const sql = `INSERT INTO Contacts (Name) VALUES ('Test')`;
       const result = tryParse(sql);
-      // Should parse (even though prohibited) so we can detect it
       expect(result.parses).toBe(true);
     });
 
@@ -622,7 +600,6 @@ describe("node-sql-parser Feasibility Spike", () => {
 
   describe("Syntax Error Detection", () => {
     test("MissingComma_DetectedWithLocation", () => {
-      // The original problem: missing comma between expressions
       const sql = `
         SELECT
           imc.ContactID, 1234
@@ -632,7 +609,6 @@ describe("node-sql-parser Feasibility Spike", () => {
       const result = tryParse(sql);
       expect(result.parses).toBe(false);
       expect(result.error).toBeDefined();
-      // Check if location information is available
       if (result.error?.location) {
         expect(result.error.location.start).toBeDefined();
       }
@@ -653,10 +629,8 @@ describe("node-sql-parser Feasibility Spike", () => {
     });
 
     test("InvalidSyntax_MissingFROM_Parses", () => {
-      // Note: "SELECT *" without FROM might be valid in some SQL dialects
       const sql = `SELECT * WHERE ID = 1`;
       const result = tryParse(sql);
-      // Document behavior
       expect(typeof result.parses).toBe("boolean");
     });
   });
@@ -669,15 +643,11 @@ describe("node-sql-parser Feasibility Spike", () => {
       expect(result.parses).toBe(false);
       expect(result.error).toBeDefined();
 
-      // The parser should provide location info
-      // Document what format it uses
       if (result.error?.location) {
         const loc = result.error.location;
-        // Check if we have start position
         if (loc.start) {
           expect(typeof loc.start.line).toBe("number");
           expect(typeof loc.start.column).toBe("number");
-          // Document if offset is available
           if (loc.start.offset !== undefined) {
             expect(typeof loc.start.offset).toBe("number");
           }
@@ -695,7 +665,6 @@ describe("node-sql-parser Feasibility Spike", () => {
 
       expect(result.parses).toBe(false);
       if (result.error?.location?.start) {
-        // The error should point to line 4 or 5 (where 'c' is)
         expect(result.error.location.start.line).toBeGreaterThanOrEqual(1);
       }
     });
@@ -709,15 +678,14 @@ describe("node-sql-parser Feasibility Spike", () => {
       expect(result.parses).toBe(true);
       expect(result.ast).toBeDefined();
 
-      // Explore AST shape - use helper to normalize
       const stmts = getAstStatements(result.ast);
       assert.exists(stmts);
       expect(stmts.length).toBeGreaterThanOrEqual(1);
 
       const stmt = stmts[0];
+      assertDefined(stmt);
       expect(stmt).toHaveProperty("type");
 
-      // Document the AST shape
       // eslint-disable-next-line no-console
       console.log("SELECT AST type:", stmt.type);
       // eslint-disable-next-line no-console
@@ -736,8 +704,8 @@ describe("node-sql-parser Feasibility Spike", () => {
       const stmts = getAstStatements(result.ast);
       assert.exists(stmts);
       const stmt = stmts[0];
+      assertDefined(stmt);
 
-      // Check if FROM clause contains join info
       expect(stmt).toHaveProperty("from");
       // eslint-disable-next-line no-console
       console.log("JOIN FROM shape:", JSON.stringify(stmt.from, null, 2));
@@ -755,8 +723,8 @@ describe("node-sql-parser Feasibility Spike", () => {
       const stmts = getAstStatements(result.ast);
       assert.exists(stmts);
       const stmt = stmts[0];
+      assertDefined(stmt);
 
-      // Check if WHERE clause contains subquery
       expect(stmt).toHaveProperty("where");
     });
 
@@ -771,7 +739,7 @@ describe("node-sql-parser Feasibility Spike", () => {
         const stmts = getAstStatements(result.ast);
         assert.exists(stmts);
         const stmt = stmts[0];
-        // Document CTE representation
+        assertDefined(stmt);
         // eslint-disable-next-line no-console
         console.log("CTE AST keys:", Object.keys(stmt));
         // eslint-disable-next-line no-console
@@ -788,6 +756,7 @@ describe("node-sql-parser Feasibility Spike", () => {
         const stmts = getAstStatements(result.ast);
         assert.exists(stmts);
         const stmt = stmts[0];
+        assertDefined(stmt);
         // eslint-disable-next-line no-console
         console.log("INSERT AST type:", stmt.type);
         expect(stmt.type).toBe("insert");
@@ -802,6 +771,7 @@ describe("node-sql-parser Feasibility Spike", () => {
         const stmts = getAstStatements(result.ast);
         assert.exists(stmts);
         const stmt = stmts[0];
+        assertDefined(stmt);
         // eslint-disable-next-line no-console
         console.log("UPDATE AST type:", stmt.type);
         expect(stmt.type).toBe("update");
@@ -816,6 +786,7 @@ describe("node-sql-parser Feasibility Spike", () => {
         const stmts = getAstStatements(result.ast);
         assert.exists(stmts);
         const stmt = stmts[0];
+        assertDefined(stmt);
         // eslint-disable-next-line no-console
         console.log("DELETE AST type:", stmt.type);
         expect(stmt.type).toBe("delete");
@@ -832,16 +803,14 @@ describe("node-sql-parser Feasibility Spike", () => {
       const stmts = getAstStatements(result.ast);
       assert.exists(stmts);
       const stmt = stmts[0];
+      assertDefined(stmt);
 
-      // Check if AST nodes have location info
-      // Document what location format is used (if any)
       const hasLocationOnStatement =
         Object.prototype.hasOwnProperty.call(stmt, "loc") ||
         Object.prototype.hasOwnProperty.call(stmt, "location") ||
         Object.prototype.hasOwnProperty.call(stmt, "start") ||
         Object.prototype.hasOwnProperty.call(stmt, "range");
 
-      // Document finding
       // eslint-disable-next-line no-console
       console.log("Statement has location info:", hasLocationOnStatement);
       // eslint-disable-next-line no-console
@@ -855,7 +824,6 @@ describe("node-sql-parser Feasibility Spike", () => {
       const result = tryParse(sql);
 
       expect(result.parses).toBe(false);
-      // Document the error location format
       // eslint-disable-next-line no-console
       console.log("Error object:", JSON.stringify(result.error, null, 2));
     });
@@ -876,12 +844,9 @@ describe("node-sql-parser Feasibility Spike", () => {
           offset,
         );
 
-        // If offset is provided, we can use it directly
-        // If not, we need to calculate from line/column
         if (offset !== undefined) {
           expect(typeof offset).toBe("number");
         } else {
-          // Need line-start table to convert
           const lines = sql.split("\n");
           let calculatedOffset = 0;
           for (const lineContent of lines.slice(0, line - 1)) {

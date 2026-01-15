@@ -92,6 +92,9 @@ const extractColumnAliases = (sql: string): ColumnAlias[] => {
   let match: RegExpExecArray | null;
   while ((match = bracketedAsPattern.exec(selectClause)) !== null) {
     const alias = match[1];
+    if (alias === undefined) {
+      continue;
+    }
     aliases.push({
       alias,
       aliasLower: alias.toLowerCase(),
@@ -102,6 +105,9 @@ const extractColumnAliases = (sql: string): ColumnAlias[] => {
   const identifierAsPattern = /\bAS\s+([A-Za-z_][A-Za-z0-9_]*)\b/gi;
   while ((match = identifierAsPattern.exec(selectClause)) !== null) {
     const alias = match[1];
+    if (alias === undefined) {
+      continue;
+    }
     aliases.push({
       alias,
       aliasLower: alias.toLowerCase(),
@@ -113,6 +119,9 @@ const extractColumnAliases = (sql: string): ColumnAlias[] => {
   const implicitAliasPattern = /\)\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:,|$)/g;
   while ((match = implicitAliasPattern.exec(selectClause)) !== null) {
     const alias = match[1];
+    if (alias === undefined) {
+      continue;
+    }
     const aliasLower = alias.toLowerCase();
     // Skip SQL keywords
     const sqlKeywords = new Set([

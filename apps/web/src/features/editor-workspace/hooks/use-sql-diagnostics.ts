@@ -80,6 +80,31 @@ export function useSqlDiagnostics({
     [sql, dataExtensions, cursorPosition],
   );
 
+  // Handle worker messages
+  const handleWorkerMessage = useCallback((response: WorkerResponse) => {
+    switch (response.type) {
+      case "ready":
+        workerReadyRef.current = true;
+        break;
+
+      case "lint-result":
+        // Only apply if this is the current request (ignore stale results)
+        if (response.requestId === currentRequestRef.current) {
+          setAsyncDiagnostics(response.diagnostics);
+          setLastLintDuration(response.duration);
+          setIsAsyncLinting(false);
+        }
+        break;
+
+      case "error":
+        console.error("[sql-lint.worker] Lint error:", response.message);
+        if (response.requestId === currentRequestRef.current) {
+          setIsAsyncLinting(false);
+        }
+        break;
+    }
+  }, []);
+
   // Initialize worker lazily
   const getWorker = useCallback((): Worker | null => {
     if (!enableAsyncLinting) {
@@ -116,31 +141,6 @@ export function useSqlDiagnostics({
 
     return workerRef.current;
   }, [enableAsyncLinting, handleWorkerMessage]);
-
-  // Handle worker messages
-  const handleWorkerMessage = useCallback((response: WorkerResponse) => {
-    switch (response.type) {
-      case "ready":
-        workerReadyRef.current = true;
-        break;
-
-      case "lint-result":
-        // Only apply if this is the current request (ignore stale results)
-        if (response.requestId === currentRequestRef.current) {
-          setAsyncDiagnostics(response.diagnostics);
-          setLastLintDuration(response.duration);
-          setIsAsyncLinting(false);
-        }
-        break;
-
-      case "error":
-        console.error("[sql-lint.worker] Lint error:", response.message);
-        if (response.requestId === currentRequestRef.current) {
-          setIsAsyncLinting(false);
-        }
-        break;
-    }
-  }, []);
 
   // Cleanup worker on unmount
   useEffect(() => {

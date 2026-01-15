@@ -143,6 +143,10 @@ export const joinConditionRule: InlineSuggestionRule = {
     matches.sort((a, b) => a.priority - b.priority);
 
     const bestMatch = matches[0];
+    if (!bestMatch) {
+      return null;
+    }
+
     const leftAlias = leftTable.alias ?? leftTable.qualifiedName;
     const rightAlias = rightTable.alias ?? rightTable.qualifiedName;
 

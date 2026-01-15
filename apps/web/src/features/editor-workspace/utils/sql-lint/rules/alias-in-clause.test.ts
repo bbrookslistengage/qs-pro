@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { assertDefined } from "@/test-utils";
+
 import type { LintContext } from "../types";
 import { aliasInClauseRule } from "./alias-in-clause";
 
@@ -16,9 +18,11 @@ describe("aliasInClauseRule", () => {
       const diagnostics = aliasInClauseRule.check(createContext(sql));
 
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain('Column alias "total"');
-      expect(diagnostics[0].message).toContain("WHERE");
-      expect(diagnostics[0].severity).toBe("error");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain('Column alias "total"');
+      expect(diagnostic.message).toContain("WHERE");
+      expect(diagnostic.severity).toBe("error");
     });
 
     it("should detect multiple aliases in WHERE", () => {
@@ -27,8 +31,12 @@ describe("aliasInClauseRule", () => {
       const diagnostics = aliasInClauseRule.check(createContext(sql));
 
       expect(diagnostics).toHaveLength(2);
-      expect(diagnostics[0].message).toContain('Column alias "amt"');
-      expect(diagnostics[1].message).toContain('Column alias "qty"');
+      const diagnostic0 = diagnostics[0];
+      const diagnostic1 = diagnostics[1];
+      assertDefined(diagnostic0);
+      assertDefined(diagnostic1);
+      expect(diagnostic0.message).toContain('Column alias "amt"');
+      expect(diagnostic1.message).toContain('Column alias "qty"');
     });
   });
 
@@ -38,8 +46,10 @@ describe("aliasInClauseRule", () => {
       const diagnostics = aliasInClauseRule.check(createContext(sql));
 
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain('Column alias "n"');
-      expect(diagnostics[0].message).toContain("ORDER BY");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain('Column alias "n"');
+      expect(diagnostic.message).toContain("ORDER BY");
     });
 
     it("should detect alias in ORDER BY with ASC/DESC", () => {
@@ -48,7 +58,9 @@ describe("aliasInClauseRule", () => {
       const diagnostics = aliasInClauseRule.check(createContext(sql));
 
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain('Column alias "created"');
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain('Column alias "created"');
     });
   });
 
@@ -59,8 +71,10 @@ describe("aliasInClauseRule", () => {
       const diagnostics = aliasInClauseRule.check(createContext(sql));
 
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain('Column alias "cat"');
-      expect(diagnostics[0].message).toContain("GROUP BY");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain('Column alias "cat"');
+      expect(diagnostic.message).toContain("GROUP BY");
     });
   });
 
@@ -71,8 +85,10 @@ describe("aliasInClauseRule", () => {
       const diagnostics = aliasInClauseRule.check(createContext(sql));
 
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain('Column alias "cnt"');
-      expect(diagnostics[0].message).toContain("HAVING");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain('Column alias "cnt"');
+      expect(diagnostic.message).toContain("HAVING");
     });
   });
 
@@ -97,7 +113,9 @@ describe("aliasInClauseRule", () => {
       const diagnostics = aliasInClauseRule.check(createContext(sql));
 
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain('Column alias "amt"');
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain('Column alias "amt"');
     });
   });
 
@@ -125,8 +143,10 @@ describe("aliasInClauseRule", () => {
       const diagnostics = aliasInClauseRule.check(createContext(sql));
 
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain('Column alias "[Full Name]"');
-      expect(diagnostics[0].message).toContain("ORDER BY");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain('Column alias "[Full Name]"');
+      expect(diagnostic.message).toContain("ORDER BY");
     });
 
     it("should detect bracketed alias in WHERE", () => {
@@ -135,7 +155,9 @@ describe("aliasInClauseRule", () => {
       const diagnostics = aliasInClauseRule.check(createContext(sql));
 
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain('Column alias "[Unit Price]"');
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain('Column alias "[Unit Price]"');
     });
   });
 
@@ -145,7 +167,9 @@ describe("aliasInClauseRule", () => {
       const diagnostics = aliasInClauseRule.check(createContext(sql));
 
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain('Column alias "total"');
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain('Column alias "total"');
     });
 
     it("should detect implicit alias after CONCAT", () => {
@@ -154,7 +178,9 @@ describe("aliasInClauseRule", () => {
       const diagnostics = aliasInClauseRule.check(createContext(sql));
 
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain('Column alias "full_name"');
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain('Column alias "full_name"');
     });
   });
 
@@ -169,7 +195,9 @@ describe("aliasInClauseRule", () => {
       const diagnostics = aliasInClauseRule.check(createContext(sql));
 
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain('Column alias "customer_name"');
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain('Column alias "customer_name"');
     });
 
     it("should handle subqueries", () => {
@@ -180,9 +208,10 @@ describe("aliasInClauseRule", () => {
       `;
       const diagnostics = aliasInClauseRule.check(createContext(sql));
 
-      // The outer alias "total" is used in WHERE
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain("total");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain("total");
     });
   });
 
@@ -192,7 +221,9 @@ describe("aliasInClauseRule", () => {
       const diagnostics = aliasInClauseRule.check(createContext(sql));
 
       expect(diagnostics).toHaveLength(1);
-      expect(diagnostics[0].message).toContain('Column alias "Total"');
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain('Column alias "Total"');
     });
   });
 
@@ -222,8 +253,10 @@ describe("aliasInClauseRule", () => {
       const sql = "SELECT amount AS total FROM [Orders] WHERE total > 100";
       const diagnostics = aliasInClauseRule.check(createContext(sql));
 
-      expect(diagnostics[0].message).toContain("MCE");
-      expect(diagnostics[0].message).toContain("original expression");
+      const diagnostic = diagnostics[0];
+      assertDefined(diagnostic);
+      expect(diagnostic.message).toContain("MCE");
+      expect(diagnostic.message).toContain("original expression");
     });
   });
 });

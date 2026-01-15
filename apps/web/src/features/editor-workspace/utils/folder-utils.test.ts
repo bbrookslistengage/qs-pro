@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { assertDefined } from "@/test-utils";
+
 import type { Folder } from "../types";
 import { getFolderAncestors, getFolderPath } from "./folder-utils";
 
@@ -19,15 +21,23 @@ describe("folder-utils", () => {
     it("getFolderAncestors_WithRootId_ReturnsSingleFolder", () => {
       const result = getFolderAncestors(mockFolders, "1");
       expect(result).toHaveLength(1);
-      expect(result[0].id).toBe("1");
+      const folder = result[0];
+      assertDefined(folder);
+      expect(folder.id).toBe("1");
     });
 
     it("getFolderAncestors_WithDeepId_ReturnsFullChain", () => {
       const result = getFolderAncestors(mockFolders, "3");
       expect(result).toHaveLength(3);
-      expect(result[0].id).toBe("1");
-      expect(result[1].id).toBe("2");
-      expect(result[2].id).toBe("3");
+      const folder0 = result[0];
+      const folder1 = result[1];
+      const folder2 = result[2];
+      assertDefined(folder0);
+      assertDefined(folder1);
+      assertDefined(folder2);
+      expect(folder0.id).toBe("1");
+      expect(folder1.id).toBe("2");
+      expect(folder2.id).toBe("3");
     });
 
     it("getFolderAncestors_WithMissingParent_ReturnsPartialChain", () => {
@@ -36,7 +46,9 @@ describe("folder-utils", () => {
       ];
       const result = getFolderAncestors(brokenFolders, "3");
       expect(result).toHaveLength(1);
-      expect(result[0].id).toBe("3");
+      const folder = result[0];
+      assertDefined(folder);
+      expect(folder.id).toBe("3");
     });
 
     it("getFolderAncestors_WithMissingSelf_ReturnsEmptyArray", () => {

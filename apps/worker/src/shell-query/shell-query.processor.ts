@@ -196,14 +196,13 @@ export class ShellQueryProcessor extends WorkerHost {
         </RetrieveRequestMsg>`;
 
       try {
-        const response =
-          await this.mceBridge.soapRequest<SoapAsyncStatusResponse>(
-            tenantId,
-            userId,
-            mid,
-            soap,
-            "Retrieve",
-          );
+        const response = await this.mceBridge.soapRequest<SoapAsyncStatusResponse>(
+          tenantId,
+          userId,
+          mid,
+          soap,
+          "Retrieve",
+        );
         const result = response.Body?.RetrieveResponseMsg?.Results;
         const status = result?.Status;
 

@@ -76,6 +76,6 @@ module.exports = tseslint.config(
     },
   },
   {
-    ignores: ["dist/", "node_modules/", "eslint.config.cjs", "*.config.*"],
+    ignores: ["dist/", "node_modules/", "eslint.config.cjs", "tailwind.config.js", "vitest.config.ts"],
   },
 );

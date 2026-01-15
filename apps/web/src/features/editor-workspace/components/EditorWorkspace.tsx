@@ -102,15 +102,6 @@ export function EditorWorkspace({
     const defaultTab = createDefaultTab();
     return { tabs: [defaultTab], activeTabId: defaultTab.id };
   });
-  const setTabs = useCallback(
-    (updater: QueryTab[] | ((prev: QueryTab[]) => QueryTab[])) => {
-      setTabState((prev) => ({
-        ...prev,
-        tabs: typeof updater === "function" ? updater(prev.tabs) : updater,
-      }));
-    },
-    [],
-  );
   const setActiveTabId = useCallback((id: string) => {
     setTabState((prev) => ({ ...prev, activeTabId: id }));
   }, []);
@@ -125,12 +116,17 @@ export function EditorWorkspace({
 
   const safeSetTabs = useCallback(
     (updater: QueryTab[] | ((prev: QueryTab[]) => QueryTab[])) => {
-      setTabs((prev) => {
-        const next = typeof updater === "function" ? updater(prev) : updater;
-        return next.length > 0 ? next : [createDefaultTab()];
+      setTabState((prev) => {
+        const next =
+          typeof updater === "function" ? updater(prev.tabs) : updater;
+        if (next.length > 0) {
+          return { ...prev, tabs: next };
+        }
+        const defaultTab = createDefaultTab();
+        return { tabs: [defaultTab], activeTabId: defaultTab.id };
       });
     },
-    [setTabs],
+    [],
   );
 
   const activeTab = useMemo(() => {

@@ -208,7 +208,10 @@ const getSubqueryWithoutAliasDiagnostics = (sql: string): SqlDiagnostic[] => {
             // This is likely an alias
             hasAlias = true;
           }
-        } else if (lookAhead < sql.length && sql.charAt(lookAhead) === "[") {
+        } else if (
+          lookAhead < sql.length &&
+          sql.charAt(lookAhead) === "["
+        ) {
           // Bracketed alias
           hasAlias = true;
         }

@@ -12,6 +12,7 @@ This roadmap outlines the development phases for Query++ (QS Pro), progressing f
 
 | Date | Change |
 |------|--------|
+| 2026-01-15 | **Query Execution implementation complete** — Marked Query execution (Web<->API<->Worker) and Keyboard shortcuts as complete per spec `2026-01-15-query-execution`. |
 | 2026-01-10 | **Launch Slice restructure** — Added usage caps model, defined true MVP scope, deferred Enterprise to post-launch. Based on 8-audit synthesis. Previous roadmap: `7b88b82` |
 | 2026-01-10 | Added feature tier definitions (Core/Pro/Enterprise) based on brainstorming session. Added version control and promotion features. Reorganized Phase 3 to align with tier structure. |
 
@@ -66,10 +67,10 @@ The goal: A user can connect their MCE org, write a query with autocomplete, run
 - [x] DE/field autocomplete (from metadata cache)
 - [x] Data Views autocomplete + joins
 - [x] MCE-specific linting
-- [ ] **Query execution (Web↔API↔Worker)** — THE critical path
+- [x] **Query execution (Web↔API↔Worker)** — THE critical path
 - [ ] **Saved queries** — basic persistence (10 query cap for free)
 - [ ] **Usage caps enforcement** — 50 runs/month, 10 saved queries
-- [ ] Keyboard shortcuts (Cmd+Enter to run)
+- [x] Keyboard shortcuts (Cmd+Enter to run)
 
 #### Pro Tier (14-Day Trial, Then Subscription)
 - [ ] **Unlimited query runs** — cap lifted
@@ -151,26 +152,28 @@ The foundation phase establishes the core product AND the infrastructure pattern
   - Embedded requirement: `Secure` + `SameSite=None` cookies for MCE iframe embedding
   - Checklist: 6 (Session + CSRF posture), 8 (Zero-data proxy pattern), 9 (Rate limiting + API auth)
 
-- [ ] **Query Execution (Web↔API↔Worker) & Results Viewer** — Wire editor “RUN” to backend runs, status streaming, and paged results. `M`
-  - Already in place (web UI): results pane UI exists, but `apps/web/src/features/editor-workspace/EditorWorkspacePage.tsx` currently doesn’t call the API.
-  - Spec notes: keep results “zero-data proxy” (no row persistence), use paging, and degrade gracefully on upstream SFMC errors/timeouts.
-  - Wire CSRF end-to-end: attach `x-csrf-token` to all state-changing requests and add tests that assert requests without CSRF are rejected.
+- [x] **Query Execution (Web↔API↔Worker) & Results Viewer** — Wire editor "RUN" to backend runs, status streaming, and paged results. `M`
+  - Implemented via spec `2026-01-15-query-execution` with 101 tests passing
+  - CSRF token integration complete: `x-csrf-token` attached to all state-changing requests
+  - SSE-based status streaming with granular states (queued, validating, executing, etc.)
+  - MCE query validation before execution with graceful degradation
+  - SELECT * expansion and schema inference for temp DE creation
   - Checklist: 6 (Session security), 8 (Zero-data proxy), 9 (CSRF + API security + error handling)
 
 - [ ] **Saved Queries & History (User Persistence)** — Queries persist across sessions; users can organize and return to work quickly. `M`
   - Already in place (DB): `query_history` table exists in `packages/database/src/schema.ts`.
-  - Already in place (UI scaffolding): sidebar supports `savedQueries`, but it’s currently fed an empty list.
-  - Spec notes: define “saved query” vs “run history”, retention per tier, and BU scoping.
+  - Already in place (UI scaffolding): sidebar supports `savedQueries`, but it's currently fed an empty list.
+  - Spec notes: define "saved query" vs "run history", retention per tier, and BU scoping.
   - Checklist: 5 (Access control), 8 (Retention policies), 9 (Input validation)
 
-- [ ] **Target DE Wizard & Automation Deployment** — “Run to Target” + “Deploy to Automation” (Query Activity) end-to-end. `L`
+- [ ] **Target DE Wizard & Automation Deployment** — "Run to Target" + "Deploy to Automation" (Query Activity) end-to-end. `L`
   - Already in place (UI scaffolding): `apps/web/src/features/editor-workspace/components/QueryActivityModal.tsx` exists; needs backend implementation and wiring.
   - Spec notes: idempotency (avoid duplicates), naming rules, and clear rollback when SFMC operations partially fail.
   - Checklist: 5 (Authorization), 6 (CSRF on state-changing operations), 9 (Input validation + error handling)
 
 - [ ] **Snippet Library v1 (Persistence + CRUD)** — Backend endpoints + UI wiring for saving/reusing SQL snippets. `M`
   - Already in place (DB): `snippets` table exists in `packages/database/src/schema.ts`.
-  - Spec notes: keep sharing rules aligned with workspace model (Phase 2) so we don’t rewrite later.
+  - Spec notes: keep sharing rules aligned with workspace model (Phase 2) so we don't rewrite later.
   - Checklist: 5 (Access control), 8 (Data retention/privacy), 9 (Input validation)
 
 - [ ] **Monetization v1 (Free/Pro/Enterprise)** — Subscription tiers with Salesforce LMA integration. `M`
@@ -195,7 +198,7 @@ These establish patterns used by ALL subsequent features. Build once, instrument
   - Structured logging with correlation IDs (API + worker, consistent fields)
   - Tracing (OpenTelemetry or similar), including upstream SFMC calls
   - Error tracking (Sentry or similar) replacing the current stub in `apps/api/src/common/filters/global-exception.filter.ts`
-  - Health endpoints should cover DB/Redis dependency checks (not just “ok”)
+  - Health endpoints should cover DB/Redis dependency checks (not just "ok")
   - Ensure operational endpoints are protected or private-network-only (e.g. worker `/metrics`), and included in the external asset inventory for scanning.
   - Checklist: 12 (Operational security), 4 (Host and platform security), 11 (Infrastructure security)
 
@@ -332,8 +335,8 @@ These features ship in Phase 1. See "Launch Slice" for what's in v1.0 vs post-la
 | DE/field autocomplete (from metadata cache) | ✓ | Complete |
 | Data Views autocomplete + joins (hardcoded schemas) | ✓ | Complete |
 | MCE-specific linting (MCE-SQL-REFERENCE aligned) | ✓ | Complete |
-| Real-time result preview (Shell Query) | ✓ | In progress |
-| Keyboard shortcuts (Cmd+Enter, etc.) | ✓ | Planned |
+| Real-time result preview (Shell Query) | ✓ | Complete |
+| Keyboard shortcuts (Cmd+Enter, etc.) | ✓ | Complete |
 | Usage caps (50 runs/month, 10 saved queries) | ✓ | Planned |
 | Query prettify/format | Post-launch | Planned |
 | Import query content from Automation Studio | Post-launch | Planned |

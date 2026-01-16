@@ -1,0 +1,335 @@
+/**
+ * Query Analyzer - SELECT * expansion and table extraction
+ *
+ * Parses SQL using node-sql-parser to identify SELECT * clauses
+ * and expand them to explicit column lists using metadata.
+ */
+
+import { Parser } from "node-sql-parser";
+
+import {
+  type DataViewField,
+  getSystemDataViewFields,
+  isSystemDataView,
+} from "./system-data-views";
+
+const parser = new Parser();
+const DIALECT = "transactsql";
+
+export interface FieldDefinition {
+  Name: string;
+  FieldType: string;
+  MaxLength?: number;
+}
+
+export interface MetadataFetcher {
+  getFieldsForTable(tableName: string): Promise<FieldDefinition[] | null>;
+}
+
+interface ExprColumn {
+  type: string;
+  table: string | null;
+  column: string;
+}
+
+interface SelectColumnWithExpr {
+  expr: ExprColumn;
+  as: string | null;
+}
+
+interface FromTable {
+  table?: string;
+  as?: string;
+  db?: string;
+  expr?: AstStatement;
+  join?: string;
+  on?: unknown;
+}
+
+interface AstStatement {
+  type?: string;
+  columns?: SelectColumnWithExpr[];
+  from?: FromTable | FromTable[] | null;
+  with?: Array<{ name: { value: string }; stmt: AstStatement }>;
+  _next?: AstStatement;
+  union?: string;
+}
+
+export class SelectStarExpansionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SelectStarExpansionError";
+  }
+}
+
+function stripBrackets(name: string): string {
+  if (name.startsWith("[") && name.endsWith("]")) {
+    return name.slice(1, -1);
+  }
+  return name;
+}
+
+function normalizeTableName(name: string): string {
+  return stripBrackets(name);
+}
+
+function buildAliasMap(
+  from: FromTable | FromTable[] | null,
+): Map<string, string> {
+  const aliasMap = new Map<string, string>();
+  if (!from) {
+    return aliasMap;
+  }
+
+  const tables = Array.isArray(from) ? from : [from];
+
+  for (const t of tables) {
+    if (t.table) {
+      const tableName = normalizeTableName(t.table);
+      if (t.as) {
+        aliasMap.set(t.as.toLowerCase(), tableName);
+      }
+      aliasMap.set(tableName.toLowerCase(), tableName);
+    }
+  }
+
+  return aliasMap;
+}
+
+function extractTablesFromFrom(from: FromTable | FromTable[] | null): string[] {
+  const tables: string[] = [];
+  if (!from) {
+    return tables;
+  }
+
+  const fromItems = Array.isArray(from) ? from : [from];
+
+  for (const item of fromItems) {
+    if (item.table) {
+      tables.push(normalizeTableName(item.table));
+    }
+    if (item.expr && item.expr.type === "select") {
+      const subTables = extractTablesFromFrom(item.expr.from ?? null);
+      tables.push(...subTables);
+    }
+  }
+
+  return tables;
+}
+
+function hasSelectStar(columns: SelectColumnWithExpr[] | undefined): boolean {
+  if (!columns) {
+    return false;
+  }
+
+  for (const col of columns) {
+    // Structure: { expr: { type: "column_ref", table: null, column: "*" }, as: null }
+    if (col.expr && col.expr.type === "column_ref" && col.expr.column === "*") {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function getStarTablePrefix(
+  columns: SelectColumnWithExpr[] | undefined,
+): string | null {
+  if (!columns) {
+    return null;
+  }
+
+  for (const col of columns) {
+    if (col.expr && col.expr.type === "column_ref" && col.expr.column === "*") {
+      if (col.expr.table) {
+        return col.expr.table;
+      }
+    }
+  }
+
+  return null;
+}
+
+async function getFieldsForTable(
+  tableName: string,
+  metadataFn: MetadataFetcher,
+): Promise<FieldDefinition[]> {
+  const normalized = normalizeTableName(tableName);
+
+  let effectiveTableName = normalized;
+  if (normalized.toLowerCase().startsWith("ent.")) {
+    effectiveTableName = normalized.substring(4);
+  }
+
+  if (isSystemDataView(effectiveTableName)) {
+    const fields = getSystemDataViewFields(effectiveTableName);
+    return fields.map((f: DataViewField) => ({
+      Name: f.Name,
+      FieldType: f.FieldType,
+      MaxLength: f.MaxLength,
+    }));
+  }
+
+  const fields = await metadataFn.getFieldsForTable(normalized);
+  if (!fields) {
+    throw new SelectStarExpansionError(
+      `Unable to expand SELECT *. Metadata unavailable for table ${normalized}. Try listing columns explicitly.`,
+    );
+  }
+
+  return fields;
+}
+
+function buildExpandedColumnList(
+  fields: FieldDefinition[],
+  tableAlias: string | null,
+): string {
+  return fields
+    .map((f) => {
+      const colName = f.Name.includes(" ") ? `[${f.Name}]` : f.Name;
+      return tableAlias ? `${tableAlias}.${colName}` : colName;
+    })
+    .join(", ");
+}
+
+function replaceStarInQuery(sql: string, expandedColumns: string): string {
+  // Try simple SELECT * first
+  if (/\bSELECT\s+\*\s+FROM\b/i.test(sql)) {
+    return sql.replace(
+      /\bSELECT\s+\*\s+(?=FROM\b)/i,
+      `SELECT ${expandedColumns} `,
+    );
+  }
+
+  // Handle SELECT alias.*
+  const aliasStarMatch = sql.match(/\bSELECT\s+(\w+)\.\*\s+(?=FROM\b)/i);
+  if (aliasStarMatch) {
+    return sql.replace(
+      /\bSELECT\s+\w+\.\*\s+(?=FROM\b)/i,
+      `SELECT ${expandedColumns} `,
+    );
+  }
+
+  // Handle SELECT col, * (mixed columns with star)
+  if (/\bSELECT\s+.+,\s*\*\s+FROM\b/i.test(sql)) {
+    return sql.replace(/,\s*\*\s+(?=FROM\b)/i, `, ${expandedColumns} `);
+  }
+
+  return sql;
+}
+
+export async function expandSelectStar(
+  sqlText: string,
+  metadataFn: MetadataFetcher,
+): Promise<string> {
+  let ast: AstStatement | AstStatement[];
+
+  try {
+    ast = parser.astify(sqlText, { database: DIALECT }) as unknown as
+      | AstStatement
+      | AstStatement[];
+  } catch {
+    return sqlText;
+  }
+
+  const statements = Array.isArray(ast) ? ast : [ast];
+  let result = sqlText;
+
+  for (const stmt of statements) {
+    if (stmt.type !== "select") {
+      continue;
+    }
+    if (!hasSelectStar(stmt.columns)) {
+      continue;
+    }
+
+    const aliasMap = buildAliasMap(stmt.from ?? null);
+    const tables = extractTablesFromFrom(stmt.from ?? null);
+
+    const firstTable = tables[0];
+    if (!firstTable) {
+      continue;
+    }
+
+    const starTablePrefix = getStarTablePrefix(stmt.columns);
+    let targetTable: string;
+
+    if (starTablePrefix) {
+      const resolvedTable = aliasMap.get(starTablePrefix.toLowerCase());
+      targetTable = resolvedTable ?? normalizeTableName(starTablePrefix);
+    } else {
+      targetTable = firstTable;
+    }
+
+    const fields = await getFieldsForTable(targetTable, metadataFn);
+    const tableAlias = starTablePrefix ?? null;
+    const expandedColumns = buildExpandedColumnList(fields, tableAlias);
+
+    result = replaceStarInQuery(result, expandedColumns);
+  }
+
+  return result;
+}
+
+export function containsSelectStar(sqlText: string): boolean {
+  try {
+    const ast = parser.astify(sqlText, { database: DIALECT }) as unknown as
+      | AstStatement
+      | AstStatement[];
+    const statements = Array.isArray(ast) ? ast : [ast];
+
+    for (const stmt of statements) {
+      if (stmt.type === "select" && hasSelectStar(stmt.columns)) {
+        return true;
+      }
+    }
+  } catch {
+    // If parse fails, do a simple regex check
+    return /\bSELECT\s+(\w+\.)?\*\s+FROM\b/i.test(sqlText);
+  }
+
+  return false;
+}
+
+export function extractTableNames(sqlText: string): string[] {
+  try {
+    const ast = parser.astify(sqlText, { database: DIALECT }) as unknown as
+      | AstStatement
+      | AstStatement[];
+    const statements = Array.isArray(ast) ? ast : [ast];
+    const tables: string[] = [];
+
+    for (const stmt of statements) {
+      if (stmt.from) {
+        tables.push(...extractTablesFromFrom(stmt.from));
+      }
+    }
+
+    return [...new Set(tables)];
+  } catch {
+    return [];
+  }
+}
+
+export function buildTableAliasMap(sqlText: string): Map<string, string> {
+  try {
+    const ast = parser.astify(sqlText, { database: DIALECT }) as unknown as
+      | AstStatement
+      | AstStatement[];
+    const statements = Array.isArray(ast) ? ast : [ast];
+    const combinedMap = new Map<string, string>();
+
+    for (const stmt of statements) {
+      if (stmt.from) {
+        const stmtAliasMap = buildAliasMap(stmt.from);
+        for (const [alias, table] of stmtAliasMap) {
+          combinedMap.set(alias, table);
+        }
+      }
+    }
+
+    return combinedMap;
+  } catch {
+    return new Map();
+  }
+}

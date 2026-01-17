@@ -46,6 +46,22 @@ interface FieldDefinition {
   MaxLength?: number;
 }
 
+function safeRecordSet<V>(
+  record: Record<string, V>,
+  key: string,
+  value: V,
+): void {
+  if (
+    typeof key === "string" &&
+    key !== "__proto__" &&
+    key !== "constructor" &&
+    key !== "prototype"
+  ) {
+    // eslint-disable-next-line security/detect-object-injection
+    record[key] = value;
+  }
+}
+
 interface UseQueryExecutionOptions {
   tenantId?: string | null;
 }
@@ -191,7 +207,11 @@ export function useQueryExecution(
         const fields = getFieldsFromCache(tableName);
 
         if (fields && fields.length > 0) {
-          tableMetadata[tableName] = fields.map(mapFieldToDefinition);
+          safeRecordSet(
+            tableMetadata,
+            tableName,
+            fields.map(mapFieldToDefinition),
+          );
         }
       }
 

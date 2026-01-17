@@ -143,7 +143,7 @@ export type RunStatus =
   | "failed"
   | "canceled";
 
-export const STATUS_MESSAGES: Record<RunStatus, string> = {
+export const STATUS_MESSAGES = {
   queued: "Queued...",
   validating_query: "Validating query...",
   creating_data_extension: "Creating temp Data Extension...",
@@ -152,7 +152,7 @@ export const STATUS_MESSAGES: Record<RunStatus, string> = {
   ready: "Query completed",
   failed: "Query failed",
   canceled: "Query canceled",
-};
+} as const satisfies Record<RunStatus, string>;
 
 export interface SSEEvent {
   status: RunStatus;

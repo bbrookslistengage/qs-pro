@@ -865,12 +865,14 @@ export class ShellQueryProcessor extends WorkerHost {
     status: RunStatus,
     errorMessage?: string,
   ) {
+    // eslint-disable-next-line security/detect-object-injection
+    const statusMessage = STATUS_MESSAGES[status];
     const event: SSEEvent = {
       status,
       message:
         status === "failed" && errorMessage
-          ? `${STATUS_MESSAGES[status]}: ${errorMessage}`
-          : STATUS_MESSAGES[status],
+          ? `${statusMessage}: ${errorMessage}`
+          : statusMessage,
       timestamp: new Date().toISOString(),
       runId,
     };

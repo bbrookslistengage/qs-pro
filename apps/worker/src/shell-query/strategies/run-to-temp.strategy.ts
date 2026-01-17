@@ -32,6 +32,14 @@ function normalizeTableName(name: string): string {
   return name;
 }
 
+function safeRecordGet<V>(
+  record: Record<string, V> | undefined,
+  key: string,
+): V | undefined {
+  // eslint-disable-next-line security/detect-object-injection
+  return record && Object.hasOwn(record, key) ? record[key] : undefined;
+}
+
 @Injectable()
 export class RunToTempFlow implements IFlowStrategy {
   private readonly logger = new Logger(RunToTempFlow.name);
@@ -177,7 +185,8 @@ export class RunToTempFlow implements IFlowStrategy {
       ): Promise<FieldDefinition[] | null> => {
         const normalizedName = normalizeTableName(tableName);
         const provided =
-          job.tableMetadata?.[tableName] ?? job.tableMetadata?.[normalizedName];
+          safeRecordGet(job.tableMetadata, tableName) ??
+          safeRecordGet(job.tableMetadata, normalizedName);
 
         if (provided && provided.length > 0) {
           this.logger.debug(`Using provided metadata for ${tableName}`);
@@ -532,7 +541,7 @@ export class RunToTempFlow implements IFlowStrategy {
   }
 
   private mapFieldType(fieldType: string): string {
-    const mapping: Record<string, string> = {
+    const mapping = {
       Text: "Text",
       Number: "Number",
       Decimal: "Decimal",
@@ -541,8 +550,8 @@ export class RunToTempFlow implements IFlowStrategy {
       EmailAddress: "EmailAddress",
       Phone: "Phone",
       Email: "EmailAddress",
-    };
-    return mapping[fieldType] ?? "Text";
+    } as const satisfies Record<string, string>;
+    return mapping[fieldType as keyof typeof mapping] ?? "Text";
   }
 
   private isTextType(fieldType: string): boolean {

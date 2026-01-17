@@ -38,15 +38,15 @@ export interface ColumnDefinition {
 }
 
 // Maps aggregate/function names to their return types
-const AGGREGATE_TYPE_MAP: Record<string, string> = {
-  COUNT: "Number",
-  SUM: "Number",
-  AVG: "Decimal",
-  STDEV: "Decimal",
-  STDEVP: "Decimal",
-  VAR: "Decimal",
-  VARP: "Decimal",
-};
+const AGGREGATE_TYPE_MAP = new Map<string, string>([
+  ["COUNT", "Number"],
+  ["SUM", "Number"],
+  ["AVG", "Decimal"],
+  ["STDEV", "Decimal"],
+  ["STDEVP", "Decimal"],
+  ["VAR", "Decimal"],
+  ["VARP", "Decimal"],
+]);
 
 const STRING_FUNCTIONS = new Set([
   "CONCAT",
@@ -297,7 +297,7 @@ async function inferColumnType(
       return { Name: funcName, FieldType: "Text", MaxLength: 254 };
     }
 
-    const mappedType = AGGREGATE_TYPE_MAP[funcName];
+    const mappedType = AGGREGATE_TYPE_MAP.get(funcName);
     if (mappedType) {
       if (mappedType === "Decimal") {
         return {
@@ -592,7 +592,7 @@ export async function inferSchema(
     }
 
     for (let i = 0; i < stmt.columns.length; i++) {
-      const col = stmt.columns[i];
+      const col = stmt.columns.at(i);
 
       // Skip undefined entries
       if (col === undefined) {

@@ -6,6 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import type { TableMetadata } from '@qs-pro/shared-types';
 import { Queue } from 'bullmq';
 import * as crypto from 'crypto';
 
@@ -18,6 +19,35 @@ export interface ShellQueryContext {
   mid: string;
   eid: string;
   accessToken: string;
+}
+
+export interface RunStatusResponse {
+  runId: string;
+  status: string;
+  errorMessage?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface RunResultsResponse {
+  columns: string[];
+  rows: Record<string, unknown>[];
+  totalRows: number;
+  page: number;
+  pageSize: number;
+}
+
+interface MceRowsetResponse {
+  links?: { self?: string; next?: string };
+  customObjectId?: string;
+  customObjectKey?: string;
+  pageSize?: number;
+  page?: number;
+  count?: number;
+  items?: Array<{
+    keys?: Record<string, unknown>;
+    values?: Record<string, unknown>;
+  }>;
 }
 
 @Injectable()
@@ -35,6 +65,7 @@ export class ShellQueryService {
     context: ShellQueryContext,
     sqlText: string,
     snippetName?: string,
+    tableMetadata?: TableMetadata,
   ): Promise<string> {
     const runId = crypto.randomUUID();
     const sqlTextHash = crypto
@@ -43,7 +74,11 @@ export class ShellQueryService {
       .digest('hex');
 
     // 1. Check Rate Limit
-    const activeRuns = await this.runRepo.countActiveRuns(context.userId);
+    const activeRuns = await this.runRepo.countActiveRuns(
+      context.tenantId,
+      context.mid,
+      context.userId,
+    );
     if (activeRuns >= 10) {
       throw new Error(
         'Rate limit exceeded: Max 10 concurrent shell queries per user.',
@@ -69,6 +104,7 @@ export class ShellQueryService {
         ...context,
         sqlText,
         snippetName,
+        tableMetadata,
       },
       {
         attempts: 2,
@@ -89,8 +125,33 @@ export class ShellQueryService {
     return runId;
   }
 
-  async getRun(runId: string, tenantId: string) {
-    return this.runRepo.findRun(runId, tenantId);
+  async getRun(runId: string, tenantId: string, mid: string, userId: string) {
+    return this.runRepo.findRun(runId, tenantId, mid, userId);
+  }
+
+  async getRunStatus(
+    runId: string,
+    tenantId: string,
+    mid: string,
+    userId: string,
+  ): Promise<RunStatusResponse> {
+    const run = await this.runRepo.findRun(runId, tenantId, mid, userId);
+    if (!run) {
+      throw new NotFoundException('Run not found');
+    }
+
+    const response: RunStatusResponse = {
+      runId: run.id,
+      status: run.status,
+      createdAt: run.createdAt,
+      updatedAt: run.completedAt ?? run.startedAt ?? run.createdAt,
+    };
+
+    if (run.status === 'failed' && run.errorMessage) {
+      response.errorMessage = run.errorMessage;
+    }
+
+    return response;
   }
 
   async getResults(
@@ -99,8 +160,8 @@ export class ShellQueryService {
     userId: string,
     mid: string,
     page: number,
-  ) {
-    const run = await this.getRun(runId, tenantId);
+  ): Promise<RunResultsResponse> {
+    const run = await this.getRun(runId, tenantId, mid, userId);
     if (!run) {
       throw new NotFoundException('Run not found');
     }
@@ -114,30 +175,80 @@ export class ShellQueryService {
 
     // Proxy to MCE REST Rowset API
     // The DE name follows the convention: QPP_[SnippetName]_[Hash]
-    const hash = run.id.substring(0, 4);
+    const hash = run.id.substring(0, 8);
     const deName = run.snippetName
       ? `QPP_${run.snippetName.replace(/\s+/g, '_')}_${hash}`
       : `QPP_Results_${hash}`;
 
     const pageSize = 50;
-    const url = `/data/v1/customobjectdata/key/${deName}/rowset?$page=${page}&$pageSize=${pageSize}`;
+    const encodedDeName = encodeURIComponent(deName);
+    const url = `/data/v1/customobjectdata/key/${encodedDeName}/rowset?$page=${page}&$pageSize=${pageSize}`;
+
+    this.logger.debug(`Fetching results for run ${runId}`);
 
     try {
-      const response = await this.mceBridge.request(tenantId, userId, mid, {
+      const mceResponse = await this.mceBridge.request(tenantId, userId, mid, {
         method: 'GET',
         url,
       });
-      return response;
-    } catch (e: any) {
+
+      this.logger.debug(
+        `MCE rowset response: count=${mceResponse.count ?? 0}, page=${mceResponse.page ?? 1}`,
+      );
+
+      return this.normalizeRowsetResponse(mceResponse, page, pageSize);
+    } catch (e: unknown) {
+      const error = e as { message?: string };
       this.logger.error(
-        `Failed to fetch results for run ${runId}: ${e.message}`,
+        `Failed to fetch results for run ${runId}: ${error.message}`,
       );
       throw e;
     }
   }
 
-  async cancelRun(runId: string, tenantId: string) {
-    const run = await this.getRun(runId, tenantId);
+  private normalizeRowsetResponse(
+    mceResponse: MceRowsetResponse,
+    page: number,
+    pageSize: number,
+  ): RunResultsResponse {
+    const items = mceResponse.items ?? [];
+
+    const allKeys = new Set<string>();
+    for (const item of items) {
+      if (item.keys) {
+        for (const key of Object.keys(item.keys)) {
+          allKeys.add(key);
+        }
+      }
+      if (item.values) {
+        for (const key of Object.keys(item.values)) {
+          allKeys.add(key);
+        }
+      }
+    }
+    const columns = Array.from(allKeys);
+
+    const rows = items.map((item) => ({
+      ...item.keys,
+      ...item.values,
+    }));
+
+    return {
+      columns,
+      rows,
+      totalRows: mceResponse.count ?? 0,
+      page: mceResponse.page ?? page,
+      pageSize: mceResponse.pageSize ?? pageSize,
+    };
+  }
+
+  async cancelRun(
+    runId: string,
+    tenantId: string,
+    mid: string,
+    userId: string,
+  ) {
+    const run = await this.getRun(runId, tenantId, mid, userId);
     if (!run) {
       throw new NotFoundException('Run not found');
     }
@@ -153,7 +264,7 @@ export class ShellQueryService {
       };
     }
 
-    await this.runRepo.markCanceled(runId, tenantId, run.mid);
+    await this.runRepo.markCanceled(runId, tenantId, mid, userId);
 
     return { status: 'canceled', runId };
   }

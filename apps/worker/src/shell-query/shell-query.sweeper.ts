@@ -1,7 +1,14 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
-import { MceBridgeService } from "@qs-pro/backend-shared";
-import { credentials } from "@qs-pro/database";
+import { MceBridgeService, RlsContextService } from "@qs-pro/backend-shared";
+import {
+  and,
+  credentials,
+  eq,
+  isNotNull,
+  type PostgresJsDatabase,
+  tenantSettings,
+} from "@qs-pro/database";
 
 import { SoapRetrieveResponse } from "./shell-query.types";
 
@@ -11,26 +18,33 @@ export class ShellQuerySweeper {
 
   constructor(
     private readonly mceBridge: MceBridgeService,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    @Inject("DATABASE") private readonly db: any,
+    private readonly rlsContext: RlsContextService,
+    @Inject("DATABASE")
+    private readonly db: PostgresJsDatabase<Record<string, never>>,
   ) {}
 
   @Cron(CronExpression.EVERY_HOUR)
   async handleSweep() {
     this.logger.log("Starting hourly shell query asset sweep...");
 
-    // 1. Get all tenants and their credentials to iterate
-    // This is a bit brute-force. In a large system, we might want to
-    // only sweep tenants that had activity in last 24h.
-    const allCreds = await this.db.select().from(credentials);
+    // Query tenantSettings (no RLS) to get tenant/mid pairs that have QPP folders.
+    // This is more efficient than iterating all credentials and ensures we only
+    // sweep tenants that actually use the QPP feature.
+    const activeSettings = await this.db
+      .select({
+        tenantId: tenantSettings.tenantId,
+        mid: tenantSettings.mid,
+      })
+      .from(tenantSettings)
+      .where(isNotNull(tenantSettings.qppFolderId));
 
-    for (const cred of allCreds) {
+    for (const setting of activeSettings) {
       try {
-        await this.sweepForTenantMid(cred.tenantId, cred.userId, cred.mid);
+        await this.sweepTenantMid(setting.tenantId, setting.mid);
       } catch (e: unknown) {
         const err = e as { message?: string };
         this.logger.error(
-          `Sweep failed for tenant ${cred.tenantId} MID ${cred.mid}: ${err.message || "Unknown error"}`,
+          `Sweep failed for tenant ${setting.tenantId} MID ${setting.mid}: ${err.message || "Unknown error"}`,
         );
       }
     }
@@ -38,12 +52,45 @@ export class ShellQuerySweeper {
     this.logger.log("Shell query asset sweep completed.");
   }
 
-  private async sweepForTenantMid(
+  /**
+   * Sweeps stale assets for a specific tenant/mid combination.
+   * Runs within RLS context to properly access credentials.
+   */
+  private async sweepTenantMid(tenantId: string, mid: string): Promise<void> {
+    // Run within RLS context to access credentials securely
+    await this.rlsContext.runWithTenantContext(tenantId, mid, async () => {
+      // Get a valid userId from credentials for this tenant/mid
+      const creds = await this.db
+        .select({ userId: credentials.userId })
+        .from(credentials)
+        .where(
+          and(eq(credentials.tenantId, tenantId), eq(credentials.mid, mid)),
+        )
+        .limit(1);
+
+      const firstCred = creds[0];
+
+      if (!firstCred?.userId) {
+        this.logger.debug(
+          `No credentials found for tenant ${tenantId} MID ${mid}, skipping sweep`,
+        );
+        return;
+      }
+
+      const userId = firstCred.userId;
+      await this.performSweep(tenantId, userId, mid);
+    });
+  }
+
+  /**
+   * Performs the actual sweep operations for a tenant/mid.
+   * Must be called within RLS context.
+   */
+  private async performSweep(
     tenantId: string,
     userId: string,
     mid: string,
-  ) {
-    // 1. Find the "QueryPlusPlus Results" folder
+  ): Promise<void> {
     const searchSoap = `
       <RetrieveRequestMsg xmlns="http://exacttarget.com/wsdl/partnerAPI">
          <RetrieveRequest>
@@ -71,13 +118,12 @@ export class ShellQuerySweeper {
     }
 
     const folder = Array.isArray(results) ? results[0] : results;
-    if (!folder) {
+    if (!folder?.ID) {
       return;
     }
 
     const folderId = folder.ID;
 
-    // 2. Retrieve QueryDefinitions in that folder older than 24h
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
     const querySoap = `
@@ -87,23 +133,20 @@ export class ShellQuerySweeper {
             <Properties>CustomerKey</Properties>
             <Properties>Name</Properties>
             <Filter xsi:type="ComplexFilterPart">
-               <LeftFilter xsi:type="SimpleFilterPart">
+               <LeftOperand xsi:type="SimpleFilterPart">
                   <Property>CategoryID</Property>
                   <SimpleOperator>equals</SimpleOperator>
                   <Value>${folderId}</Value>
-               </LeftFilter>
+               </LeftOperand>
                <LogicalOperator>AND</LogicalOperator>
-               <RightFilter xsi:type="SimpleFilterPart">
+               <RightOperand xsi:type="SimpleFilterPart">
                   <Property>CreatedDate</Property>
                   <SimpleOperator>lessThan</SimpleOperator>
                   <Value>${yesterday}</Value>
-               </RightFilter>
+               </RightOperand>
             </Filter>
          </RetrieveRequest>
       </RetrieveRequestMsg>`;
-
-    // NOTE: ComplexFilterPart structure above might need XML correction if it's too nested or wrong namespaces.
-    // For now I'll assume standard PartnerAPI.
 
     const queriesResponse =
       await this.mceBridge.soapRequest<SoapRetrieveResponse>(
@@ -120,48 +163,38 @@ export class ShellQuerySweeper {
         if (!q.CustomerKey) {
           continue;
         }
-        await this.deleteAsset(
-          tenantId,
-          userId,
-          mid,
-          "QueryDefinition",
-          q.CustomerKey,
-        );
-        // Delete associated DE
-        // QueryDefinition key: QPP_Query_{runId}
-        // DE name: QPP_Results_{hash} where hash = first 4 chars of runId
-        const runId = q.CustomerKey.replace("QPP_Query_", "");
-        const hash = runId.substring(0, 4);
-        await this.deleteAsset(
-          tenantId,
-          userId,
-          mid,
-          "DataExtension",
-          `QPP_Results_${hash}`,
-        );
+        await this.deleteQueryDefinition(tenantId, userId, mid, q.CustomerKey);
       }
     }
   }
 
-  private async deleteAsset(
+  private async deleteQueryDefinition(
     tenantId: string,
     userId: string,
     mid: string,
-    type: string,
-    key: string,
-  ) {
+    customerKey: string,
+  ): Promise<void> {
     const soap = `
       <DeleteRequest xmlns="http://exacttarget.com/wsdl/partnerAPI">
-         <Objects xsi:type="${type}">
-            <CustomerKey>${key}</CustomerKey>
+         <Objects xsi:type="QueryDefinition">
+            <CustomerKey>${this.escapeXml(customerKey)}</CustomerKey>
          </Objects>
       </DeleteRequest>`;
 
     try {
       await this.mceBridge.soapRequest(tenantId, userId, mid, soap, "Delete");
-      this.logger.log(`Deleted ${type}: ${key}`);
+      this.logger.log(`Deleted QueryDefinition: ${customerKey}`);
     } catch {
-      // Ignore failures during sweep
+      // Ignore failures during sweep - asset may already be deleted
     }
+  }
+
+  private escapeXml(str: string): string {
+    return str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
   }
 }

@@ -2,7 +2,11 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { createDatabaseFromClient } from '@qs-pro/database';
 import type { Sql } from 'postgres';
 
-import { getDbFromContext, runWithDbContext } from './db-context';
+import {
+  getDbFromContext,
+  getReservedFromContext,
+  runWithDbContext,
+} from './db-context';
 
 @Injectable()
 export class RlsContextService {
@@ -57,7 +61,7 @@ export class RlsContextService {
       );
       // We cast the schema-specific db to the generic Record version used by the context holder.
 
-      return await runWithDbContext(db, fn);
+      return await runWithDbContext(db, fn, reserved);
     } catch (error) {
       this.logger.error(
         'Failed to run with tenant context',
@@ -68,8 +72,59 @@ export class RlsContextService {
       try {
         await reserved`RESET app.tenant_id`;
         await reserved`RESET app.mid`;
-      } catch {
-        // Best-effort cleanup; connection is released regardless.
+      } catch (err) {
+        this.logger.warn('Failed to reset RLS context variables', err);
+      }
+      reserved.release();
+    }
+  }
+
+  async runWithUserContext<T>(
+    tenantId: string,
+    mid: string,
+    userId: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const existingDb = getDbFromContext();
+    const existingReserved = getReservedFromContext();
+
+    if (existingDb && existingReserved) {
+      await existingReserved`SELECT set_config('app.user_id', ${userId}, false)`;
+      try {
+        return await fn();
+      } finally {
+        try {
+          await existingReserved`RESET app.user_id`;
+        } catch (err) {
+          this.logger.warn('Failed to reset app.user_id', err);
+        }
+      }
+    }
+
+    const reserved = await this.sql.reserve();
+    try {
+      await reserved`SELECT set_config('app.tenant_id', ${tenantId}, false)`;
+      await reserved`SELECT set_config('app.mid', ${mid}, false)`;
+      await reserved`SELECT set_config('app.user_id', ${userId}, false)`;
+
+      const db = createDatabaseFromClient(
+        this.makeDrizzleCompatibleSql(reserved),
+      );
+
+      return await runWithDbContext(db, fn, reserved);
+    } catch (error) {
+      this.logger.error(
+        'Failed to run with user context',
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw error;
+    } finally {
+      try {
+        await reserved`RESET app.tenant_id`;
+        await reserved`RESET app.mid`;
+        await reserved`RESET app.user_id`;
+      } catch (err) {
+        this.logger.warn('Failed to reset RLS context variables', err);
       }
       reserved.release();
     }

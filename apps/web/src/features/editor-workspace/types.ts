@@ -45,10 +45,25 @@ export interface DataExtension {
 
 export type QueryStatus = "running" | "success" | "error" | "idle";
 
+export type ExecutionStatus =
+  | "idle"
+  | "queued"
+  | "running"
+  | "creating_data_extension"
+  | "validating_query"
+  | "executing_query"
+  | "fetching_results"
+  | "ready"
+  | "failed"
+  | "canceled";
+
 export type ExecutionCell = string | number | boolean | null;
 
 export interface ExecutionResult {
   status: QueryStatus;
+  executionStatus?: ExecutionStatus;
+  statusMessage?: string;
+  runId?: string;
   runtime: string;
   totalRows: number;
   currentPage: number;
@@ -94,7 +109,6 @@ export interface EditorWorkspaceProps {
   isDataExtensionsFetching?: boolean;
   guardrailMessage?: string;
   guardrailTitle?: string;
-  onRun?: (mode: "temp" | "target") => void;
   onSave?: (tabId: string, content: string) => void;
   onSaveAs?: (tabId: string, name: string, folderId: string) => void;
   onFormat?: () => void;

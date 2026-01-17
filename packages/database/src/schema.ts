@@ -96,6 +96,13 @@ export const snippets = pgTable("snippets", {
 });
 
 // 6. Shell Query Runs
+export type ShellQueryRunStatus =
+  | "queued"
+  | "running"
+  | "ready"
+  | "failed"
+  | "canceled";
+
 export const shellQueryRuns = pgTable(
   "shell_query_runs",
   {
@@ -110,10 +117,12 @@ export const shellQueryRuns = pgTable(
     snippetName: varchar("snippet_name"),
     sqlTextHash: varchar("sql_text_hash").notNull(),
     status: varchar("status")
-      .$type<"queued" | "running" | "ready" | "failed" | "canceled">()
+      .$type<ShellQueryRunStatus>()
       .default("queued")
       .notNull(),
     taskId: varchar("task_id"),
+    queryDefinitionId: varchar("query_definition_id"),
+    pollStartedAt: timestamp("poll_started_at"),
     errorMessage: text("error_message"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     startedAt: timestamp("started_at"),

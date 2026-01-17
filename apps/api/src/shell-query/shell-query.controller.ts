@@ -8,6 +8,7 @@ import {
   HttpStatus,
   Inject,
   InternalServerErrorException,
+  NotFoundException,
   Param,
   Post,
   Query,
@@ -25,8 +26,25 @@ import { ShellQueryService } from './shell-query.service';
 import { ShellQuerySseService } from './shell-query-sse.service';
 
 const createRunSchema = z.object({
-  sqlText: z.string().min(1, 'SQL text is required'),
-  snippetName: z.string().optional(),
+  sqlText: z.string().min(1, 'SQL text is required').max(100_000),
+  snippetName: z.string().max(100).optional(),
+  tableMetadata: z
+    .record(
+      z.string().max(128),
+      z
+        .array(
+          z.object({
+            Name: z.string().max(128),
+            FieldType: z.string().max(32),
+            MaxLength: z.number().int().min(1).max(4000).optional(),
+          }),
+        )
+        .max(500),
+    )
+    .refine((data) => !data || Object.keys(data).length <= 50, {
+      message: 'Maximum 50 tables allowed',
+    })
+    .optional(),
 });
 
 type TenantRepository = {
@@ -50,7 +68,7 @@ export class ShellQueryController {
       throw new BadRequestException(result.error.errors);
     }
 
-    const { sqlText, snippetName } = result.data;
+    const { sqlText, snippetName, tableMetadata } = result.data;
 
     try {
       // Fetch EID for the current tenant
@@ -69,6 +87,7 @@ export class ShellQueryController {
         },
         sqlText,
         snippetName,
+        tableMetadata,
       );
 
       return { runId, status: 'queued' };
@@ -82,15 +101,33 @@ export class ShellQueryController {
     }
   }
 
+  @Get(':runId')
+  async getRunStatus(
+    @Param('runId') runId: string,
+    @CurrentUser() user: UserSession,
+  ) {
+    return this.shellQueryService.getRunStatus(
+      runId,
+      user.tenantId,
+      user.mid,
+      user.userId,
+    );
+  }
+
   @Sse(':runId/events')
   async streamEvents(
     @Param('runId') runId: string,
     @CurrentUser() user: UserSession,
   ): Promise<Observable<MessageEvent>> {
     // 1. Verify ownership
-    const run = await this.shellQueryService.getRun(runId, user.tenantId);
+    const run = await this.shellQueryService.getRun(
+      runId,
+      user.tenantId,
+      user.mid,
+      user.userId,
+    );
     if (!run) {
-      throw new BadRequestException('Run not found or unauthorized');
+      throw new NotFoundException('Run not found');
     }
 
     return this.shellQuerySse.streamRunEvents(runId, user.userId);
@@ -125,6 +162,11 @@ export class ShellQueryController {
     @Param('runId') runId: string,
     @CurrentUser() user: UserSession,
   ) {
-    return this.shellQueryService.cancelRun(runId, user.tenantId);
+    return this.shellQueryService.cancelRun(
+      runId,
+      user.tenantId,
+      user.mid,
+      user.userId,
+    );
   }
 }

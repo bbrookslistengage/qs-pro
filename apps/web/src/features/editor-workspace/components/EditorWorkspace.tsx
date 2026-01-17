@@ -26,8 +26,10 @@ import {
 } from "react";
 
 import { FeatureGate } from "@/components/FeatureGate";
+import { useQueryExecution } from "@/features/editor-workspace/hooks/use-query-execution";
 import type {
   EditorWorkspaceProps,
+  ExecutionResult,
   QueryTab,
 } from "@/features/editor-workspace/types";
 import { formatDiagnosticMessage } from "@/features/editor-workspace/utils/sql-diagnostics";
@@ -59,13 +61,12 @@ export function EditorWorkspace({
   folders,
   savedQueries,
   dataExtensions,
-  executionResult,
+  executionResult: externalExecutionResult,
   initialTabs,
   isSidebarCollapsed: initialSidebarCollapsed,
   isDataExtensionsFetching = false,
   guardrailMessage: _guardrailMessageProp,
   guardrailTitle: _guardrailTitleProp = "Guardrail Violation",
-  onRun,
   onSave,
   onSaveAs,
   onFormat,
@@ -91,6 +92,18 @@ export function EditorWorkspace({
   const [isConfirmCloseOpen, setIsConfirmCloseOpen] = useState(false);
   const [tabToClose, setTabToClose] = useState<string | null>(null);
   const [isRunBlockedOpen, setIsRunBlockedOpen] = useState(false);
+
+  const {
+    execute,
+    cancel,
+    status: executionStatus,
+    isRunning,
+    runId,
+    errorMessage: executionErrorMessage,
+    results,
+    currentPage,
+    setPage,
+  } = useQueryExecution({ tenantId });
 
   // Tab Management - ensure tabs array is never empty
   const [{ tabs, activeTabId }, setTabState] = useState(() => {
@@ -167,9 +180,56 @@ export function EditorWorkspace({
     }
     return formatDiagnosticMessage(blockingDiagnostic, activeTab.content);
   }, [activeTab.content, blockingDiagnostic]);
-  const runTooltipMessage = hasBlockingDiagnostics
-    ? (runBlockMessage ?? "Query is missing required SQL.")
-    : "Execute SQL (Ctrl+Enter)";
+
+  const runTooltipMessage = useMemo(() => {
+    if (isRunning) {
+      return "Query is currently running...";
+    }
+    if (hasBlockingDiagnostics) {
+      return runBlockMessage ?? "Query is missing required SQL.";
+    }
+    return "Execute SQL (Ctrl+Enter)";
+  }, [isRunning, hasBlockingDiagnostics, runBlockMessage]);
+
+  const executionResult: ExecutionResult = useMemo(() => {
+    const legacyStatus =
+      executionStatus === "ready"
+        ? "success"
+        : executionStatus === "failed" || executionStatus === "canceled"
+          ? "error"
+          : executionStatus === "idle"
+            ? "idle"
+            : "running";
+
+    const resultsData = results.data;
+
+    return {
+      ...externalExecutionResult,
+      status: legacyStatus,
+      executionStatus,
+      runId: runId ?? undefined,
+      errorMessage:
+        executionErrorMessage ??
+        results.error?.message ??
+        externalExecutionResult.errorMessage,
+      columns: resultsData?.columns ?? externalExecutionResult.columns,
+      rows: (resultsData?.rows ?? externalExecutionResult.rows) as Record<
+        string,
+        string | number | boolean | null
+      >[],
+      totalRows: resultsData?.totalRows ?? externalExecutionResult.totalRows,
+      currentPage: resultsData?.page ?? currentPage,
+      pageSize: resultsData?.pageSize ?? externalExecutionResult.pageSize,
+    };
+  }, [
+    externalExecutionResult,
+    executionStatus,
+    runId,
+    executionErrorMessage,
+    results.data,
+    results.error,
+    currentPage,
+  ]);
 
   // Dirty State & BeforeUnload
   useEffect(() => {
@@ -283,13 +343,26 @@ export function EditorWorkspace({
     setIsResultsOpen((prev) => !prev);
   };
 
-  const handleRunRequest = () => {
+  const handleRunRequest = useCallback(() => {
+    if (isRunning) {
+      return;
+    }
     if (hasBlockingDiagnostics) {
       setIsRunBlockedOpen(true);
       return;
     }
-    onRun?.("temp");
-  };
+    void execute(activeTab.content, activeTab.name);
+  }, [
+    isRunning,
+    hasBlockingDiagnostics,
+    execute,
+    activeTab.content,
+    activeTab.name,
+  ]);
+
+  const handleCancel = useCallback(() => {
+    void cancel();
+  }, [cancel]);
 
   const handleResultsResizeStart = (
     event: ReactPointerEvent<HTMLDivElement>,
@@ -333,6 +406,7 @@ export function EditorWorkspace({
 
   const isIdle = executionResult.status === "idle";
   const shouldShowResultsPane = !isIdle || isResultsOpen;
+  const isRunDisabled = hasBlockingDiagnostics || isRunning;
 
   return (
     <Tooltip.Provider delayDuration={400}>
@@ -384,20 +458,28 @@ export function EditorWorkspace({
                     <span
                       className={cn(
                         "inline-flex",
-                        hasBlockingDiagnostics && "cursor-not-allowed",
+                        isRunDisabled && "cursor-not-allowed",
                       )}
                     >
                       <button
                         onClick={handleRunRequest}
-                        disabled={hasBlockingDiagnostics}
+                        disabled={isRunDisabled}
+                        data-testid="run-button"
                         className={cn(
                           "flex items-center gap-2 bg-success text-success-foreground h-8 px-4 rounded-l-md text-xs font-bold transition-all shadow-lg shadow-success/20 active:scale-95",
-                          hasBlockingDiagnostics
+                          isRunDisabled
                             ? "opacity-60 cursor-not-allowed shadow-none"
                             : "hover:brightness-110",
                         )}
                       >
-                        <Play size={16} weight="Bold" />
+                        {isRunning ? (
+                          <span
+                            className="h-4 w-4 animate-spin rounded-full border-2 border-success-foreground border-t-transparent"
+                            data-testid="run-spinner"
+                          />
+                        ) : (
+                          <Play size={16} weight="Bold" />
+                        )}
                         RUN
                       </button>
                     </span>
@@ -416,11 +498,11 @@ export function EditorWorkspace({
                 <button
                   className={cn(
                     "h-8 px-2 bg-success brightness-90 text-success-foreground border-l border-black/10 rounded-r-md active:scale-95",
-                    hasBlockingDiagnostics
+                    isRunDisabled
                       ? "opacity-60 cursor-not-allowed"
                       : "hover:brightness-100",
                   )}
-                  disabled={hasBlockingDiagnostics}
+                  disabled={isRunDisabled}
                 >
                   <MenuDots size={14} weight="Bold" />
                 </button>
@@ -684,7 +766,11 @@ export function EditorWorkspace({
                   <div className="flex-1 min-h-0">
                     <ResultsPane
                       result={executionResult}
-                      onPageChange={onPageChange}
+                      onPageChange={(page) => {
+                        setPage(page);
+                        onPageChange?.(page);
+                      }}
+                      onCancel={handleCancel}
                       onViewInContactBuilder={() => {
                         const subscriberKey =
                           executionResult.rows[0]?.SubscriberKey;

@@ -50,6 +50,8 @@ export function createRedisStub() {
     incr: vi.fn().mockResolvedValue(1),
     decr: vi.fn().mockResolvedValue(0),
     expire: vi.fn().mockResolvedValue(1),
+    get: vi.fn().mockResolvedValue(null),
+    set: vi.fn().mockResolvedValue('OK'),
   };
 }
 
@@ -66,5 +68,15 @@ export function createMetricsStub() {
 export function createRlsContextStub() {
   return {
     runWithTenantContext: vi.fn().mockImplementation(async (_t, _m, cb) => cb()),
+    runWithUserContext: vi.fn().mockImplementation(async (_t, _m, _u, cb) => cb()),
+  };
+}
+
+// BullMQ Queue stub
+export function createQueueStub() {
+  return {
+    add: vi.fn().mockResolvedValue({ id: 'poll-job-1' }),
+    getJob: vi.fn().mockResolvedValue(null),
+    remove: vi.fn().mockResolvedValue(undefined),
   };
 }

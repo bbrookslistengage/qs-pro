@@ -25,6 +25,13 @@ interface QueryDefinitionIds {
   definitionId: string;
 }
 
+function normalizeTableName(name: string): string {
+  if (name.startsWith("[") && name.endsWith("]")) {
+    return name.slice(1, -1);
+  }
+  return name;
+}
+
 @Injectable()
 export class RunToTempFlow implements IFlowStrategy {
   private readonly logger = new Logger(RunToTempFlow.name);
@@ -44,7 +51,7 @@ export class RunToTempFlow implements IFlowStrategy {
     publishStatus?: StatusPublisher,
   ): Promise<FlowResult> {
     const { runId, tenantId, userId, mid, sqlText, snippetName } = job;
-    const hash = runId.substring(0, 4);
+    const hash = runId.substring(0, 8);
     const deName = snippetName
       ? `QPP_${snippetName.replace(/\s+/g, "_")}_${hash}`
       : `QPP_Results_${hash}`;
@@ -67,7 +74,9 @@ export class RunToTempFlow implements IFlowStrategy {
 
     if (containsSelectStar(sqlText)) {
       expandedSql = await expandSelectStar(sqlText, metadataFetcher);
-      this.logger.debug(`Expanded SELECT * query: ${expandedSql}`);
+      this.logger.debug(
+        `Expanded SELECT * query (length=${expandedSql.length})`,
+      );
     }
 
     const inferredSchema = await inferSchema(expandedSql, metadataFetcher);
@@ -162,66 +171,82 @@ export class RunToTempFlow implements IFlowStrategy {
   }
 
   private createMetadataFetcher(job: ShellQueryJob): MetadataFetcher {
-    const { tenantId, userId, mid } = job;
-
     return {
       getFieldsForTable: async (
         tableName: string,
       ): Promise<FieldDefinition[] | null> => {
-        try {
-          const soap = `
-            <RetrieveRequestMsg xmlns="http://exacttarget.com/wsdl/partnerAPI">
-               <RetrieveRequest>
-                  <ObjectType>DataExtensionField</ObjectType>
-                  <Properties>Name</Properties>
-                  <Properties>FieldType</Properties>
-                  <Properties>MaxLength</Properties>
-                  <Filter xsi:type="ComplexFilterPart">
-                     <LeftOperand xsi:type="SimpleFilterPart">
-                        <Property>DataExtension.Name</Property>
-                        <SimpleOperator>equals</SimpleOperator>
-                        <Value>${this.escapeXml(tableName)}</Value>
-                     </LeftOperand>
-                     <LogicalOperator>OR</LogicalOperator>
-                     <RightOperand xsi:type="SimpleFilterPart">
-                        <Property>DataExtension.CustomerKey</Property>
-                        <SimpleOperator>equals</SimpleOperator>
-                        <Value>${this.escapeXml(tableName)}</Value>
-                     </RightOperand>
-                  </Filter>
-               </RetrieveRequest>
-            </RetrieveRequestMsg>`;
+        const normalizedName = normalizeTableName(tableName);
+        const provided =
+          job.tableMetadata?.[tableName] ?? job.tableMetadata?.[normalizedName];
 
-          const response =
-            await this.mceBridge.soapRequest<SoapRetrieveResponse>(
-              tenantId,
-              userId,
-              mid,
-              soap,
-              "Retrieve",
-            );
-
-          const results = response.Body?.RetrieveResponseMsg?.Results;
-          if (!results) {
-            return null;
-          }
-
-          const fieldResults = Array.isArray(results) ? results : [results];
-          return fieldResults.map(
-            (f): FieldDefinition => ({
-              Name: String(f.Name ?? ""),
-              FieldType: String(f.FieldType ?? "Text"),
-              MaxLength: f.MaxLength ? parseInt(String(f.MaxLength), 10) : 254,
-            }),
-          );
-        } catch (error) {
-          this.logger.warn(
-            `Failed to fetch metadata for table ${tableName}: ${(error as Error).message}`,
-          );
-          return null;
+        if (provided && provided.length > 0) {
+          this.logger.debug(`Using provided metadata for ${tableName}`);
+          return provided;
         }
+
+        this.logger.debug(`Fetching metadata from MCE for ${tableName}`);
+        return this.fetchMetadataFromMce(job, tableName);
       },
     };
+  }
+
+  private async fetchMetadataFromMce(
+    job: ShellQueryJob,
+    tableName: string,
+  ): Promise<FieldDefinition[] | null> {
+    const { tenantId, userId, mid } = job;
+
+    try {
+      const soap = `
+        <RetrieveRequestMsg xmlns="http://exacttarget.com/wsdl/partnerAPI">
+           <RetrieveRequest>
+              <ObjectType>DataExtensionField</ObjectType>
+              <Properties>Name</Properties>
+              <Properties>FieldType</Properties>
+              <Properties>MaxLength</Properties>
+              <Filter xsi:type="ComplexFilterPart">
+                 <LeftOperand xsi:type="SimpleFilterPart">
+                    <Property>DataExtension.Name</Property>
+                    <SimpleOperator>equals</SimpleOperator>
+                    <Value>${this.escapeXml(tableName)}</Value>
+                 </LeftOperand>
+                 <LogicalOperator>OR</LogicalOperator>
+                 <RightOperand xsi:type="SimpleFilterPart">
+                    <Property>DataExtension.CustomerKey</Property>
+                    <SimpleOperator>equals</SimpleOperator>
+                    <Value>${this.escapeXml(tableName)}</Value>
+                 </RightOperand>
+              </Filter>
+           </RetrieveRequest>
+        </RetrieveRequestMsg>`;
+
+      const response = await this.mceBridge.soapRequest<SoapRetrieveResponse>(
+        tenantId,
+        userId,
+        mid,
+        soap,
+        "Retrieve",
+      );
+
+      const results = response.Body?.RetrieveResponseMsg?.Results;
+      if (!results) {
+        return null;
+      }
+
+      const fieldResults = Array.isArray(results) ? results : [results];
+      return fieldResults.map(
+        (f): FieldDefinition => ({
+          Name: String(f.Name ?? ""),
+          FieldType: String(f.FieldType ?? "Text"),
+          MaxLength: f.MaxLength ? parseInt(String(f.MaxLength), 10) : 254,
+        }),
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Failed to fetch metadata for table ${tableName}: ${(error as Error).message}`,
+      );
+      return null;
+    }
   }
 
   private escapeXml(str: string): string {
@@ -464,19 +489,9 @@ export class RunToTempFlow implements IFlowStrategy {
 
   private buildFieldsXml(schema: ColumnDefinition[]): string {
     if (schema.length === 0) {
-      return `
-        <Field>
-           <Name>_QPP_ID</Name>
-           <FieldType>Text</FieldType>
-           <MaxLength>50</MaxLength>
-           <IsPrimaryKey>true</IsPrimaryKey>
-           <IsRequired>true</IsRequired>
-        </Field>
-        <Field>
-           <Name>Data</Name>
-           <FieldType>Text</FieldType>
-           <MaxLength>4000</MaxLength>
-        </Field>`;
+      throw new Error(
+        "Internal error: schema inference returned empty array. This should not happen.",
+      );
     }
 
     return schema

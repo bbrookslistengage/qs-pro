@@ -101,6 +101,9 @@ export function EditorWorkspace({
     isRunning,
     runId,
     errorMessage: executionErrorMessage,
+    results,
+    currentPage,
+    setPage,
   } = useQueryExecution();
 
   // Tab Management - ensure tabs array is never empty
@@ -199,15 +202,35 @@ export function EditorWorkspace({
             ? "idle"
             : "running";
 
+    const resultsData = results.data;
+
     return {
       ...externalExecutionResult,
       status: legacyStatus,
       executionStatus,
       runId: runId ?? undefined,
       errorMessage:
-        executionErrorMessage ?? externalExecutionResult.errorMessage,
+        executionErrorMessage ??
+        results.error?.message ??
+        externalExecutionResult.errorMessage,
+      columns: resultsData?.columns ?? externalExecutionResult.columns,
+      rows: (resultsData?.rows ?? externalExecutionResult.rows) as Record<
+        string,
+        string | number | boolean | null
+      >[],
+      totalRows: resultsData?.totalRows ?? externalExecutionResult.totalRows,
+      currentPage: resultsData?.page ?? currentPage,
+      pageSize: resultsData?.pageSize ?? externalExecutionResult.pageSize,
     };
-  }, [externalExecutionResult, executionStatus, runId, executionErrorMessage]);
+  }, [
+    externalExecutionResult,
+    executionStatus,
+    runId,
+    executionErrorMessage,
+    results.data,
+    results.error,
+    currentPage,
+  ]);
 
   // Dirty State & BeforeUnload
   useEffect(() => {
@@ -746,7 +769,10 @@ export function EditorWorkspace({
                   <div className="flex-1 min-h-0">
                     <ResultsPane
                       result={executionResult}
-                      onPageChange={onPageChange}
+                      onPageChange={(page) => {
+                        setPage(page);
+                        onPageChange?.(page);
+                      }}
                       onCancel={handleCancel}
                       onViewInContactBuilder={() => {
                         const subscriberKey =

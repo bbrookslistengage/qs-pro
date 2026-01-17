@@ -1,7 +1,14 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import api from "@/services/api";
+
+import {
+  runResultsQueryKeys,
+  type RunResultsResponse,
+  useRunResults,
+} from "./use-run-results";
 
 export type QueryExecutionStatus =
   | "idle"
@@ -22,6 +29,13 @@ interface SSEEvent {
   runId: string;
 }
 
+interface QueryResults {
+  data: RunResultsResponse | null;
+  isLoading: boolean;
+  error: Error | null;
+  refetch: () => Promise<unknown>;
+}
+
 interface UseQueryExecutionResult {
   execute: (sqlText: string, snippetName?: string) => Promise<void>;
   cancel: () => Promise<void>;
@@ -29,6 +43,9 @@ interface UseQueryExecutionResult {
   isRunning: boolean;
   runId: string | null;
   errorMessage: string | null;
+  results: QueryResults;
+  currentPage: number;
+  setPage: (page: number) => void;
 }
 
 const TERMINAL_STATES: QueryExecutionStatus[] = [
@@ -44,10 +61,18 @@ function isTerminalState(status: QueryExecutionStatus): boolean {
 }
 
 export function useQueryExecution(): UseQueryExecutionResult {
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState<QueryExecutionStatus>("idle");
   const [runId, setRunId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const eventSourceRef = useRef<EventSource | null>(null);
+
+  const resultsQuery = useRunResults({
+    runId,
+    page: currentPage,
+    enabled: status === "ready",
+  });
 
   const closeEventSource = useCallback(() => {
     if (eventSourceRef.current) {
@@ -105,6 +130,14 @@ export function useQueryExecution(): UseQueryExecutionResult {
 
   const execute = useCallback(
     async (sqlText: string, snippetName?: string): Promise<void> => {
+      setCurrentPage(1);
+      if (runId) {
+        queryClient.removeQueries({
+          queryKey: runResultsQueryKeys.all,
+          predicate: (query) => query.queryKey[1] === runId,
+        });
+      }
+
       try {
         const response = await api.post<{
           runId: string;
@@ -138,7 +171,7 @@ export function useQueryExecution(): UseQueryExecutionResult {
         throw error;
       }
     },
-    [subscribeToSSE],
+    [subscribeToSSE, runId, queryClient],
   );
 
   const cancel = useCallback(async (): Promise<void> => {
@@ -215,6 +248,17 @@ export function useQueryExecution(): UseQueryExecutionResult {
     };
   }, [closeEventSource]);
 
+  const setPage = useCallback((page: number) => {
+    setCurrentPage(page);
+  }, []);
+
+  const results: QueryResults = {
+    data: resultsQuery.data ?? null,
+    isLoading: resultsQuery.isLoading,
+    error: resultsQuery.error,
+    refetch: resultsQuery.refetch,
+  };
+
   return {
     execute,
     cancel,
@@ -222,5 +266,8 @@ export function useQueryExecution(): UseQueryExecutionResult {
     isRunning,
     runId,
     errorMessage,
+    results,
+    currentPage,
+    setPage,
   };
 }

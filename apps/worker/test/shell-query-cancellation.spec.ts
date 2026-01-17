@@ -142,14 +142,14 @@ describe('Shell Query Cancellation & Sweeper', () => {
   });
 
   describe('Sweeper', () => {
-    it('should query QPP folder and delete old QueryDefinitions', async () => {
+    it('should use stored qppFolderId and delete old QueryDefinitions', async () => {
       let queryCount = 0;
       mockDb.select = vi.fn(() => ({
         from: vi.fn(() => ({
           where: vi.fn(() => {
             queryCount++;
             if (queryCount === 1) {
-              return [{ tenantId: 't1', mid: 'm1' }];
+              return [{ tenantId: 't1', mid: 'm1', qppFolderId: 123 }];
             }
             return {
               limit: vi.fn(() => [{ userId: 'u1' }]),
@@ -159,7 +159,6 @@ describe('Shell Query Cancellation & Sweeper', () => {
       }));
 
       mockMceBridge.soapRequest
-        .mockResolvedValueOnce({ Body: { RetrieveResponseMsg: { Results: { ID: 'folder-123' } } } })
         .mockResolvedValueOnce({
           Body: { RetrieveResponseMsg: { Results: [
             { CustomerKey: 'QPP_Query_old-run-1', Name: 'QPP_Query_old-run-1' },
@@ -176,14 +175,14 @@ describe('Shell Query Cancellation & Sweeper', () => {
       );
     });
 
-    it('should handle empty folder gracefully', async () => {
+    it('should handle no QueryDefinitions gracefully', async () => {
       let queryCount = 0;
       mockDb.select = vi.fn(() => ({
         from: vi.fn(() => ({
           where: vi.fn(() => {
             queryCount++;
             if (queryCount === 1) {
-              return [{ tenantId: 't1', mid: 'm1' }];
+              return [{ tenantId: 't1', mid: 'm1', qppFolderId: 123 }];
             }
             return {
               limit: vi.fn(() => [{ userId: 'u1' }]),

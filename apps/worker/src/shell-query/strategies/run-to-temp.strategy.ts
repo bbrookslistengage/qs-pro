@@ -1,6 +1,11 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { MceBridgeService, RlsContextService } from "@qs-pro/backend-shared";
-import { and, eq, type PostgresJsDatabase, tenantSettings } from "@qs-pro/database";
+import {
+  and,
+  eq,
+  type PostgresJsDatabase,
+  tenantSettings,
+} from "@qs-pro/database";
 
 import { MceQueryValidator } from "../mce-query-validator";
 import {
@@ -348,7 +353,8 @@ export class RunToTempFlow implements IFlowStrategy {
             rootFolderSoap,
             "Retrieve",
           );
-        const rootResults = rootFolderResponse.Body?.RetrieveResponseMsg?.Results;
+        const rootResults =
+          rootFolderResponse.Body?.RetrieveResponseMsg?.Results;
         const rootFolder = Array.isArray(rootResults)
           ? rootResults[0]
           : rootResults;

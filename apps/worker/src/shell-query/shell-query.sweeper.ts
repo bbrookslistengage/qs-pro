@@ -34,13 +34,18 @@ export class ShellQuerySweeper {
       .select({
         tenantId: tenantSettings.tenantId,
         mid: tenantSettings.mid,
+        qppFolderId: tenantSettings.qppFolderId,
       })
       .from(tenantSettings)
       .where(isNotNull(tenantSettings.qppFolderId));
 
     for (const setting of activeSettings) {
       try {
-        await this.sweepTenantMid(setting.tenantId, setting.mid);
+        await this.sweepTenantMid(
+          setting.tenantId,
+          setting.mid,
+          setting.qppFolderId!,
+        );
       } catch (e: unknown) {
         const err = e as { message?: string };
         this.logger.error(
@@ -52,14 +57,12 @@ export class ShellQuerySweeper {
     this.logger.log("Shell query asset sweep completed.");
   }
 
-  /**
-   * Sweeps stale assets for a specific tenant/mid combination.
-   * Runs within RLS context to properly access credentials.
-   */
-  private async sweepTenantMid(tenantId: string, mid: string): Promise<void> {
-    // Run within RLS context to access credentials securely
+  private async sweepTenantMid(
+    tenantId: string,
+    mid: string,
+    folderId: number,
+  ): Promise<void> {
     await this.rlsContext.runWithTenantContext(tenantId, mid, async () => {
-      // Get a valid userId from credentials for this tenant/mid
       const creds = await this.db
         .select({ userId: credentials.userId })
         .from(credentials)
@@ -77,53 +80,16 @@ export class ShellQuerySweeper {
         return;
       }
 
-      const userId = firstCred.userId;
-      await this.performSweep(tenantId, userId, mid);
+      await this.performSweep(tenantId, firstCred.userId, mid, folderId);
     });
   }
 
-  /**
-   * Performs the actual sweep operations for a tenant/mid.
-   * Must be called within RLS context.
-   */
   private async performSweep(
     tenantId: string,
     userId: string,
     mid: string,
+    folderId: number,
   ): Promise<void> {
-    const searchSoap = `
-      <RetrieveRequestMsg xmlns="http://exacttarget.com/wsdl/partnerAPI">
-         <RetrieveRequest>
-            <ObjectType>DataFolder</ObjectType>
-            <Properties>ID</Properties>
-            <Filter xsi:type="SimpleFilterPart">
-               <Property>Name</Property>
-               <SimpleOperator>equals</SimpleOperator>
-               <Value>QueryPlusPlus Results</Value>
-            </Filter>
-         </RetrieveRequest>
-      </RetrieveRequestMsg>`;
-
-    const searchResponse =
-      await this.mceBridge.soapRequest<SoapRetrieveResponse>(
-        tenantId,
-        userId,
-        mid,
-        searchSoap,
-        "Retrieve",
-      );
-    const results = searchResponse.Body?.RetrieveResponseMsg?.Results;
-    if (!results) {
-      return;
-    }
-
-    const folder = Array.isArray(results) ? results[0] : results;
-    if (!folder?.ID) {
-      return;
-    }
-
-    const folderId = folder.ID;
-
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
     const querySoap = `
@@ -156,15 +122,17 @@ export class ShellQuerySweeper {
         querySoap,
         "Retrieve",
       );
-    const queries = queriesResponse.Body?.RetrieveResponseMsg?.Results;
+    const results = queriesResponse.Body?.RetrieveResponseMsg?.Results;
+    if (!results) {
+      return;
+    }
 
-    if (queries && Array.isArray(queries)) {
-      for (const q of queries) {
-        if (!q.CustomerKey) {
-          continue;
-        }
-        await this.deleteQueryDefinition(tenantId, userId, mid, q.CustomerKey);
+    const queries = Array.isArray(results) ? results : [results];
+    for (const q of queries) {
+      if (!q.CustomerKey) {
+        continue;
       }
+      await this.deleteQueryDefinition(tenantId, userId, mid, q.CustomerKey);
     }
   }
 

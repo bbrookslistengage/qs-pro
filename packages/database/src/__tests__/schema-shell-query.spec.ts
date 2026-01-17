@@ -115,6 +115,46 @@ describe("Shell Query Engine Schema", () => {
     expect(updated.startedAt).toBeDefined();
   });
 
+  it("should persist queryDefinitionId and pollStartedAt", async () => {
+    const [run] = await db
+      .insert(shellQueryRuns)
+      .values({
+        tenantId,
+        userId,
+        mid: "123456",
+        sqlTextHash: "hash_for_query_definition",
+        status: "queued",
+      })
+      .returning();
+    if (!run) {
+      throw new Error("Insert failed");
+    }
+
+    const pollStartedAt = new Date();
+    const queryDefinitionId = "test-query-definition-object-id";
+
+    const [updated] = await db
+      .update(shellQueryRuns)
+      .set({
+        queryDefinitionId,
+        pollStartedAt,
+      })
+      .where(eq(shellQueryRuns.id, run.id))
+      .returning();
+    if (!updated) {
+      throw new Error("Update failed");
+    }
+
+    expect(updated.queryDefinitionId).toBe(queryDefinitionId);
+    expect(updated.pollStartedAt).toBeInstanceOf(Date);
+    if (updated.pollStartedAt === null) {
+      throw new Error("pollStartedAt should not be null");
+    }
+    expect(
+      Math.abs(updated.pollStartedAt.getTime() - pollStartedAt.getTime()),
+    ).toBeLessThan(1000);
+  });
+
   it("should upsert tenant settings with qppFolderId", async () => {
     const mid = "123456";
     const folderId = 987654321;

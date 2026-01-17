@@ -50,6 +50,13 @@
       "when": 1767921752592,
       "tag": "0006_rls_tenant_feature_overrides",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1768578419426,
+      "tag": "0007_long_lionheart",
+      "breakpoints": true
     }
   ]
 }

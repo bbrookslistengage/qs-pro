@@ -114,6 +114,8 @@ export const shellQueryRuns = pgTable(
       .default("queued")
       .notNull(),
     taskId: varchar("task_id"),
+    queryDefinitionId: varchar("query_definition_id"),
+    pollStartedAt: timestamp("poll_started_at"),
     errorMessage: text("error_message"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     startedAt: timestamp("started_at"),

@@ -2,6 +2,8 @@
  * SOAP response types for MCE API calls
  */
 
+import type { TableMetadata } from "@qs-pro/shared-types";
+
 /** Generic retrieve response result structure */
 interface RetrieveResult {
   ID?: string;
@@ -96,6 +98,7 @@ export interface ShellQueryJob {
   eid: string;
   sqlText: string;
   snippetName?: string;
+  tableMetadata?: TableMetadata;
 }
 
 export interface PollShellQueryJob {

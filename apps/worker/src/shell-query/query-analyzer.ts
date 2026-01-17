@@ -132,6 +132,27 @@ function hasSelectStar(columns: SelectColumnWithExpr[] | undefined): boolean {
   return false;
 }
 
+function hasUnqualifiedSelectStar(
+  columns: SelectColumnWithExpr[] | undefined,
+): boolean {
+  if (!columns) {
+    return false;
+  }
+
+  for (const col of columns) {
+    if (
+      col.expr &&
+      col.expr.type === "column_ref" &&
+      col.expr.column === "*" &&
+      !col.expr.table
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function getStarTablePrefix(
   columns: SelectColumnWithExpr[] | undefined,
 ): string | null {
@@ -170,10 +191,10 @@ async function getFieldsForTable(
     }));
   }
 
-  const fields = await metadataFn.getFieldsForTable(normalized);
+  const fields = await metadataFn.getFieldsForTable(effectiveTableName);
   if (!fields) {
     throw new SelectStarExpansionError(
-      `Unable to expand SELECT *. Metadata unavailable for table ${normalized}. Try listing columns explicitly.`,
+      `Unable to expand SELECT *. Metadata unavailable for table ${effectiveTableName}. Try listing columns explicitly.`,
     );
   }
 
@@ -252,6 +273,13 @@ export async function expandSelectStar(
     }
 
     const starTablePrefix = getStarTablePrefix(stmt.columns);
+
+    if (hasUnqualifiedSelectStar(stmt.columns) && tables.length > 1) {
+      throw new SelectStarExpansionError(
+        `SELECT * with multiple tables is ambiguous. Use table.* (e.g., ${tables[0]}.* ) or list columns explicitly.`,
+      );
+    }
+
     let targetTable: string;
 
     if (starTablePrefix) {

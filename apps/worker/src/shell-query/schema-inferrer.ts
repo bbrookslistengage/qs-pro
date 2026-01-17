@@ -18,6 +18,13 @@ import {
   isSystemDataView,
 } from "./system-data-views";
 
+export class SchemaInferenceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SchemaInferenceError";
+  }
+}
+
 const parser = new Parser();
 const DIALECT = "transactsql";
 
@@ -489,8 +496,8 @@ async function lookupFieldType(
     return null;
   }
 
-  // Try metadata fetcher
-  const fields = await metadataFn.getFieldsForTable(normalizedTable);
+  // Try metadata fetcher - use effectiveTableName (with ENT. prefix stripped)
+  const fields = await metadataFn.getFieldsForTable(effectiveTableName);
   if (fields) {
     const field = fields.find(
       (f: FieldDefinition) => f.Name.toLowerCase() === columnName.toLowerCase(),
@@ -569,8 +576,9 @@ export async function inferSchema(
       | AstStatement
       | AstStatement[];
   } catch {
-    // If parsing fails, return empty schema - caller should handle this
-    return [];
+    throw new SchemaInferenceError(
+      "Could not parse query to infer output columns. Use explicit column names instead of SELECT *.",
+    );
   }
 
   const statements = Array.isArray(ast) ? ast : [ast];
@@ -650,6 +658,12 @@ export async function inferSchema(
 
       columns.push(applyFieldPropertyMapping(colDef));
     }
+  }
+
+  if (columns.length === 0) {
+    throw new SchemaInferenceError(
+      "Could not determine output columns. Use explicit column names in your SELECT statement.",
+    );
   }
 
   return columns;

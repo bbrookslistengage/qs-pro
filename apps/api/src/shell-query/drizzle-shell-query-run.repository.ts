@@ -63,6 +63,7 @@ export class DrizzleShellQueryRunRepository implements ShellQueryRunRepository {
             and(
               eq(shellQueryRuns.id, runId),
               eq(shellQueryRuns.tenantId, tenantId),
+              eq(shellQueryRuns.mid, mid),
               eq(shellQueryRuns.userId, userId),
             ),
           );
@@ -89,6 +90,8 @@ export class DrizzleShellQueryRunRepository implements ShellQueryRunRepository {
           .where(
             and(
               eq(shellQueryRuns.id, runId),
+              eq(shellQueryRuns.tenantId, tenantId),
+              eq(shellQueryRuns.mid, mid),
               eq(shellQueryRuns.userId, userId),
             ),
           );
@@ -111,6 +114,8 @@ export class DrizzleShellQueryRunRepository implements ShellQueryRunRepository {
           .from(shellQueryRuns)
           .where(
             and(
+              eq(shellQueryRuns.tenantId, tenantId),
+              eq(shellQueryRuns.mid, mid),
               eq(shellQueryRuns.userId, userId),
               notInArray(shellQueryRuns.status, [
                 'ready',

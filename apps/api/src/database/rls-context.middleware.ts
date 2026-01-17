@@ -1,4 +1,4 @@
-import { Inject, Injectable, NestMiddleware } from '@nestjs/common';
+import { Inject, Injectable, Logger, NestMiddleware } from '@nestjs/common';
 import { createDatabaseFromClient } from '@qs-pro/database';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
@@ -10,6 +10,8 @@ type SecureSession = {
 
 @Injectable()
 export class RlsContextMiddleware implements NestMiddleware {
+  private readonly logger = new Logger(RlsContextMiddleware.name);
+
   constructor(@Inject('SQL_CLIENT') private readonly sql: any) {}
 
   private makeDrizzleCompatibleSql(reserved: any): any {
@@ -83,8 +85,9 @@ export class RlsContextMiddleware implements NestMiddleware {
       try {
         await reserved`RESET app.tenant_id`;
         await reserved`RESET app.mid`;
-      } catch {
-        // ignore
+        await reserved`RESET app.user_id`;
+      } catch (err) {
+        this.logger.warn('Failed to reset RLS context variables', err);
       }
       await reserved.release();
     };
@@ -96,6 +99,6 @@ export class RlsContextMiddleware implements NestMiddleware {
     const db = createDatabaseFromClient(
       this.makeDrizzleCompatibleSql(reserved),
     );
-    runWithDbContext(db, next);
+    runWithDbContext(db, next, reserved);
   }
 }

@@ -74,4 +74,44 @@ export class RlsContextService {
       reserved.release();
     }
   }
+
+  async runWithUserContext<T>(
+    tenantId: string,
+    mid: string,
+    userId: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const existing = getDbFromContext();
+    if (existing) {
+      return fn();
+    }
+
+    const reserved = await this.sql.reserve();
+    try {
+      await reserved`SELECT set_config('app.tenant_id', ${tenantId}, false)`;
+      await reserved`SELECT set_config('app.mid', ${mid}, false)`;
+      await reserved`SELECT set_config('app.user_id', ${userId}, false)`;
+
+      const db = createDatabaseFromClient(
+        this.makeDrizzleCompatibleSql(reserved),
+      );
+
+      return await runWithDbContext(db, fn);
+    } catch (error) {
+      this.logger.error(
+        "Failed to run with user context",
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw error;
+    } finally {
+      try {
+        await reserved`RESET app.tenant_id`;
+        await reserved`RESET app.mid`;
+        await reserved`RESET app.user_id`;
+      } catch {
+        // Best-effort cleanup
+      }
+      reserved.release();
+    }
+  }
 }

@@ -57,6 +57,13 @@
       "when": 1768578419426,
       "tag": "0007_long_lionheart",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1768616186470,
+      "tag": "0008_rls_shell_query_runs",
+      "breakpoints": true
     }
   ]
 }

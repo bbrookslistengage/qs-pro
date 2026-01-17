@@ -26,3 +26,10 @@ export {
   TenantFeaturesSchema,
   TIER_FEATURES,
 } from "./features.js";
+
+// Shell query types
+export type {
+  CreateRunRequest,
+  FieldDefinition,
+  TableMetadata,
+} from "./shell-query.js";

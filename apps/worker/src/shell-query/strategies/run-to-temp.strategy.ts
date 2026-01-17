@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { MceBridgeService, RlsContextService } from "@qs-pro/backend-shared";
-import { and, eq, tenantSettings } from "@qs-pro/database";
+import { and, eq, type PostgresJsDatabase, tenantSettings } from "@qs-pro/database";
 
 import { MceQueryValidator } from "../mce-query-validator";
 import {
@@ -47,11 +47,9 @@ export class RunToTempFlow implements IFlowStrategy {
   constructor(
     private readonly mceBridge: MceBridgeService,
     private readonly queryValidator: MceQueryValidator,
-    // TODO: Wrap DB operations with rlsContext.runWithTenantContext for RLS consistency
-    // @ts-expect-error Intentionally kept for future RLS implementation
     private readonly rlsContext: RlsContextService,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    @Inject("DATABASE") private readonly db: any,
+    @Inject("DATABASE")
+    private readonly db: PostgresJsDatabase<Record<string, never>>,
   ) {}
 
   async execute(
@@ -272,21 +270,25 @@ export class RunToTempFlow implements IFlowStrategy {
     userId: string,
     mid: string,
   ): Promise<number> {
-    const settings = await this.db
-      .select()
-      .from(tenantSettings)
-      .where(
-        and(eq(tenantSettings.tenantId, tenantId), eq(tenantSettings.mid, mid)),
-      );
+    return this.rlsContext.runWithTenantContext(tenantId, mid, async () => {
+      const settings = await this.db
+        .select()
+        .from(tenantSettings)
+        .where(
+          and(
+            eq(tenantSettings.tenantId, tenantId),
+            eq(tenantSettings.mid, mid),
+          ),
+        );
 
-    if (settings[0]?.qppFolderId) {
-      return settings[0].qppFolderId;
-    }
+      if (settings[0]?.qppFolderId) {
+        return settings[0].qppFolderId;
+      }
 
-    const searchSoap = `
-      <RetrieveRequestMsg xmlns="http://exacttarget.com/wsdl/partnerAPI">
-         <RetrieveRequest>
-            <ObjectType>DataFolder</ObjectType>
+      const searchSoap = `
+	      <RetrieveRequestMsg xmlns="http://exacttarget.com/wsdl/partnerAPI">
+	         <RetrieveRequest>
+	            <ObjectType>DataFolder</ObjectType>
             <Properties>ID</Properties>
             <Properties>Name</Properties>
             <Filter xsi:type="SimpleFilterPart">
@@ -297,29 +299,29 @@ export class RunToTempFlow implements IFlowStrategy {
          </RetrieveRequest>
       </RetrieveRequestMsg>`;
 
-    const searchResponse =
-      await this.mceBridge.soapRequest<SoapRetrieveResponse>(
-        tenantId,
-        userId,
-        mid,
-        searchSoap,
-        "Retrieve",
-      );
-    const results = searchResponse.Body?.RetrieveResponseMsg?.Results;
+      const searchResponse =
+        await this.mceBridge.soapRequest<SoapRetrieveResponse>(
+          tenantId,
+          userId,
+          mid,
+          searchSoap,
+          "Retrieve",
+        );
+      const results = searchResponse.Body?.RetrieveResponseMsg?.Results;
 
-    let folderId: number;
+      let folderId: number;
 
-    if (results && (Array.isArray(results) ? results.length > 0 : true)) {
-      const folder = Array.isArray(results) ? results[0] : results;
-      if (!folder?.ID) {
-        throw new Error("Folder ID not found in retrieve response");
-      }
-      folderId = parseInt(folder.ID, 10);
-    } else {
-      const rootFolderSoap = `
-        <RetrieveRequestMsg xmlns="http://exacttarget.com/wsdl/partnerAPI">
-           <RetrieveRequest>
-              <ObjectType>DataFolder</ObjectType>
+      if (results && (Array.isArray(results) ? results.length > 0 : true)) {
+        const folder = Array.isArray(results) ? results[0] : results;
+        if (!folder?.ID) {
+          throw new Error("Folder ID not found in retrieve response");
+        }
+        folderId = parseInt(folder.ID, 10);
+      } else {
+        const rootFolderSoap = `
+	        <RetrieveRequestMsg xmlns="http://exacttarget.com/wsdl/partnerAPI">
+	           <RetrieveRequest>
+	              <ObjectType>DataFolder</ObjectType>
               <Properties>ID</Properties>
               <Properties>Name</Properties>
               <Filter xsi:type="ComplexFilterPart">
@@ -338,73 +340,74 @@ export class RunToTempFlow implements IFlowStrategy {
            </RetrieveRequest>
         </RetrieveRequestMsg>`;
 
-      const rootFolderResponse =
-        await this.mceBridge.soapRequest<SoapRetrieveResponse>(
+        const rootFolderResponse =
+          await this.mceBridge.soapRequest<SoapRetrieveResponse>(
+            tenantId,
+            userId,
+            mid,
+            rootFolderSoap,
+            "Retrieve",
+          );
+        const rootResults = rootFolderResponse.Body?.RetrieveResponseMsg?.Results;
+        const rootFolder = Array.isArray(rootResults)
+          ? rootResults[0]
+          : rootResults;
+
+        if (!rootFolder?.ID) {
+          throw new Error(
+            "Could not find root Data Extensions folder. Please ensure the folder exists in Marketing Cloud.",
+          );
+        }
+
+        const parentFolderId = parseInt(rootFolder.ID, 10);
+
+        const createSoap = `
+	        <CreateRequest xmlns="http://exacttarget.com/wsdl/partnerAPI">
+	           <Objects xsi:type="DataFolder">
+	              <Name>QueryPlusPlus Results</Name>
+	              <CustomerKey>${this.escapeXml(`QueryPlusPlus_Results_${mid}`)}</CustomerKey>
+	              <Description>Temporary storage for Query++ results</Description>
+	              <ContentType>dataextension</ContentType>
+	              <ParentFolder>
+	                 <ID>${parentFolderId}</ID>
+	              </ParentFolder>
+	           </Objects>
+	        </CreateRequest>`;
+
+        const createResponse =
+          await this.mceBridge.soapRequest<SoapCreateResponse>(
+            tenantId,
+            userId,
+            mid,
+            createSoap,
+            "Create",
+          );
+        const createResult = createResponse.Body?.CreateResponse?.Results;
+        if (!createResult || createResult.StatusCode !== "OK") {
+          throw new Error(
+            `Failed to create results folder: ${createResult?.StatusMessage ?? "Unknown error"}`,
+          );
+        }
+        if (!createResult.NewID) {
+          throw new Error("NewID not returned from folder creation");
+        }
+        folderId = parseInt(createResult.NewID, 10);
+      }
+
+      await this.db
+        .insert(tenantSettings)
+        .values({
           tenantId,
-          userId,
           mid,
-          rootFolderSoap,
-          "Retrieve",
-        );
-      const rootResults = rootFolderResponse.Body?.RetrieveResponseMsg?.Results;
-      const rootFolder = Array.isArray(rootResults)
-        ? rootResults[0]
-        : rootResults;
+          qppFolderId: folderId,
+        })
+        .onConflictDoUpdate({
+          target: [tenantSettings.tenantId, tenantSettings.mid],
+          set: { qppFolderId: folderId },
+        });
 
-      if (!rootFolder?.ID) {
-        throw new Error(
-          "Could not find root Data Extensions folder. Please ensure the folder exists in Marketing Cloud.",
-        );
-      }
-
-      const parentFolderId = parseInt(rootFolder.ID, 10);
-
-      const createSoap = `
-        <CreateRequest xmlns="http://exacttarget.com/wsdl/partnerAPI">
-           <Objects xsi:type="DataFolder">
-              <Name>QueryPlusPlus Results</Name>
-              <CustomerKey>QueryPlusPlus_Results_${mid}</CustomerKey>
-              <Description>Temporary storage for Query++ results</Description>
-              <ContentType>dataextension</ContentType>
-              <ParentFolder>
-                 <ID>${parentFolderId}</ID>
-              </ParentFolder>
-           </Objects>
-        </CreateRequest>`;
-
-      const createResponse =
-        await this.mceBridge.soapRequest<SoapCreateResponse>(
-          tenantId,
-          userId,
-          mid,
-          createSoap,
-          "Create",
-        );
-      const createResult = createResponse.Body?.CreateResponse?.Results;
-      if (!createResult || createResult.StatusCode !== "OK") {
-        throw new Error(
-          `Failed to create results folder: ${createResult?.StatusMessage ?? "Unknown error"}`,
-        );
-      }
-      if (!createResult.NewID) {
-        throw new Error("NewID not returned from folder creation");
-      }
-      folderId = parseInt(createResult.NewID, 10);
-    }
-
-    await this.db
-      .insert(tenantSettings)
-      .values({
-        tenantId,
-        mid,
-        qppFolderId: folderId,
-      })
-      .onConflictDoUpdate({
-        target: [tenantSettings.tenantId, tenantSettings.mid],
-        set: { qppFolderId: folderId },
-      });
-
-    return folderId;
+      return folderId;
+    });
   }
 
   private async createTempDe(
@@ -572,6 +575,7 @@ export class RunToTempFlow implements IFlowStrategy {
     folderId: number,
   ): Promise<QueryDefinitionIds> {
     const { tenantId, userId, mid } = job;
+    const escapedKey = this.escapeXml(key);
     const escapedSql = this.escapeXml(sql);
     const escapedDeName = this.escapeXml(deName);
 
@@ -580,8 +584,8 @@ export class RunToTempFlow implements IFlowStrategy {
     const soap = `
       <CreateRequest xmlns="http://exacttarget.com/wsdl/partnerAPI">
          <Objects xsi:type="QueryDefinition">
-            <Name>${key}</Name>
-            <CustomerKey>${key}</CustomerKey>
+            <Name>${escapedKey}</Name>
+            <CustomerKey>${escapedKey}</CustomerKey>
             <Description>Query++ execution ${job.runId}</Description>
             <QueryText>${escapedSql}</QueryText>
             <TargetType>DE</TargetType>

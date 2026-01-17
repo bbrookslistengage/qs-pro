@@ -6,6 +6,7 @@ import {
   credentials,
   eq,
   isNotNull,
+  type PostgresJsDatabase,
   tenantSettings,
 } from "@qs-pro/database";
 
@@ -18,8 +19,8 @@ export class ShellQuerySweeper {
   constructor(
     private readonly mceBridge: MceBridgeService,
     private readonly rlsContext: RlsContextService,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    @Inject("DATABASE") private readonly db: any,
+    @Inject("DATABASE")
+    private readonly db: PostgresJsDatabase<Record<string, never>>,
   ) {}
 
   @Cron(CronExpression.EVERY_HOUR)
@@ -67,14 +68,16 @@ export class ShellQuerySweeper {
         )
         .limit(1);
 
-      if (!creds.length || !creds[0].userId) {
+      const firstCred = creds[0];
+
+      if (!firstCred?.userId) {
         this.logger.debug(
           `No credentials found for tenant ${tenantId} MID ${mid}, skipping sweep`,
         );
         return;
       }
 
-      const userId = creds[0].userId;
+      const userId = firstCred.userId;
       await this.performSweep(tenantId, userId, mid);
     });
   }
@@ -174,7 +177,7 @@ export class ShellQuerySweeper {
     const soap = `
       <DeleteRequest xmlns="http://exacttarget.com/wsdl/partnerAPI">
          <Objects xsi:type="QueryDefinition">
-            <CustomerKey>${customerKey}</CustomerKey>
+            <CustomerKey>${this.escapeXml(customerKey)}</CustomerKey>
          </Objects>
       </DeleteRequest>`;
 
@@ -184,5 +187,14 @@ export class ShellQuerySweeper {
     } catch {
       // Ignore failures during sweep - asset may already be deleted
     }
+  }
+
+  private escapeXml(str: string): string {
+    return str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
   }
 }

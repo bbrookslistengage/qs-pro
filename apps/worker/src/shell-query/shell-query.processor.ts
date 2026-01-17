@@ -1,7 +1,12 @@
 import { InjectQueue, Processor, WorkerHost } from "@nestjs/bullmq";
 import { Inject, Logger } from "@nestjs/common";
 import { MceBridgeService, RlsContextService } from "@qs-pro/backend-shared";
-import { eq, shellQueryRuns } from "@qs-pro/database";
+import {
+  eq,
+  type PostgresJsDatabase,
+  shellQueryRuns,
+  type ShellQueryRunStatus,
+} from "@qs-pro/database";
 import { DelayedError, Job, Queue, UnrecoverableError } from "bullmq";
 import * as crypto from "crypto";
 
@@ -47,8 +52,8 @@ export class ShellQueryProcessor extends WorkerHost {
     private readonly runToTempFlow: RunToTempFlow,
     private readonly rlsContext: RlsContextService,
     private readonly mceBridge: MceBridgeService,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    @Inject("DATABASE") private readonly db: any,
+    @Inject("DATABASE")
+    private readonly db: PostgresJsDatabase<Record<string, never>>,
     @Inject("REDIS_CLIENT") private readonly redis: unknown,
     @Inject("METRICS_JOBS_TOTAL") private readonly metricsJobsTotal: unknown,
     // @ts-expect-error Kept for future observability
@@ -91,6 +96,25 @@ export class ShellQueryProcessor extends WorkerHost {
       },
       "ShellQueryProcessor",
     );
+
+    const alreadyCanceled = await this.rlsContext.runWithUserContext(
+      tenantId,
+      mid,
+      userId,
+      async () => {
+        const currentRun = await this.db
+          .select()
+          .from(shellQueryRuns)
+          .where(eq(shellQueryRuns.id, runId));
+        return currentRun[0]?.status === "canceled";
+      },
+    );
+
+    if (alreadyCanceled) {
+      this.logger.log(`Run ${runId} was canceled before execution started`);
+      await this.publishStatusEvent(runId, "canceled");
+      return { status: "canceled", runId };
+    }
 
     (this.metricsActiveJobs as { inc: () => void }).inc();
 
@@ -967,7 +991,7 @@ export class ShellQueryProcessor extends WorkerHost {
     userId: string,
     mid: string,
     runId: string,
-    status: string,
+    status: ShellQueryRunStatus,
     extra: Record<string, unknown> = {},
   ) {
     await this.rlsContext.runWithUserContext(

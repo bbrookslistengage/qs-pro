@@ -489,6 +489,9 @@ importers:
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
+      unplugin-swc:
+        specifier: ^1.5.9
+        version: 1.5.9(@swc/core@1.15.8)(rollup@4.54.0)
       vitest:
         specifier: ^3.0.0
         version: 3.2.4(@types/node@22.19.3)(jsdom@27.4.0)(lightningcss@1.30.2)(msw@2.12.7(@types/node@22.19.3)(typescript@5.9.3))(terser@5.44.1)

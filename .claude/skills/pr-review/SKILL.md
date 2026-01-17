@@ -9,24 +9,50 @@ description: Perform a thorough code review of a pull request. Use this skill wh
 - When the user provides a GitHub PR URL (e.g., `https://github.com/org/repo/pull/123`)
 - When the user provides a PR number (e.g., "review PR #5", "look at pull request 42")
 - When running `gh pr view`, `gh pr diff`, or other `gh pr` commands
-- When evaluating code diffs for bugs, logic errors, or issues
-- When checking if changes follow TypeScript strict mode (no `any` types)
-- When verifying proper error handling and null/undefined checks
-- When assessing test coverage for changed functionality
-- When checking commit message format follows Conventional Commits
-- When evaluating security implications of code changes
-- When verifying changes follow the AppExchange Security Review Checklist
-- When checking for hardcoded secrets, SQL injection, XSS, or OWASP vulnerabilities
-- When reviewing authentication, session handling, or OAuth token changes
-- When evaluating API endpoint changes for proper authorization and input validation
-- When checking frontend changes for security issues (eval, innerHTML, localStorage secrets)
-- When verifying RLS context is set for database operations
-- When providing structured feedback with approve/request-changes/comment verdicts
 - When the user wants to submit a review using `gh pr review`
 
 # PR Review Prompt
 
 Use this prompt to review a pull request. Replace `{PR_URL}` with the actual PR URL.
+
+---
+
+## Review Philosophy
+
+**CRITICAL:** Your goal is to catch real bugs and security issues, NOT to find something wrong with every PR. If the code is solid, say so. An empty "Issues Found" section is a valid and expected outcome for well-written code.
+
+### Priority Order (flag these)
+
+1. **Security vulnerabilities** - injection, auth bypass, data exposure, secrets
+2. **Logic bugs** - code that will produce incorrect behavior
+3. **Edge cases** - unhandled scenarios that will crash or corrupt data
+4. **Missing tests** - changed behavior without test coverage
+
+### Do NOT Flag
+
+- Style preferences unless they violate explicit CLAUDE.md conventions
+- Theoretical issues without concrete, demonstrable impact
+- Things that "could be better" but work correctly
+- Naming opinions unless the name is actively misleading
+- Minor formatting inconsistencies
+- "Consider adding..." suggestions without clear value
+
+### Before Including Any Issue, Ask Yourself
+
+1. Could this cause incorrect behavior or a security vulnerability?
+2. Is there genuine ambiguity or a real bug, or am I speculating?
+3. Would a senior engineer at this company flag this in a real review?
+
+**Flag if ANY answer is "yes" or "uncertain."**
+
+### When In Doubt, Flag It
+
+If you're uncertain whether something is a real issue:
+- Flag it as "Medium" or "Clarification Needed" (not Critical)
+- Phrase as a question: "Is X intended to handle Y case?"
+- Let the author confirm or clarify
+
+Err toward flagging genuine concerns, not toward silence. But do not manufacture issues.
 
 ---
 
@@ -36,81 +62,31 @@ You are performing a code review for this pull request: `{PR_URL}`
 
 ### Step 1: Gather Context
 
-1. Fetch the PR details using `gh pr view {PR_URL} --json title,body,files,additions,deletions,commits`
+1. Fetch PR details: `gh pr view {PR_URL} --json title,body,files,additions,deletions,commits`
 2. Get the diff: `gh pr diff {PR_URL}`
-3. Review the project's CLAUDE.md for coding conventions
+3. Review CLAUDE.md for project conventions
 
-### Step 2: Review Checklist
+### Step 2: Focused Review Checklist
 
-Evaluate the PR against these criteria:
+**Must Check (every PR):**
 
-**Code Quality**
-- [ ] Code is readable and self-documenting
-- [ ] No unnecessary complexity or over-engineering
-- [ ] Follows DRY principles without premature abstraction
-- [ ] Proper error handling where appropriate
+- [ ] Does this introduce a security vulnerability? (injection, auth bypass, data exposure, hardcoded secrets)
+- [ ] Is there a logic bug that will cause wrong behavior?
+- [ ] Are there unhandled edge cases that could crash or corrupt data?
+- [ ] Does changed behavior have test coverage?
 
-**TypeScript/JavaScript**
-- [ ] No `any` types (strict mode compliance)
-- [ ] Proper null/undefined handling
-- [ ] Unused variables removed or prefixed with `_`
-- [ ] Imports use `@` alias for src paths
+**Check If PR Touches These Areas:**
 
-**Testing**
-- [ ] Tests cover the changed functionality
-- [ ] Tests follow Arrange-Act-Assert pattern
-- [ ] No flaky or timing-dependent tests
+| Area | Key Concerns | Checklist Reference |
+|------|--------------|---------------------|
+| Auth/Session | OAuth tokens server-side only, secure cookie flags, token refresh error handling | §6, §7 |
+| Database | RLS context set, parameterized queries, no SQL concatenation | §5, §11 |
+| API Endpoints | Input validation (Zod), authorization on every request, no IDOR | §5, §9 |
+| Frontend | No eval()/innerHTML with user data, no secrets in localStorage | §10 |
+| MCE Calls | XML/SOAP values escaped, no data persistence (zero-data proxy) | §7, §9 |
+| Logging | No secrets/PII in logs | §12 |
 
-**Security (Reference: [AppExchange Security Review Checklist](../../../docs/security-review-materials/APPEXCHANGE-SECURITY-REVIEW-CHECKLIST.md))**
-
-*Basic Checks (All PRs)*
-- [ ] No hardcoded secrets or credentials (§4, §15)
-- [ ] Input validation at system boundaries (§5, §9)
-- [ ] No SQL injection, XSS, or other OWASP vulnerabilities (§5, §15)
-
-*Authentication & Session (§6, §7) - If PR touches auth/session code*
-- [ ] OAuth tokens stored securely (refresh tokens server-side only)
-- [ ] Session cookies have Secure, HttpOnly, SameSite=None flags
-- [ ] Token refresh flow handles failures gracefully
-
-*Access Control (§5) - If PR touches API endpoints or data access*
-- [ ] Authorization checked on every request (not just UI)
-- [ ] RLS context set for all database operations
-- [ ] No IDOR vulnerabilities (user owns requested resources)
-- [ ] Principle of least privilege followed
-
-*Data Protection (§8) - If PR handles sensitive data*
-- [ ] Zero-data proxy pattern maintained (no MCE data persisted)
-- [ ] No customer data in logs (masked if needed)
-- [ ] Encryption used for sensitive data at rest
-
-*API Security (§9) - If PR adds/modifies API endpoints*
-- [ ] Zod validation on all request inputs
-- [ ] Rate limiting considered for new endpoints
-- [ ] CSRF tokens required for state-changing operations
-- [ ] Generic error messages (no stack traces to clients)
-- [ ] SSRF prevention for outbound requests (host allowlist)
-
-*Frontend Security (§10) - If PR modifies frontend code*
-- [ ] No eval() or innerHTML with user data
-- [ ] No sensitive data in localStorage
-- [ ] CSP-compatible (no inline scripts/styles without nonces)
-- [ ] Cookie handling follows SameSite=None requirements
-
-*Injection Prevention (§5, §15) - If PR touches database/MCE calls*
-- [ ] Parameterized queries (no string concatenation in SQL)
-- [ ] XML/SOAP values properly escaped for MCE calls
-- [ ] User input sanitized before use
-
-*Logging (§12) - If PR adds logging*
-- [ ] No secrets/tokens/PII in log output
-- [ ] Correlation IDs included for traceability
-- [ ] Access control failures logged
-
-**Project Conventions**
-- [ ] Follows commit message format (Conventional Commits)
-- [ ] File organization matches project structure
-- [ ] State management follows guidelines (useState → Zustand → TanStack Query)
+**Reference:** [AppExchange Security Review Checklist](../../../docs/security-review-materials/APPEXCHANGE-SECURITY-REVIEW-CHECKLIST.md)
 
 ### Step 3: Provide Feedback
 
@@ -118,38 +94,63 @@ Structure your review as:
 
 ```markdown
 ## Summary
+
 Brief overview of what the PR accomplishes and overall assessment.
 
 ## Strengths
-What the PR does well.
+
+What the PR does well. (Skip if nothing notable stands out.)
 
 ## Issues Found
-### Critical (must fix)
-- Issue description with file:line reference
 
-### Suggestions (nice to have)
-- Improvement suggestion with rationale
+### Critical (must fix before merge)
+
+- **[file:line]** Issue description
+  - **Impact:** What breaks / what's exposed / who's affected
+  - **Confidence:** High
+  - **Fix:** Concrete suggestion
+
+### Medium (should fix)
+
+- **[file:line]** Issue description
+  - **Impact:** Explanation of real-world consequence
+  - **Confidence:** High/Medium
+  - **Fix:** Concrete suggestion
+
+*(If no issues found, write: "No issues found. Code looks solid.")*
+
+### Suggestions (truly optional)
+
+Only include if you can articulate concrete value. Limit to 1-2 max.
+
+- **[file:line]** Suggestion with clear rationale
 
 ## Questions
-Any clarifications needed from the author.
+
+Clarifications needed from the author. (Skip if none.)
 
 ## Verdict
-- [ ] Approve
-- [ ] Request Changes
-- [ ] Comment Only
+
+**Approve** / **Request Changes** / **Comment Only**
 ```
 
 ### Step 4: Submit Review
 
-Use `gh pr review {PR_URL} --approve/--request-changes/--comment --body "..."` to submit.
+```bash
+gh pr review {PR_URL} --approve --body "..."
+gh pr review {PR_URL} --request-changes --body "..."
+gh pr review {PR_URL} --comment --body "..."
+```
 
 ---
 
-## Example Usage
+## Valid Review Outcomes
 
-```bash
-# Review PR #5
-gh pr view 5 --json title,body,files
-gh pr diff 5
-# Then provide structured feedback
-```
+These are all legitimate results of a good review:
+
+- "No critical issues found. Code looks solid." → **Approve**
+- "One security concern worth addressing, otherwise good." → **Request Changes**
+- "Minor suggestions only, nothing blocking." → **Approve** with comments
+- Zero issues, zero suggestions → **Approve**
+
+Do not manufacture feedback to appear thorough. Silence on an issue means it passed review.

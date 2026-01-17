@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, NestMiddleware } from '@nestjs/common';
 import { createDatabaseFromClient } from '@qs-pro/database';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { Sql } from 'postgres';
 
 import { getDbFromContext, runWithDbContext } from './db-context';
 
@@ -12,31 +13,29 @@ type SecureSession = {
 export class RlsContextMiddleware implements NestMiddleware {
   private readonly logger = new Logger(RlsContextMiddleware.name);
 
-  constructor(@Inject('SQL_CLIENT') private readonly sql: any) {}
+  constructor(@Inject('SQL_CLIENT') private readonly sql: Sql) {}
 
-  private makeDrizzleCompatibleSql(reserved: any): any {
-    // postgres.js `reserve()` returns a Sql tag function without `.options`, but
-    // drizzle-orm's postgres-js driver expects `client.options.parsers` to exist.
-    // Copy the base client options/parameters onto the reserved Sql tag.
-    if (!reserved || typeof reserved !== 'function') {
-      return reserved;
-    }
+  private makeDrizzleCompatibleSql(reserved: Sql): Sql {
+    const reservedWithMeta = reserved as Sql & {
+      options: Sql['options'];
+      parameters: Sql['parameters'];
+    };
 
-    if (!('options' in reserved)) {
-      Object.defineProperty(reserved, 'options', {
-        value: this.sql?.options,
+    if (!('options' in reservedWithMeta)) {
+      Object.defineProperty(reservedWithMeta, 'options', {
+        value: this.sql.options,
         enumerable: false,
       });
     }
 
-    if (!('parameters' in reserved)) {
-      Object.defineProperty(reserved, 'parameters', {
-        value: this.sql?.parameters,
+    if (!('parameters' in reservedWithMeta)) {
+      Object.defineProperty(reservedWithMeta, 'parameters', {
+        value: this.sql.parameters,
         enumerable: false,
       });
     }
 
-    return reserved;
+    return reservedWithMeta;
   }
 
   use(
@@ -72,7 +71,7 @@ export class RlsContextMiddleware implements NestMiddleware {
       await reserved`SELECT set_config('app.tenant_id', ${tenantId}, false)`;
       await reserved`SELECT set_config('app.mid', ${mid}, false)`;
     } catch (error) {
-      await reserved.release();
+      reserved.release();
       throw error;
     }
 
@@ -89,7 +88,7 @@ export class RlsContextMiddleware implements NestMiddleware {
       } catch (err) {
         this.logger.warn('Failed to reset RLS context variables', err);
       }
-      await reserved.release();
+      reserved.release();
     };
 
     res.raw.once('finish', () => void cleanup());

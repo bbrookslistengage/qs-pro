@@ -201,13 +201,24 @@ async function getFieldsForTable(
   return fields;
 }
 
+function needsBracketQuoting(name: string): boolean {
+  return /[\s[\]]/.test(name);
+}
+
+function bracketQuote(name: string): string {
+  const escaped = name.replace(/\]/g, "]]");
+  return `[${escaped}]`;
+}
+
 function buildExpandedColumnList(
   fields: FieldDefinition[],
   tableAlias: string | null,
 ): string {
   return fields
     .map((f) => {
-      const colName = f.Name.includes(" ") ? `[${f.Name}]` : f.Name;
+      const colName = needsBracketQuoting(f.Name)
+        ? bracketQuote(f.Name)
+        : f.Name;
       return tableAlias ? `${tableAlias}.${colName}` : colName;
     })
     .join(", ");
@@ -313,6 +324,20 @@ export async function expandSelectStar(
   return result;
 }
 
+function fallbackContainsSelectStar(sqlText: string): boolean {
+  const upper = sqlText.toUpperCase();
+  const selectIdx = upper.indexOf("SELECT");
+  if (selectIdx === -1) {
+    return false;
+  }
+  const fromIdx = upper.indexOf("FROM", selectIdx);
+  if (fromIdx === -1) {
+    return false;
+  }
+  const between = sqlText.slice(selectIdx + 6, fromIdx);
+  return between.includes("*");
+}
+
 export function containsSelectStar(sqlText: string): boolean {
   try {
     const ast = parser.astify(sqlText, { database: DIALECT }) as unknown as
@@ -326,8 +351,7 @@ export function containsSelectStar(sqlText: string): boolean {
       }
     }
   } catch {
-    // If parse fails, do a simple regex check
-    return /\bSELECT\s+(\w+\.)?\*\s+FROM\b/i.test(sqlText);
+    return fallbackContainsSelectStar(sqlText);
   }
 
   return false;

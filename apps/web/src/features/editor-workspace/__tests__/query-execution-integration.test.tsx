@@ -1,10 +1,13 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
+import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAuthStore } from "@/store/auth-store";
 import { server } from "@/test/mocks/server";
+import { createTenantStub, createUserStub } from "@/test/stubs";
 
 import { useQueryExecution } from "../hooks/use-query-execution";
 
@@ -66,6 +69,26 @@ class MockEventSource {
 describe("Query Execution Integration Tests", () => {
   const mockSessionStorage = new Map<string, string>();
 
+  const createQueryClient = () => {
+    return new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
+      },
+    });
+  };
+
+  const createWrapper = (queryClient: QueryClient) => {
+    return function Wrapper({ children }: { children: ReactNode }) {
+      return (
+        <QueryClientProvider client={queryClient}>
+          {children}
+        </QueryClientProvider>
+      );
+    };
+  };
+
   beforeEach(() => {
     MockEventSource.reset();
     mockToastError.mockClear();
@@ -80,8 +103,8 @@ describe("Query Execution Integration Tests", () => {
     });
 
     useAuthStore.setState({
-      user: { id: "user-1", email: "test@example.com", name: "Test User" },
-      tenant: { id: "tenant-1", name: "Test Org", mid: "mid-1" },
+      user: createUserStub(),
+      tenant: createTenantStub(),
       csrfToken: "csrf-test-token-123",
       isAuthenticated: true,
     });
@@ -104,9 +127,21 @@ describe("Query Execution Integration Tests", () => {
             { status: 201 },
           );
         }),
+        http.get("/api/runs/run-e2e-123/results", () => {
+          return HttpResponse.json({
+            columns: ["email"],
+            rows: [{ email: "test@test.com" }],
+            totalRows: 1,
+            page: 1,
+            pageSize: 50,
+          });
+        }),
       );
 
-      const { result } = renderHook(() => useQueryExecution());
+      const queryClient = createQueryClient();
+      const { result } = renderHook(() => useQueryExecution(), {
+        wrapper: createWrapper(queryClient),
+      });
 
       expect(result.current.status).toBe("idle");
       expect(result.current.isRunning).toBe(false);
@@ -148,6 +183,83 @@ describe("Query Execution Integration Tests", () => {
       expect(result.current.status).toBe("ready");
       expect(eventSource.close).toHaveBeenCalled();
       expect(mockSessionStorage.get("activeRunId")).toBeUndefined();
+
+      await waitFor(() => {
+        expect(result.current.results.data).toEqual({
+          columns: ["email"],
+          rows: [{ email: "test@test.com" }],
+          totalRows: 1,
+          page: 1,
+          pageSize: 50,
+        });
+      });
+    });
+
+    it("refetches results when changing pages", async () => {
+      const requestedPages: string[] = [];
+
+      server.use(
+        http.post("/api/runs", () => {
+          return HttpResponse.json(
+            { runId: "run-page-123", status: "queued" },
+            { status: 201 },
+          );
+        }),
+        http.get("/api/runs/run-page-123/results", ({ request }) => {
+          const page = new URL(request.url).searchParams.get("page") ?? "1";
+          requestedPages.push(page);
+
+          if (page === "2") {
+            return HttpResponse.json({
+              columns: ["email"],
+              rows: [{ email: "page2@test.com" }],
+              totalRows: 2,
+              page: 2,
+              pageSize: 50,
+            });
+          }
+
+          return HttpResponse.json({
+            columns: ["email"],
+            rows: [{ email: "page1@test.com" }],
+            totalRows: 2,
+            page: 1,
+            pageSize: 50,
+          });
+        }),
+      );
+
+      const queryClient = createQueryClient();
+      const { result } = renderHook(() => useQueryExecution(), {
+        wrapper: createWrapper(queryClient),
+      });
+
+      await act(async () => {
+        await result.current.execute("SELECT * FROM _Subscribers", "Test");
+      });
+
+      const eventSource = MockEventSource.getLatest();
+      await act(async () => {
+        eventSource.simulateMessage({ status: "ready", message: "Done" });
+      });
+
+      await waitFor(() => {
+        expect(result.current.results.data?.rows[0]).toEqual({
+          email: "page1@test.com",
+        });
+      });
+
+      await act(async () => {
+        result.current.setPage(2);
+      });
+
+      await waitFor(() => {
+        expect(result.current.results.data?.rows[0]).toEqual({
+          email: "page2@test.com",
+        });
+      });
+
+      expect(requestedPages).toEqual(["1", "2"]);
     });
   });
 
@@ -168,7 +280,10 @@ describe("Query Execution Integration Tests", () => {
         }),
       );
 
-      const { result } = renderHook(() => useQueryExecution());
+      const queryClient = createQueryClient();
+      const { result } = renderHook(() => useQueryExecution(), {
+        wrapper: createWrapper(queryClient),
+      });
 
       await act(async () => {
         await result.current.execute("SELECT * FROM DE", "Test");
@@ -216,9 +331,21 @@ describe("Query Execution Integration Tests", () => {
             { status: 201 },
           );
         }),
+        http.get("/api/runs/run-retry/results", () => {
+          return HttpResponse.json({
+            columns: [],
+            rows: [],
+            totalRows: 0,
+            page: 1,
+            pageSize: 50,
+          });
+        }),
       );
 
-      const { result } = renderHook(() => useQueryExecution());
+      const queryClient = createQueryClient();
+      const { result } = renderHook(() => useQueryExecution(), {
+        wrapper: createWrapper(queryClient),
+      });
 
       await act(async () => {
         await result.current.execute("SELECT 1", "Test");
@@ -245,6 +372,10 @@ describe("Query Execution Integration Tests", () => {
 
       expect(result.current.status).toBe("ready");
       expect(result.current.isRunning).toBe(false);
+
+      await waitFor(() => {
+        expect(result.current.results.data?.totalRows).toBe(0);
+      });
     });
   });
 
@@ -262,7 +393,10 @@ describe("Query Execution Integration Tests", () => {
         }),
       );
 
-      const { result } = renderHook(() => useQueryExecution());
+      const queryClient = createQueryClient();
+      const { result } = renderHook(() => useQueryExecution(), {
+        wrapper: createWrapper(queryClient),
+      });
 
       await act(async () => {
         await result.current.execute("SELECT 1", "CSRF Test");
@@ -287,7 +421,10 @@ describe("Query Execution Integration Tests", () => {
         }),
       );
 
-      const { result } = renderHook(() => useQueryExecution());
+      const queryClient = createQueryClient();
+      const { result } = renderHook(() => useQueryExecution(), {
+        wrapper: createWrapper(queryClient),
+      });
 
       await act(async () => {
         await result.current.execute("SELECT 1", "Test");
@@ -312,7 +449,10 @@ describe("Query Execution Integration Tests", () => {
         }),
       );
 
-      const { result } = renderHook(() => useQueryExecution());
+      const queryClient = createQueryClient();
+      const { result } = renderHook(() => useQueryExecution(), {
+        wrapper: createWrapper(queryClient),
+      });
 
       await act(async () => {
         await result.current.execute("INVALID SQL", "Test");
@@ -346,9 +486,21 @@ describe("Query Execution Integration Tests", () => {
             status: "executing_query",
           });
         }),
+        http.get("/api/runs/run-reconnect-123/results", () => {
+          return HttpResponse.json({
+            columns: ["email"],
+            rows: [{ email: "reconnect@test.com" }],
+            totalRows: 1,
+            page: 1,
+            pageSize: 50,
+          });
+        }),
       );
 
-      const { result } = renderHook(() => useQueryExecution());
+      const queryClient = createQueryClient();
+      const { result } = renderHook(() => useQueryExecution(), {
+        wrapper: createWrapper(queryClient),
+      });
 
       await waitFor(() => {
         expect(result.current.runId).toBe("run-reconnect-123");
@@ -366,6 +518,12 @@ describe("Query Execution Integration Tests", () => {
 
       expect(result.current.status).toBe("ready");
       expect(result.current.isRunning).toBe(false);
+
+      await waitFor(() => {
+        expect(result.current.results.data?.rows[0]).toEqual({
+          email: "reconnect@test.com",
+        });
+      });
     });
 
     it("does not reconnect when sessionStorage runId is for completed run", async () => {
@@ -378,9 +536,21 @@ describe("Query Execution Integration Tests", () => {
             status: "ready",
           });
         }),
+        http.get("/api/runs/run-completed-123/results", () => {
+          return HttpResponse.json({
+            columns: [],
+            rows: [],
+            totalRows: 0,
+            page: 1,
+            pageSize: 50,
+          });
+        }),
       );
 
-      const { result } = renderHook(() => useQueryExecution());
+      const queryClient = createQueryClient();
+      const { result } = renderHook(() => useQueryExecution(), {
+        wrapper: createWrapper(queryClient),
+      });
 
       await waitFor(() => {
         expect(result.current.runId).toBe("run-completed-123");

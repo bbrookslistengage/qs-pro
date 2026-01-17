@@ -1,5 +1,8 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
+import type { ReactNode } from "react";
+import { createElement } from "react";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -65,6 +68,33 @@ class MockEventSource {
 describe("useQueryExecution", () => {
   const mockSessionStorage = new Map<string, string>();
 
+  const createQueryClient = () => {
+    return new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
+      },
+    });
+  };
+
+  const createWrapper = (queryClient: QueryClient) => {
+    return function Wrapper({ children }: { children: ReactNode }) {
+      return createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        children,
+      );
+    };
+  };
+
+  const renderUseQueryExecution = () => {
+    const queryClient = createQueryClient();
+    return renderHook(() => useQueryExecution(), {
+      wrapper: createWrapper(queryClient),
+    });
+  };
+
   beforeEach(() => {
     MockEventSource.reset();
     mockToastError.mockClear();
@@ -77,6 +107,18 @@ describe("useQueryExecution", () => {
         mockSessionStorage.set(key, value),
       removeItem: (key: string) => mockSessionStorage.delete(key),
     });
+
+    server.use(
+      http.get("/api/runs/:runId/results", () => {
+        return HttpResponse.json({
+          columns: [],
+          rows: [],
+          totalRows: 0,
+          page: 1,
+          pageSize: 50,
+        });
+      }),
+    );
   });
 
   afterEach(() => {
@@ -96,7 +138,7 @@ describe("useQueryExecution", () => {
       }),
     );
 
-    const { result } = renderHook(() => useQueryExecution());
+    const { result } = renderUseQueryExecution();
 
     await act(async () => {
       await result.current.execute("SELECT * FROM DE", "test-snippet");
@@ -120,7 +162,7 @@ describe("useQueryExecution", () => {
       }),
     );
 
-    const { result } = renderHook(() => useQueryExecution());
+    const { result } = renderUseQueryExecution();
 
     await act(async () => {
       await result.current.execute("SELECT * FROM DE");
@@ -141,7 +183,7 @@ describe("useQueryExecution", () => {
       }),
     );
 
-    const { result } = renderHook(() => useQueryExecution());
+    const { result } = renderUseQueryExecution();
 
     await act(async () => {
       await result.current.execute("SELECT * FROM DE");
@@ -186,7 +228,7 @@ describe("useQueryExecution", () => {
       }),
     );
 
-    const { result } = renderHook(() => useQueryExecution());
+    const { result } = renderUseQueryExecution();
 
     await act(async () => {
       await result.current.execute("SELECT * FROM DE");
@@ -210,7 +252,7 @@ describe("useQueryExecution", () => {
       }),
     );
 
-    const { result } = renderHook(() => useQueryExecution());
+    const { result } = renderUseQueryExecution();
 
     await act(async () => {
       await result.current.execute("SELECT * FROM DE");
@@ -239,7 +281,7 @@ describe("useQueryExecution", () => {
       }),
     );
 
-    const { result } = renderHook(() => useQueryExecution());
+    const { result } = renderUseQueryExecution();
 
     expect(result.current.isRunning).toBe(false);
 
@@ -277,7 +319,7 @@ describe("useQueryExecution", () => {
       }),
     );
 
-    const { result } = renderHook(() => useQueryExecution());
+    const { result } = renderUseQueryExecution();
 
     await act(async () => {
       await result.current.execute("SELECT * FROM DE");
@@ -300,7 +342,7 @@ describe("useQueryExecution", () => {
       }),
     );
 
-    const { result } = renderHook(() => useQueryExecution());
+    const { result } = renderUseQueryExecution();
 
     await act(async () => {
       await result.current.execute("SELECT * FROM DE");
@@ -337,7 +379,7 @@ describe("useQueryExecution", () => {
       }),
     );
 
-    const { result } = renderHook(() => useQueryExecution());
+    const { result } = renderUseQueryExecution();
 
     await act(async () => {
       await result.current.execute("SELECT * FROM DE");
@@ -358,7 +400,7 @@ describe("useQueryExecution", () => {
       }),
     );
 
-    const { result } = renderHook(() => useQueryExecution());
+    const { result } = renderUseQueryExecution();
 
     await waitFor(() => {
       expect(result.current.runId).toBe("existing-run-123");
@@ -379,7 +421,7 @@ describe("useQueryExecution", () => {
       }),
     );
 
-    const { result } = renderHook(() => useQueryExecution());
+    const { result } = renderUseQueryExecution();
 
     await waitFor(() => {
       expect(mockSessionStorage.get("activeRunId")).toBeUndefined();
@@ -399,7 +441,7 @@ describe("useQueryExecution", () => {
       }),
     );
 
-    const { result } = renderHook(() => useQueryExecution());
+    const { result } = renderUseQueryExecution();
 
     await act(async () => {
       await result.current.execute("SELECT * FROM DE");

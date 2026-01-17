@@ -66,6 +66,7 @@ export function createMetricsStub() {
 export function createRlsContextStub() {
   return {
     runWithTenantContext: vi.fn().mockImplementation(async (_t, _m, cb) => cb()),
+    runWithUserContext: vi.fn().mockImplementation(async (_t, _m, _u, cb) => cb()),
   };
 }
 

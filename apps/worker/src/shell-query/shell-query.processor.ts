@@ -71,7 +71,7 @@ export class ShellQueryProcessor extends WorkerHost {
   }
 
   private async handleExecute(job: Job<ShellQueryJob>): Promise<unknown> {
-    const { runId, tenantId, mid, sqlText } = job.data;
+    const { runId, tenantId, userId, mid, sqlText } = job.data;
     const startTime = Date.now();
     const sqlTextHash = crypto
       .createHash("sha256")
@@ -93,7 +93,7 @@ export class ShellQueryProcessor extends WorkerHost {
     (this.metricsActiveJobs as { inc: () => void }).inc();
 
     try {
-      await this.updateStatus(tenantId, mid, runId, "queued", {
+      await this.updateStatus(tenantId, userId, mid, runId, "queued", {
         startedAt: new Date(),
       });
       await this.publishStatusEvent(runId, "queued");
@@ -195,7 +195,7 @@ export class ShellQueryProcessor extends WorkerHost {
 
       const isTerminal = this.isTerminalError(error);
 
-      await this.updateStatus(tenantId, mid, runId, "failed", {
+      await this.updateStatus(tenantId, userId, mid, runId, "failed", {
         errorMessage: err.message || "Unknown error",
         completedAt: new Date(),
       });
@@ -259,6 +259,7 @@ export class ShellQueryProcessor extends WorkerHost {
       if (elapsed >= POLL_CONFIG.MAX_DURATION_MS) {
         await this.markFailed(
           tenantId,
+          userId,
           mid,
           runId,
           "Query timed out after 29 minutes",
@@ -270,7 +271,7 @@ export class ShellQueryProcessor extends WorkerHost {
       }
 
       if (job.data.pollCount >= POLL_CONFIG.MAX_POLL_COUNT) {
-        await this.markFailed(tenantId, mid, runId, "Poll budget exceeded");
+        await this.markFailed(tenantId, userId, mid, runId, "Poll budget exceeded");
         await this.rlsContext.runWithTenantContext(tenantId, mid, async () => {
           await this.cleanupAssetsForPoll(tenantId, userId, mid, runId);
         });
@@ -292,7 +293,7 @@ export class ShellQueryProcessor extends WorkerHost {
 
       if (hasError) {
         const errorMessage = pollResult.errorMsg || "MCE Query Execution Error";
-        await this.markFailed(tenantId, mid, runId, errorMessage);
+        await this.markFailed(tenantId, userId, mid, runId, errorMessage);
         await this.rlsContext.runWithTenantContext(tenantId, mid, async () => {
           await this.cleanupAssetsForPoll(tenantId, userId, mid, runId);
         });
@@ -334,7 +335,7 @@ export class ShellQueryProcessor extends WorkerHost {
           this.logger.log(
             `Run ${runId}: Row probe found rows (count=${probeResult.count}, items=${probeResult.itemsLength}), marking ready (fast-path)`,
           );
-          await this.markReady(tenantId, mid, runId);
+          await this.markReady(tenantId, userId, mid, runId);
           await this.rlsContext.runWithTenantContext(
             tenantId,
             mid,
@@ -521,6 +522,7 @@ export class ShellQueryProcessor extends WorkerHost {
       if (err.terminal) {
         await this.markFailed(
           tenantId,
+          userId,
           mid,
           runId,
           err.message || "Unknown error",
@@ -548,7 +550,7 @@ export class ShellQueryProcessor extends WorkerHost {
       this.logger.warn(
         `Run ${runId}: No targetDeName available, skipping rowset readiness check`,
       );
-      await this.markReady(tenantId, mid, runId);
+      await this.markReady(tenantId, userId, mid, runId);
       await this.rlsContext.runWithTenantContext(tenantId, mid, async () => {
         await this.cleanupAssetsForPoll(tenantId, userId, mid, runId);
       });
@@ -565,7 +567,7 @@ export class ShellQueryProcessor extends WorkerHost {
 
     if (isReady) {
       this.logger.log(`Run ${runId}: Rowset is ready, marking complete`);
-      await this.markReady(tenantId, mid, runId);
+      await this.markReady(tenantId, userId, mid, runId);
       await this.rlsContext.runWithTenantContext(tenantId, mid, async () => {
         await this.cleanupAssetsForPoll(tenantId, userId, mid, runId);
       });
@@ -577,7 +579,7 @@ export class ShellQueryProcessor extends WorkerHost {
     if (nextAttempt >= POLL_CONFIG.ROWSET_READY_MAX_ATTEMPTS) {
       const errorMessage = `Data Extension "${targetDeName}" not queryable after ${POLL_CONFIG.ROWSET_READY_MAX_ATTEMPTS} attempts`;
       this.logger.error(`Run ${runId}: ${errorMessage}`);
-      await this.markFailed(tenantId, mid, runId, errorMessage);
+      await this.markFailed(tenantId, userId, mid, runId, errorMessage);
       await this.rlsContext.runWithTenantContext(tenantId, mid, async () => {
         await this.cleanupAssetsForPoll(tenantId, userId, mid, runId);
       });
@@ -804,10 +806,15 @@ export class ShellQueryProcessor extends WorkerHost {
     }
   }
 
-  private async markReady(tenantId: string, mid: string, runId: string) {
+  private async markReady(
+    tenantId: string,
+    userId: string,
+    mid: string,
+    runId: string,
+  ) {
     this.logger.log(`Run ${runId} completed successfully`);
     await this.publishStatusEvent(runId, "fetching_results");
-    await this.updateStatus(tenantId, mid, runId, "ready", {
+    await this.updateStatus(tenantId, userId, mid, runId, "ready", {
       completedAt: new Date(),
     });
     await this.publishStatusEvent(runId, "ready");
@@ -818,12 +825,13 @@ export class ShellQueryProcessor extends WorkerHost {
 
   private async markFailed(
     tenantId: string,
+    userId: string,
     mid: string,
     runId: string,
     errorMessage: string,
   ) {
     this.logger.error(`Run ${runId} failed: ${errorMessage}`);
-    await this.updateStatus(tenantId, mid, runId, "failed", {
+    await this.updateStatus(tenantId, userId, mid, runId, "failed", {
       errorMessage,
       completedAt: new Date(),
     });
@@ -875,12 +883,13 @@ export class ShellQueryProcessor extends WorkerHost {
 
   private async updateStatus(
     tenantId: string,
+    userId: string,
     mid: string,
     runId: string,
     status: string,
     extra: Record<string, unknown> = {},
   ) {
-    await this.rlsContext.runWithTenantContext(tenantId, mid, async () => {
+    await this.rlsContext.runWithUserContext(tenantId, mid, userId, async () => {
       await this.db
         .update(shellQueryRuns)
         .set({ status, ...extra })

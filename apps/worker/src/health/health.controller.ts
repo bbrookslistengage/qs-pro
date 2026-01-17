@@ -13,14 +13,31 @@ export class HealthController {
 
   @Get()
   async check() {
-    const client = await this.shellQueryQueue.client;
-    const redisStatus = await client.ping();
-    // Simple DB check - if we can inject SQL_CLIENT it's likely connected,
-    // but a real query would be better. For now simple existence.
+    let redis = "down";
+    try {
+      const client = await Promise.race([
+        this.shellQueryQueue.client,
+        new Promise<null>((resolve) => {
+          setTimeout(() => resolve(null), 500);
+        }),
+      ]);
+
+      if (client) {
+        const redisStatus = await Promise.race([
+          client.ping(),
+          new Promise<string>((resolve) => {
+            setTimeout(() => resolve("TIMEOUT"), 500);
+          }),
+        ]);
+        redis = redisStatus === "PONG" ? "up" : "down";
+      }
+    } catch {
+      redis = "down";
+    }
 
     return {
       status: "ok",
-      redis: redisStatus === "PONG" ? "up" : "down",
+      redis,
       db: this.sqlClient ? "up" : "down",
       timestamp: new Date().toISOString(),
     };

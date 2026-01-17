@@ -20,6 +20,11 @@ import {
   StatusPublisher,
 } from "../shell-query.types";
 
+interface QueryDefinitionIds {
+  objectId: string;
+  definitionId: string;
+}
+
 @Injectable()
 export class RunToTempFlow implements IFlowStrategy {
   private readonly logger = new Logger(RunToTempFlow.name);
@@ -44,7 +49,6 @@ export class RunToTempFlow implements IFlowStrategy {
       ? `QPP_${snippetName.replace(/\s+/g, "_")}_${hash}`
       : `QPP_Results_${hash}`;
 
-    // 1. Validate query with MCE
     await publishStatus?.("validating_query");
     const validationResult = await this.queryValidator.validateQuery(sqlText, {
       tenantId,
@@ -58,7 +62,6 @@ export class RunToTempFlow implements IFlowStrategy {
       throw new MceValidationError(errorMessage);
     }
 
-    // 2. Expand SELECT * if needed and infer schema
     const metadataFetcher = this.createMetadataFetcher(job);
     let expandedSql = sqlText;
 
@@ -67,35 +70,95 @@ export class RunToTempFlow implements IFlowStrategy {
       this.logger.debug(`Expanded SELECT * query: ${expandedSql}`);
     }
 
-    // 3. Infer schema from expanded query
     const inferredSchema = await inferSchema(expandedSql, metadataFetcher);
-    this.logger.debug(`Inferred schema with ${inferredSchema.length} columns`);
+    this.logger.log(
+      `Inferred schema: ${JSON.stringify(inferredSchema.map((c) => ({ name: c.Name, type: c.FieldType })))}`,
+    );
 
-    // 4. Get or create QPP folder
     await publishStatus?.("creating_data_extension");
     const folderId = await this.ensureQppFolder(tenantId, userId, mid);
 
-    // 5. Create Temp DE with inferred schema
-    await this.createTempDe(job, deName, folderId, inferredSchema);
+    const deObjectId = await this.createTempDe(
+      job,
+      deName,
+      folderId,
+      inferredSchema,
+    );
 
-    // 6. Create Query Definition
     const queryCustomerKey = `QPP_Query_${runId}`;
-    await this.createQueryDefinition(
+    const queryIds = await this.createQueryDefinition(
       job,
       queryCustomerKey,
       expandedSql,
       deName,
+      deObjectId,
       folderId,
     );
 
-    // 7. Perform Start
     await publishStatus?.("executing_query");
-    const taskId = await this.performQuery(job, queryCustomerKey);
+    const taskId = await this.performQuery(job, queryIds.objectId);
 
     return {
       status: "ready",
       taskId,
+      queryDefinitionId: queryIds.definitionId,
+      queryCustomerKey,
+      targetDeName: deName,
     };
+  }
+
+  async retrieveQueryDefinitionObjectId(
+    tenantId: string,
+    userId: string,
+    mid: string,
+    customerKey: string,
+  ): Promise<string | null> {
+    const soap = `
+      <RetrieveRequestMsg xmlns="http://exacttarget.com/wsdl/partnerAPI">
+         <RetrieveRequest>
+            <ObjectType>QueryDefinition</ObjectType>
+            <Properties>ID</Properties>
+            <Properties>ObjectID</Properties>
+            <Properties>CustomerKey</Properties>
+            <Filter xsi:type="SimpleFilterPart">
+               <Property>CustomerKey</Property>
+               <SimpleOperator>equals</SimpleOperator>
+               <Value>${this.escapeXml(customerKey)}</Value>
+            </Filter>
+         </RetrieveRequest>
+      </RetrieveRequestMsg>`;
+
+    try {
+      const response = await this.mceBridge.soapRequest<SoapRetrieveResponse>(
+        tenantId,
+        userId,
+        mid,
+        soap,
+        "Retrieve",
+      );
+
+      const results = response.Body?.RetrieveResponseMsg?.Results;
+      if (!results) {
+        return null;
+      }
+
+      const queryDef = Array.isArray(results) ? results[0] : results;
+      const objectId = queryDef?.ObjectID;
+
+      if (objectId) {
+        this.logger.log(
+          `Retrieved QueryDefinition ObjectID ${objectId} for CustomerKey ${customerKey}`,
+        );
+        return objectId;
+      }
+
+      return null;
+    } catch (error) {
+      this.logger.warn(
+        `Failed to retrieve QueryDefinition ObjectID by CustomerKey ${customerKey}: ${(error as Error).message}`,
+      );
+      return null;
+    }
   }
 
   private createMetadataFetcher(job: ShellQueryJob): MetadataFetcher {
@@ -175,7 +238,6 @@ export class RunToTempFlow implements IFlowStrategy {
     userId: string,
     mid: string,
   ): Promise<number> {
-    // Check Cache
     const settings = await this.db
       .select()
       .from(tenantSettings)
@@ -187,7 +249,6 @@ export class RunToTempFlow implements IFlowStrategy {
       return settings[0].qppFolderId;
     }
 
-    // Search for existing folder named "QueryPlusPlus Results"
     const searchSoap = `
       <RetrieveRequestMsg xmlns="http://exacttarget.com/wsdl/partnerAPI">
          <RetrieveRequest>
@@ -221,16 +282,58 @@ export class RunToTempFlow implements IFlowStrategy {
       }
       folderId = parseInt(folder.ID, 10);
     } else {
-      // Create Folder
+      const rootFolderSoap = `
+        <RetrieveRequestMsg xmlns="http://exacttarget.com/wsdl/partnerAPI">
+           <RetrieveRequest>
+              <ObjectType>DataFolder</ObjectType>
+              <Properties>ID</Properties>
+              <Properties>Name</Properties>
+              <Filter xsi:type="ComplexFilterPart">
+                 <LeftOperand xsi:type="SimpleFilterPart">
+                    <Property>Name</Property>
+                    <SimpleOperator>equals</SimpleOperator>
+                    <Value>Data Extensions</Value>
+                 </LeftOperand>
+                 <LogicalOperator>AND</LogicalOperator>
+                 <RightOperand xsi:type="SimpleFilterPart">
+                    <Property>ContentType</Property>
+                    <SimpleOperator>equals</SimpleOperator>
+                    <Value>dataextension</Value>
+                 </RightOperand>
+              </Filter>
+           </RetrieveRequest>
+        </RetrieveRequestMsg>`;
+
+      const rootFolderResponse =
+        await this.mceBridge.soapRequest<SoapRetrieveResponse>(
+          tenantId,
+          userId,
+          mid,
+          rootFolderSoap,
+          "Retrieve",
+        );
+      const rootResults = rootFolderResponse.Body?.RetrieveResponseMsg?.Results;
+      const rootFolder = Array.isArray(rootResults)
+        ? rootResults[0]
+        : rootResults;
+
+      if (!rootFolder?.ID) {
+        throw new Error(
+          "Could not find root Data Extensions folder. Please ensure the folder exists in Marketing Cloud.",
+        );
+      }
+
+      const parentFolderId = parseInt(rootFolder.ID, 10);
+
       const createSoap = `
         <CreateRequest xmlns="http://exacttarget.com/wsdl/partnerAPI">
            <Objects xsi:type="DataFolder">
               <Name>QueryPlusPlus Results</Name>
-              <CustomerKey>QueryPlusPlus_Results</CustomerKey>
+              <CustomerKey>QueryPlusPlus_Results_${mid}</CustomerKey>
               <Description>Temporary storage for Query++ results</Description>
               <ContentType>dataextension</ContentType>
               <ParentFolder>
-                 <Name>Data Extensions</Name>
+                 <ID>${parentFolderId}</ID>
               </ParentFolder>
            </Objects>
         </CreateRequest>`;
@@ -255,7 +358,6 @@ export class RunToTempFlow implements IFlowStrategy {
       folderId = parseInt(createResult.NewID, 10);
     }
 
-    // Cache it
     await this.db
       .insert(tenantSettings)
       .values({
@@ -276,10 +378,11 @@ export class RunToTempFlow implements IFlowStrategy {
     deName: string,
     folderId: number,
     schema: ColumnDefinition[],
-  ) {
+  ): Promise<string> {
     const { tenantId, userId, mid } = job;
 
-    // Build field XML from inferred schema
+    await this.deleteDataExtensionIfExists(job, deName);
+
     const fieldsXml = this.buildFieldsXml(schema);
 
     const soap = `
@@ -302,15 +405,65 @@ export class RunToTempFlow implements IFlowStrategy {
       soap,
       "Create",
     );
+
+    this.logger.debug(
+      `Create DE response for ${deName}: ${JSON.stringify(response)}`,
+    );
+
     const result = response.Body?.CreateResponse?.Results;
-    if (result && result.StatusCode !== "OK" && result.ErrorCode !== "2") {
-      this.logger.warn(`DE creation status: ${result.StatusMessage}`);
+    if (result && result.StatusCode !== "OK") {
+      this.logger.error(
+        `Create DE failed - Full response: ${JSON.stringify(response, null, 2)}`,
+      );
+      throw new Error(
+        `Failed to create Data Extension: ${result.StatusMessage}`,
+      );
+    }
+
+    const objectId = result?.NewObjectID;
+    if (!objectId || typeof objectId !== "string") {
+      throw new Error("Data Extension created but no ObjectID returned");
+    }
+
+    this.logger.log(
+      `Data Extension created: ${deName} (ObjectID: ${objectId})`,
+    );
+    return objectId;
+  }
+
+  private async deleteDataExtensionIfExists(
+    job: ShellQueryJob,
+    deName: string,
+  ): Promise<void> {
+    const { tenantId, userId, mid } = job;
+
+    const soap = `
+      <DeleteRequest xmlns="http://exacttarget.com/wsdl/partnerAPI">
+         <Objects xsi:type="DataExtension">
+            <CustomerKey>${this.escapeXml(deName)}</CustomerKey>
+         </Objects>
+      </DeleteRequest>`;
+
+    try {
+      const response = await this.mceBridge.soapRequest(
+        tenantId,
+        userId,
+        mid,
+        soap,
+        "Delete",
+      );
+      this.logger.debug(
+        `Delete DE response for ${deName}: ${JSON.stringify(response)}`,
+      );
+    } catch (error) {
+      this.logger.debug(
+        `Delete DE failed for ${deName} (may not exist): ${(error as Error).message}`,
+      );
     }
   }
 
   private buildFieldsXml(schema: ColumnDefinition[]): string {
     if (schema.length === 0) {
-      // Fallback schema if inference fails
       return `
         <Field>
            <Name>_QPP_ID</Name>
@@ -386,11 +539,14 @@ export class RunToTempFlow implements IFlowStrategy {
     key: string,
     sql: string,
     deName: string,
+    deObjectId: string,
     folderId: number,
-  ) {
+  ): Promise<QueryDefinitionIds> {
     const { tenantId, userId, mid } = job;
     const escapedSql = this.escapeXml(sql);
     const escapedDeName = this.escapeXml(deName);
+
+    await this.deleteQueryDefinitionIfExists(job, key);
 
     const soap = `
       <CreateRequest xmlns="http://exacttarget.com/wsdl/partnerAPI">
@@ -401,6 +557,7 @@ export class RunToTempFlow implements IFlowStrategy {
             <QueryText>${escapedSql}</QueryText>
             <TargetType>DE</TargetType>
             <DataExtensionTarget>
+               <ObjectID>${deObjectId}</ObjectID>
                <CustomerKey>${escapedDeName}</CustomerKey>
                <Name>${escapedDeName}</Name>
             </DataExtensionTarget>
@@ -416,22 +573,125 @@ export class RunToTempFlow implements IFlowStrategy {
       soap,
       "Create",
     );
+
+    this.logger.debug(
+      `Create QueryDefinition response for ${key}: ${JSON.stringify(response)}`,
+    );
+
     const result = response.Body?.CreateResponse?.Results;
     if (result && result.StatusCode !== "OK") {
+      this.logger.error(
+        `Create QueryDefinition failed - Full response: ${JSON.stringify(response, null, 2)}`,
+      );
       throw new Error(
         `Failed to create QueryDefinition: ${result.StatusMessage}`,
       );
     }
+
+    const objectId = result?.NewObjectID;
+    const newId = result?.NewID;
+
+    if (!objectId || typeof objectId !== "string") {
+      throw new Error("QueryDefinition created but no ObjectID returned");
+    }
+
+    this.logger.log(
+      `QueryDefinition created: ${key} (ObjectID: ${objectId}, NewID: ${newId ?? "N/A"})`,
+    );
+
+    return {
+      objectId,
+      definitionId: objectId,
+    };
   }
 
-  private async performQuery(job: ShellQueryJob, key: string): Promise<string> {
+  private async deleteQueryDefinitionIfExists(
+    job: ShellQueryJob,
+    key: string,
+  ): Promise<void> {
+    const { tenantId, userId, mid } = job;
+
+    const retrieveSoap = `
+      <RetrieveRequestMsg xmlns="http://exacttarget.com/wsdl/partnerAPI">
+         <RetrieveRequest>
+            <ObjectType>QueryDefinition</ObjectType>
+            <Properties>ObjectID</Properties>
+            <Properties>CustomerKey</Properties>
+            <Filter xsi:type="SimpleFilterPart">
+               <Property>CustomerKey</Property>
+               <SimpleOperator>equals</SimpleOperator>
+               <Value>${this.escapeXml(key)}</Value>
+            </Filter>
+         </RetrieveRequest>
+      </RetrieveRequestMsg>`;
+
+    try {
+      const retrieveResponse =
+        await this.mceBridge.soapRequest<SoapRetrieveResponse>(
+          tenantId,
+          userId,
+          mid,
+          retrieveSoap,
+          "Retrieve",
+        );
+
+      this.logger.debug(
+        `Retrieve QueryDefinition response for ${key}: ${JSON.stringify(retrieveResponse)}`,
+      );
+
+      const results = retrieveResponse.Body?.RetrieveResponseMsg?.Results;
+      if (!results) {
+        this.logger.debug(
+          `QueryDefinition ${key} not found, nothing to delete`,
+        );
+        return;
+      }
+
+      const queryDef = Array.isArray(results) ? results[0] : results;
+      const objectId = queryDef?.ObjectID;
+
+      if (!objectId) {
+        this.logger.debug(
+          `QueryDefinition ${key} has no ObjectID, cannot delete`,
+        );
+        return;
+      }
+
+      const deleteSoap = `
+        <DeleteRequest xmlns="http://exacttarget.com/wsdl/partnerAPI">
+           <Objects xsi:type="QueryDefinition">
+              <ObjectID>${objectId}</ObjectID>
+           </Objects>
+        </DeleteRequest>`;
+
+      const deleteResponse = await this.mceBridge.soapRequest(
+        tenantId,
+        userId,
+        mid,
+        deleteSoap,
+        "Delete",
+      );
+      this.logger.debug(
+        `Delete QueryDefinition response for ${key} (ObjectID: ${objectId}): ${JSON.stringify(deleteResponse)}`,
+      );
+    } catch (error) {
+      this.logger.debug(
+        `Delete QueryDefinition failed for ${key}: ${(error as Error).message}`,
+      );
+    }
+  }
+
+  private async performQuery(
+    job: ShellQueryJob,
+    queryObjectId: string,
+  ): Promise<string> {
     const { tenantId, userId, mid } = job;
     const soap = `
       <PerformRequestMsg xmlns="http://exacttarget.com/wsdl/partnerAPI">
          <Action>Start</Action>
          <Definitions>
             <Definition xsi:type="QueryDefinition">
-               <CustomerKey>${key}</CustomerKey>
+               <ObjectID>${queryObjectId}</ObjectID>
             </Definition>
          </Definitions>
       </PerformRequestMsg>`;
@@ -443,19 +703,29 @@ export class RunToTempFlow implements IFlowStrategy {
       soap,
       "Perform",
     );
+
+    this.logger.debug(
+      `Perform QueryDefinition response for ObjectID ${queryObjectId}: ${JSON.stringify(response)}`,
+    );
+
     const result = response.Body?.PerformResponseMsg?.Results?.Result;
 
     if (!result || result.StatusCode !== "OK") {
+      this.logger.error(
+        `Perform failed for ObjectID ${queryObjectId} - Full response: ${JSON.stringify(response, null, 2)}`,
+      );
       throw new Error(
         `Failed to start query: ${result?.StatusMessage ?? "Unknown error"}`,
       );
     }
 
-    if (!result.TaskID) {
+    const taskId = result.Task?.ID;
+    if (!taskId) {
       throw new Error("TaskID not returned from query execution");
     }
 
-    return result.TaskID;
+    this.logger.log(`Query started with TaskID: ${taskId}`);
+    return String(taskId);
   }
 }
 

@@ -4,8 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "start:dev": "DOTENV_CONFIG_PATH=../../.env nest start --watch",
     "typecheck": "tsc --noEmit",
     "lint": "eslint \"src/**/*.ts\" --fix",
     "test": "vitest run"

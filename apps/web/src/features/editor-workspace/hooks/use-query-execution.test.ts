@@ -147,6 +147,7 @@ describe("useQueryExecution", () => {
     expect(capturedBody).toEqual({
       sqlText: "SELECT * FROM DE",
       snippetName: "test-snippet",
+      tableMetadata: {},
     });
     expect(result.current.runId).toBe("run-123");
     expect(result.current.status).toBe("queued");

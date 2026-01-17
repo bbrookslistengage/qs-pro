@@ -1,9 +1,13 @@
 import { useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import type { DataExtensionField } from "@/features/editor-workspace/types";
+import { extractTableReferences } from "@/features/editor-workspace/utils/sql-context";
 import api from "@/services/api";
 
+import { metadataQueryKeys } from "./use-metadata";
 import {
   runResultsQueryKeys,
   type RunResultsResponse,
@@ -36,6 +40,16 @@ interface QueryResults {
   refetch: () => Promise<unknown>;
 }
 
+interface FieldDefinition {
+  Name: string;
+  FieldType: string;
+  MaxLength?: number;
+}
+
+interface UseQueryExecutionOptions {
+  tenantId?: string | null;
+}
+
 interface UseQueryExecutionResult {
   execute: (sqlText: string, snippetName?: string) => Promise<void>;
   cancel: () => Promise<void>;
@@ -60,13 +74,35 @@ function isTerminalState(status: QueryExecutionStatus): boolean {
   return TERMINAL_STATES.includes(status);
 }
 
-export function useQueryExecution(): UseQueryExecutionResult {
+function mapFieldToDefinition(field: DataExtensionField): FieldDefinition {
+  const FIELD_TYPE_MAP: Record<string, string> = {
+    Text: "Text",
+    Number: "Number",
+    Date: "Date",
+    Boolean: "Boolean",
+    Email: "EmailAddress",
+    Phone: "Phone",
+    Decimal: "Decimal",
+  };
+
+  return {
+    Name: field.name,
+    FieldType: FIELD_TYPE_MAP[field.type] ?? "Text",
+    MaxLength: field.length,
+  };
+}
+
+export function useQueryExecution(
+  options: UseQueryExecutionOptions = {},
+): UseQueryExecutionResult {
+  const { tenantId } = options;
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<QueryExecutionStatus>("idle");
   const [runId, setRunId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const hasShownErrorRef = useRef(false);
 
   const resultsQuery = useRunResults({
     runId,
@@ -100,6 +136,7 @@ export function useQueryExecution(): UseQueryExecutionResult {
   const subscribeToSSE = useCallback(
     (targetRunId: string) => {
       closeEventSource();
+      hasShownErrorRef.current = false;
 
       const eventSource = new EventSource(`/api/runs/${targetRunId}/events`, {
         withCredentials: true,
@@ -108,6 +145,7 @@ export function useQueryExecution(): UseQueryExecutionResult {
       eventSource.onmessage = (event: MessageEvent) => {
         try {
           const data = JSON.parse(event.data as string) as SSEEvent;
+          hasShownErrorRef.current = false;
 
           if (isTerminalState(data.status)) {
             handleTerminalState(data.status, data.errorMessage);
@@ -120,12 +158,46 @@ export function useQueryExecution(): UseQueryExecutionResult {
       };
 
       eventSource.onerror = () => {
-        toast.error("Connection lost. Refresh to check status.");
+        if (!hasShownErrorRef.current) {
+          toast.error("Connection lost. Refresh to check status.");
+          hasShownErrorRef.current = true;
+        }
       };
 
       eventSourceRef.current = eventSource;
     },
     [closeEventSource, handleTerminalState],
+  );
+
+  const getFieldsFromCache = useCallback(
+    (tableName: string): DataExtensionField[] | null => {
+      const queryKey = metadataQueryKeys.fields(tenantId, tableName);
+      return queryClient.getQueryData<DataExtensionField[]>(queryKey) ?? null;
+    },
+    [queryClient, tenantId],
+  );
+
+  const buildTableMetadata = useCallback(
+    (sqlText: string): Record<string, FieldDefinition[]> => {
+      const tableMetadata: Record<string, FieldDefinition[]> = {};
+      const tableReferences = extractTableReferences(sqlText);
+
+      for (const ref of tableReferences) {
+        if (ref.isSubquery) {
+          continue;
+        }
+
+        const tableName = ref.name;
+        const fields = getFieldsFromCache(tableName);
+
+        if (fields && fields.length > 0) {
+          tableMetadata[tableName] = fields.map(mapFieldToDefinition);
+        }
+      }
+
+      return tableMetadata;
+    },
+    [getFieldsFromCache],
   );
 
   const execute = useCallback(
@@ -139,10 +211,12 @@ export function useQueryExecution(): UseQueryExecutionResult {
       }
 
       try {
+        const tableMetadata = buildTableMetadata(sqlText);
+
         const response = await api.post<{
           runId: string;
           status: QueryExecutionStatus;
-        }>("/runs", { sqlText, snippetName });
+        }>("/runs", { sqlText, snippetName, tableMetadata });
 
         const { runId: newRunId, status: newStatus } = response.data;
 
@@ -153,15 +227,7 @@ export function useQueryExecution(): UseQueryExecutionResult {
 
         subscribeToSSE(newRunId);
       } catch (error) {
-        if (
-          error &&
-          typeof error === "object" &&
-          "response" in error &&
-          error.response &&
-          typeof error.response === "object" &&
-          "status" in error.response &&
-          error.response.status === 429
-        ) {
+        if (axios.isAxiosError(error) && error.response?.status === 429) {
           toast.error(
             "Too many queries running. Close a tab or wait for a query to complete.",
           );
@@ -171,7 +237,7 @@ export function useQueryExecution(): UseQueryExecutionResult {
         throw error;
       }
     },
-    [subscribeToSSE, runId, queryClient],
+    [subscribeToSSE, runId, queryClient, buildTableMetadata],
   );
 
   const cancel = useCallback(async (): Promise<void> => {
@@ -219,15 +285,7 @@ export function useQueryExecution(): UseQueryExecutionResult {
           subscribeToSSE(fetchedRunId);
         }
       } catch (error) {
-        if (
-          error &&
-          typeof error === "object" &&
-          "response" in error &&
-          error.response &&
-          typeof error.response === "object" &&
-          "status" in error.response &&
-          error.response.status === 404
-        ) {
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
           clearSessionStorage();
           setStatus("idle");
           setRunId(null);

@@ -104,7 +104,7 @@ export function EditorWorkspace({
     results,
     currentPage,
     setPage,
-  } = useQueryExecution();
+  } = useQueryExecution({ tenantId });
 
   // Tab Management - ensure tabs array is never empty
   const [{ tabs, activeTabId }, setTabState] = useState(() => {

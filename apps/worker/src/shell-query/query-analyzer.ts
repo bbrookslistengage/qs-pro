@@ -202,7 +202,7 @@ async function getFieldsForTable(
 }
 
 function needsBracketQuoting(name: string): boolean {
-  return /[\s[\]]/.test(name);
+  return !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) || name.includes("]");
 }
 
 function bracketQuote(name: string): string {
@@ -216,6 +216,11 @@ function buildExpandedColumnList(
 ): string {
   return fields
     .map((f) => {
+      if (f.Name.includes("]")) {
+        throw new SelectStarExpansionError(
+          `Unable to expand SELECT *. Column name "${f.Name}" contains a closing bracket ("])"). List columns explicitly.`,
+        );
+      }
       const colName = needsBracketQuoting(f.Name)
         ? bracketQuote(f.Name)
         : f.Name;

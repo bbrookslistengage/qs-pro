@@ -46,6 +46,18 @@ describe("Query Analyzer", () => {
           { Name: "OrderDate", FieldType: "Date" },
         ],
       ],
+      [
+        "WeirdDE",
+        [
+          { Name: "First-Name", FieldType: "Text", MaxLength: 50 },
+          { Name: "Space Name", FieldType: "Text", MaxLength: 50 },
+          { Name: "1LeadingNumber", FieldType: "Text", MaxLength: 50 },
+        ],
+      ],
+      [
+        "WeirdDEWithBracket",
+        [{ Name: "Field]Name", FieldType: "Text", MaxLength: 50 }],
+      ],
     ]);
 
     mockMetadataFn = {
@@ -168,6 +180,28 @@ describe("Query Analyzer", () => {
       expect(result).toContain("CreatedDate");
       expect(result).not.toContain("*");
       expect(result.toLowerCase()).toContain("distinct");
+    });
+
+    it("bracket-quotes expanded columns when needed", async () => {
+      const sql = "SELECT * FROM WeirdDE";
+
+      const result = await expandSelectStar(sql, mockMetadataFn);
+
+      expect(result).toContain("[First-Name]");
+      expect(result).toContain("[Space Name]");
+      expect(result).toContain("[1LeadingNumber]");
+      expect(result).not.toContain("*");
+    });
+
+    it("fails with clear error when a field name contains a closing bracket", async () => {
+      const sql = "SELECT * FROM WeirdDEWithBracket";
+
+      await expect(expandSelectStar(sql, mockMetadataFn)).rejects.toThrow(
+        SelectStarExpansionError,
+      );
+      await expect(expandSelectStar(sql, mockMetadataFn)).rejects.toThrow(
+        'Column name "Field]Name"',
+      );
     });
 
     it("expands SELECT *, Name FROM DE", async () => {

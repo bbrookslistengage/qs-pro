@@ -91,7 +91,12 @@ export function createQueueStub() {
 
 // QueryDefinitionService stub
 export function createQueryDefinitionServiceStub() {
-  return {
+  const stub = {
     deleteByCustomerKey: vi.fn().mockResolvedValue(true),
   };
+  return stub;
 }
+
+export type QueryDefinitionServiceStub = ReturnType<
+  typeof createQueryDefinitionServiceStub
+>;

@@ -7,7 +7,7 @@ import { RlsContextService, MceBridgeService } from '@qs-pro/backend-shared';
 import { DelayedError } from 'bullmq';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createMockBullJob, createMockPollBullJob } from './factories';
-import { createDbStub, createMceBridgeStub, createRedisStub, createMetricsStub, createRlsContextStub, createQueueStub, createQueryDefinitionServiceStub } from './stubs';
+import { createDbStub, createMceBridgeStub, createRedisStub, createMetricsStub, createRlsContextStub, createQueueStub, createQueryDefinitionServiceStub, type QueryDefinitionServiceStub } from './stubs';
 
 describe('ShellQueryProcessor', () => {
   let processor: ShellQueryProcessor;
@@ -15,6 +15,7 @@ describe('ShellQueryProcessor', () => {
   let mockMceBridge: ReturnType<typeof createMceBridgeStub>;
   let mockRunToTempFlow: { execute: ReturnType<typeof vi.fn>; retrieveQueryDefinitionObjectId: ReturnType<typeof vi.fn> };
   let mockQueue: ReturnType<typeof createQueueStub>;
+  let mockQueryDefService: QueryDefinitionServiceStub;
 
   beforeEach(async () => {
     mockDb = createDbStub();
@@ -24,6 +25,7 @@ describe('ShellQueryProcessor', () => {
       retrieveQueryDefinitionObjectId: vi.fn().mockResolvedValue(null),
     };
     mockQueue = createQueueStub();
+    mockQueryDefService = createQueryDefinitionServiceStub();
     const mockRedis = createRedisStub();
     const mockMetrics = createMetricsStub();
 
@@ -32,7 +34,7 @@ describe('ShellQueryProcessor', () => {
         ShellQueryProcessor,
         { provide: RunToTempFlow, useValue: mockRunToTempFlow },
         { provide: MceBridgeService, useValue: mockMceBridge },
-        { provide: QueryDefinitionService, useValue: createQueryDefinitionServiceStub() },
+        { provide: QueryDefinitionService, useValue: mockQueryDefService },
         { provide: RlsContextService, useValue: createRlsContextStub() },
         { provide: 'DATABASE', useValue: mockDb },
         { provide: 'REDIS_CLIENT', useValue: mockRedis },
@@ -251,8 +253,10 @@ describe('ShellQueryProcessor', () => {
       const result = await processor.process(job as any);
 
       expect(result).toEqual({ status: 'canceled', runId: 'run-1' });
-      // Cleanup is now handled through QueryDefinitionService (mocked via stub)
-      // The stub's deleteByCustomerKey returns true without making actual SOAP calls
+      expect(mockQueryDefService.deleteByCustomerKey).toHaveBeenCalledWith(
+        't1', 'u1', 'm1',
+        expect.stringContaining('QPP_Query_'),
+      );
     });
 
     it('should timeout after max duration', async () => {

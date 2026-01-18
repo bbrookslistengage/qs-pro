@@ -7,7 +7,7 @@ import { RunToTempFlow } from '../src/shell-query/strategies/run-to-temp.strateg
 import { RlsContextService, MceBridgeService } from '@qs-pro/backend-shared';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createMockBullJob, createMockPollBullJob } from './factories';
-import { createDbStub, createMceBridgeStub, createRedisStub, createMetricsStub, createRlsContextStub, createQueueStub, createQueryDefinitionServiceStub } from './stubs';
+import { createDbStub, createMceBridgeStub, createRedisStub, createMetricsStub, createRlsContextStub, createQueueStub, createQueryDefinitionServiceStub, type QueryDefinitionServiceStub } from './stubs';
 
 describe('Shell Query Cancellation & Sweeper', () => {
   let processor: ShellQueryProcessor;
@@ -16,12 +16,14 @@ describe('Shell Query Cancellation & Sweeper', () => {
   let mockMceBridge: ReturnType<typeof createMceBridgeStub>;
   let mockRedis: ReturnType<typeof createRedisStub>;
   let mockQueue: ReturnType<typeof createQueueStub>;
+  let mockQueryDefService: QueryDefinitionServiceStub;
 
   beforeEach(async () => {
     mockDb = createDbStub();
     mockMceBridge = createMceBridgeStub();
     mockRedis = createRedisStub();
     mockQueue = createQueueStub();
+    mockQueryDefService = createQueryDefinitionServiceStub();
     const mockMetrics = createMetricsStub();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -38,7 +40,7 @@ describe('Shell Query Cancellation & Sweeper', () => {
           },
         },
         { provide: MceBridgeService, useValue: mockMceBridge },
-        { provide: QueryDefinitionService, useValue: createQueryDefinitionServiceStub() },
+        { provide: QueryDefinitionService, useValue: mockQueryDefService },
         { provide: RlsContextService, useValue: createRlsContextStub() },
         { provide: 'DATABASE', useValue: mockDb },
         { provide: 'REDIS_CLIENT', useValue: mockRedis },
@@ -91,10 +93,11 @@ describe('Shell Query Cancellation & Sweeper', () => {
 
       const result = await processor.process(job as any);
 
-      // Verify the job was detected as canceled
       expect(result).toEqual({ status: 'canceled', runId: 'run-1' });
-      // Note: Cleanup is now handled through QueryDefinitionService (mocked via stub)
-      // The stub's deleteByCustomerKey returns true without making actual SOAP calls
+      expect(mockQueryDefService.deleteByCustomerKey).toHaveBeenCalledWith(
+        't1', 'u1', 'm1',
+        expect.stringContaining('QPP_Query_'),
+      );
     });
 
     it('should cleanup on execute job failure', async () => {
@@ -105,23 +108,17 @@ describe('Shell Query Cancellation & Sweeper', () => {
         mid: 'm1',
       });
 
+      const failureQueryDefService = createQueryDefinitionServiceStub();
       const mockRunToTempFlow = {
         execute: vi.fn().mockRejectedValue(new Error('Flow error')),
       };
-
-      // Mock the two-step delete: retrieve ObjectID, then delete
-      mockMceBridge.soapRequest
-        .mockResolvedValueOnce({
-          Body: { RetrieveResponseMsg: { Results: { ObjectID: 'obj-fail', CustomerKey: 'QPP_Query_run-1' } } },
-        })
-        .mockResolvedValueOnce({ Body: { DeleteResponse: { Results: { StatusCode: 'OK' } } } });
 
       const module: TestingModule = await Test.createTestingModule({
         providers: [
           ShellQueryProcessor,
           { provide: RunToTempFlow, useValue: mockRunToTempFlow },
           { provide: MceBridgeService, useValue: mockMceBridge },
-          { provide: QueryDefinitionService, useValue: createQueryDefinitionServiceStub() },
+          { provide: QueryDefinitionService, useValue: failureQueryDefService },
           { provide: RlsContextService, useValue: createRlsContextStub() },
           { provide: 'DATABASE', useValue: mockDb },
           { provide: 'REDIS_CLIENT', useValue: mockRedis },
@@ -138,14 +135,15 @@ describe('Shell Query Cancellation & Sweeper', () => {
 
       await expect(testProcessor.process(job as any)).rejects.toThrow('Flow error');
 
-      // With the stub, cleanup goes through QueryDefinitionService which is mocked
-      // The stub's deleteByCustomerKey is called, not the real implementation
-      // So we verify the stub was used (it doesn't make actual SOAP calls)
+      expect(failureQueryDefService.deleteByCustomerKey).toHaveBeenCalledWith(
+        't1', 'u1', 'm1',
+        expect.stringContaining('QPP_Query_'),
+      );
     });
   });
 
   describe('Sweeper', () => {
-    it('should use stored qppFolderId and delete old QueryDefinitions', async () => {
+    it('should use stored qppFolderId and delete old QueryDefinitions with ObjectID', async () => {
       let queryCount = 0;
       mockDb.select = vi.fn(() => ({
         from: vi.fn(() => ({
@@ -161,23 +159,29 @@ describe('Shell Query Cancellation & Sweeper', () => {
         })),
       }));
 
-      // Sweeper retrieves QueryDefinitions from the folder
       mockMceBridge.soapRequest.mockResolvedValueOnce({
         Body: { RetrieveResponseMsg: { Results: [
-          { CustomerKey: 'QPP_Query_old-run-1', Name: 'QPP_Query_old-run-1' },
+          { CustomerKey: 'QPP_Query_old-run-1', Name: 'QPP_Query_old-run-1', ObjectID: 'obj-123' },
         ] } },
       });
 
       await sweeper.handleSweep();
 
-      // Verify the sweeper retrieved QueryDefinitions from the correct folder
       expect(mockMceBridge.soapRequest).toHaveBeenCalledWith(
         't1', 'u1', 'm1',
-        expect.stringContaining('<Value>123</Value>'), // folder ID
+        expect.stringContaining('<Value>123</Value>'),
         'Retrieve',
       );
-      // Note: The actual deletion is handled by QueryDefinitionService (mocked via stub)
-      // The stub's deleteByCustomerKey returns true without making SOAP calls
+      expect(mockMceBridge.soapRequest).toHaveBeenCalledWith(
+        't1', 'u1', 'm1',
+        expect.stringContaining('<Properties>ObjectID</Properties>'),
+        'Retrieve',
+      );
+      expect(mockQueryDefService.deleteByCustomerKey).toHaveBeenCalledWith(
+        't1', 'u1', 'm1',
+        'QPP_Query_old-run-1',
+        'obj-123',
+      );
     });
 
     it('should handle no QueryDefinitions gracefully', async () => {
@@ -201,6 +205,35 @@ describe('Shell Query Cancellation & Sweeper', () => {
       });
 
       await expect(sweeper.handleSweep()).resolves.not.toThrow();
+    });
+
+    it('should handle single object Results (not array) from SOAP response', async () => {
+      let queryCount = 0;
+      mockDb.select = vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => {
+            queryCount++;
+            if (queryCount === 1) {
+              return [{ tenantId: 't1', mid: 'm1', qppFolderId: 123 }];
+            }
+            return {
+              limit: vi.fn(() => [{ userId: 'u1' }]),
+            };
+          }),
+        })),
+      }));
+
+      mockMceBridge.soapRequest.mockResolvedValueOnce({
+        Body: { RetrieveResponseMsg: { Results: { CustomerKey: 'QPP_Query_single', Name: 'QPP_Query_single', ObjectID: 'obj-single' } } },
+      });
+
+      await sweeper.handleSweep();
+
+      expect(mockQueryDefService.deleteByCustomerKey).toHaveBeenCalledWith(
+        't1', 'u1', 'm1',
+        'QPP_Query_single',
+        'obj-single',
+      );
     });
   });
 });

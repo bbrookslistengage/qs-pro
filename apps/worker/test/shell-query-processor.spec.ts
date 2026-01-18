@@ -1,12 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getQueueToken } from '@nestjs/bullmq';
 import { ShellQueryProcessor } from '../src/shell-query/shell-query.processor';
+import { QueryDefinitionService } from '../src/shell-query/query-definition.service';
 import { RunToTempFlow } from '../src/shell-query/strategies/run-to-temp.strategy';
 import { RlsContextService, MceBridgeService } from '@qs-pro/backend-shared';
 import { DelayedError } from 'bullmq';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createMockBullJob, createMockPollBullJob } from './factories';
-import { createDbStub, createMceBridgeStub, createRedisStub, createMetricsStub, createRlsContextStub, createQueueStub } from './stubs';
+import { createDbStub, createMceBridgeStub, createRedisStub, createMetricsStub, createRlsContextStub, createQueueStub, createQueryDefinitionServiceStub, type QueryDefinitionServiceStub } from './stubs';
 
 describe('ShellQueryProcessor', () => {
   let processor: ShellQueryProcessor;
@@ -14,6 +15,7 @@ describe('ShellQueryProcessor', () => {
   let mockMceBridge: ReturnType<typeof createMceBridgeStub>;
   let mockRunToTempFlow: { execute: ReturnType<typeof vi.fn>; retrieveQueryDefinitionObjectId: ReturnType<typeof vi.fn> };
   let mockQueue: ReturnType<typeof createQueueStub>;
+  let mockQueryDefService: QueryDefinitionServiceStub;
 
   beforeEach(async () => {
     mockDb = createDbStub();
@@ -23,6 +25,7 @@ describe('ShellQueryProcessor', () => {
       retrieveQueryDefinitionObjectId: vi.fn().mockResolvedValue(null),
     };
     mockQueue = createQueueStub();
+    mockQueryDefService = createQueryDefinitionServiceStub();
     const mockRedis = createRedisStub();
     const mockMetrics = createMetricsStub();
 
@@ -31,6 +34,7 @@ describe('ShellQueryProcessor', () => {
         ShellQueryProcessor,
         { provide: RunToTempFlow, useValue: mockRunToTempFlow },
         { provide: MceBridgeService, useValue: mockMceBridge },
+        { provide: QueryDefinitionService, useValue: mockQueryDefService },
         { provide: RlsContextService, useValue: createRlsContextStub() },
         { provide: 'DATABASE', useValue: mockDb },
         { provide: 'REDIS_CLIENT', useValue: mockRedis },
@@ -249,12 +253,9 @@ describe('ShellQueryProcessor', () => {
       const result = await processor.process(job as any);
 
       expect(result).toEqual({ status: 'canceled', runId: 'run-1' });
-      expect(mockMceBridge.soapRequest).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.anything(),
-        expect.anything(),
-        expect.stringContaining('DeleteRequest'),
-        'Delete',
+      expect(mockQueryDefService.deleteByCustomerKey).toHaveBeenCalledWith(
+        't1', 'u1', 'm1',
+        expect.stringContaining('QPP_Query_'),
       );
     });
 

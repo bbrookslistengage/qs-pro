@@ -7,9 +7,17 @@ export function createDbStub() {
     _updateResult: [],
   };
 
+  // Support both .where() returning result directly and .where().limit() chain
+  const whereResult = () => {
+    const result = stub._selectResult;
+    // Also support .limit() chain
+    (result as any).limit = vi.fn(() => stub._selectResult);
+    return result;
+  };
+
   stub.select = vi.fn(() => ({
     from: vi.fn(() => ({
-      where: vi.fn(() => stub._selectResult),
+      where: vi.fn(whereResult),
     })),
   }));
 
@@ -80,3 +88,15 @@ export function createQueueStub() {
     remove: vi.fn().mockResolvedValue(undefined),
   };
 }
+
+// QueryDefinitionService stub
+export function createQueryDefinitionServiceStub() {
+  const stub = {
+    deleteByCustomerKey: vi.fn().mockResolvedValue(true),
+  };
+  return stub;
+}
+
+export type QueryDefinitionServiceStub = ReturnType<
+  typeof createQueryDefinitionServiceStub
+>;

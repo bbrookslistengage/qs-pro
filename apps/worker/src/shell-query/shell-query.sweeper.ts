@@ -10,6 +10,7 @@ import {
   tenantSettings,
 } from "@qs-pro/database";
 
+import { QueryDefinitionService } from "./query-definition.service";
 import { SoapRetrieveResponse } from "./shell-query.types";
 
 @Injectable()
@@ -19,6 +20,7 @@ export class ShellQuerySweeper {
   constructor(
     private readonly mceBridge: MceBridgeService,
     private readonly rlsContext: RlsContextService,
+    private readonly queryDefinitionService: QueryDefinitionService,
     @Inject("DATABASE")
     private readonly db: PostgresJsDatabase<Record<string, never>>,
   ) {}
@@ -34,13 +36,21 @@ export class ShellQuerySweeper {
       .select({
         tenantId: tenantSettings.tenantId,
         mid: tenantSettings.mid,
+        qppFolderId: tenantSettings.qppFolderId,
       })
       .from(tenantSettings)
       .where(isNotNull(tenantSettings.qppFolderId));
 
     for (const setting of activeSettings) {
+      if (!setting.qppFolderId) {
+        continue;
+      }
       try {
-        await this.sweepTenantMid(setting.tenantId, setting.mid);
+        await this.sweepTenantMid(
+          setting.tenantId,
+          setting.mid,
+          setting.qppFolderId,
+        );
       } catch (e: unknown) {
         const err = e as { message?: string };
         this.logger.error(
@@ -52,14 +62,12 @@ export class ShellQuerySweeper {
     this.logger.log("Shell query asset sweep completed.");
   }
 
-  /**
-   * Sweeps stale assets for a specific tenant/mid combination.
-   * Runs within RLS context to properly access credentials.
-   */
-  private async sweepTenantMid(tenantId: string, mid: string): Promise<void> {
-    // Run within RLS context to access credentials securely
+  private async sweepTenantMid(
+    tenantId: string,
+    mid: string,
+    folderId: number,
+  ): Promise<void> {
     await this.rlsContext.runWithTenantContext(tenantId, mid, async () => {
-      // Get a valid userId from credentials for this tenant/mid
       const creds = await this.db
         .select({ userId: credentials.userId })
         .from(credentials)
@@ -77,53 +85,16 @@ export class ShellQuerySweeper {
         return;
       }
 
-      const userId = firstCred.userId;
-      await this.performSweep(tenantId, userId, mid);
+      await this.performSweep(tenantId, firstCred.userId, mid, folderId);
     });
   }
 
-  /**
-   * Performs the actual sweep operations for a tenant/mid.
-   * Must be called within RLS context.
-   */
   private async performSweep(
     tenantId: string,
     userId: string,
     mid: string,
+    folderId: number,
   ): Promise<void> {
-    const searchSoap = `
-      <RetrieveRequestMsg xmlns="http://exacttarget.com/wsdl/partnerAPI">
-         <RetrieveRequest>
-            <ObjectType>DataFolder</ObjectType>
-            <Properties>ID</Properties>
-            <Filter xsi:type="SimpleFilterPart">
-               <Property>Name</Property>
-               <SimpleOperator>equals</SimpleOperator>
-               <Value>QueryPlusPlus Results</Value>
-            </Filter>
-         </RetrieveRequest>
-      </RetrieveRequestMsg>`;
-
-    const searchResponse =
-      await this.mceBridge.soapRequest<SoapRetrieveResponse>(
-        tenantId,
-        userId,
-        mid,
-        searchSoap,
-        "Retrieve",
-      );
-    const results = searchResponse.Body?.RetrieveResponseMsg?.Results;
-    if (!results) {
-      return;
-    }
-
-    const folder = Array.isArray(results) ? results[0] : results;
-    if (!folder?.ID) {
-      return;
-    }
-
-    const folderId = folder.ID;
-
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
     const querySoap = `
@@ -132,6 +103,7 @@ export class ShellQuerySweeper {
             <ObjectType>QueryDefinition</ObjectType>
             <Properties>CustomerKey</Properties>
             <Properties>Name</Properties>
+            <Properties>ObjectID</Properties>
             <Filter xsi:type="ComplexFilterPart">
                <LeftOperand xsi:type="SimpleFilterPart">
                   <Property>CategoryID</Property>
@@ -156,15 +128,23 @@ export class ShellQuerySweeper {
         querySoap,
         "Retrieve",
       );
-    const queries = queriesResponse.Body?.RetrieveResponseMsg?.Results;
+    const results = queriesResponse.Body?.RetrieveResponseMsg?.Results;
+    if (!results) {
+      return;
+    }
 
-    if (queries && Array.isArray(queries)) {
-      for (const q of queries) {
-        if (!q.CustomerKey) {
-          continue;
-        }
-        await this.deleteQueryDefinition(tenantId, userId, mid, q.CustomerKey);
+    const queries = Array.isArray(results) ? results : [results];
+    for (const q of queries) {
+      if (!q.CustomerKey) {
+        continue;
       }
+      await this.deleteQueryDefinition(
+        tenantId,
+        userId,
+        mid,
+        q.CustomerKey,
+        q.ObjectID,
+      );
     }
   }
 
@@ -173,28 +153,21 @@ export class ShellQuerySweeper {
     userId: string,
     mid: string,
     customerKey: string,
+    objectId?: string,
   ): Promise<void> {
-    const soap = `
-      <DeleteRequest xmlns="http://exacttarget.com/wsdl/partnerAPI">
-         <Objects xsi:type="QueryDefinition">
-            <CustomerKey>${this.escapeXml(customerKey)}</CustomerKey>
-         </Objects>
-      </DeleteRequest>`;
-
     try {
-      await this.mceBridge.soapRequest(tenantId, userId, mid, soap, "Delete");
-      this.logger.log(`Deleted QueryDefinition: ${customerKey}`);
+      const deleted = await this.queryDefinitionService.deleteByCustomerKey(
+        tenantId,
+        userId,
+        mid,
+        customerKey,
+        objectId,
+      );
+      if (deleted) {
+        this.logger.log(`Deleted QueryDefinition: ${customerKey}`);
+      }
     } catch {
       // Ignore failures during sweep - asset may already be deleted
     }
-  }
-
-  private escapeXml(str: string): string {
-    return str
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&apos;");
   }
 }

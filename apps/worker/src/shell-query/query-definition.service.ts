@@ -17,6 +17,17 @@ interface SoapRetrieveResponse {
   };
 }
 
+interface SoapDeleteResponse {
+  Body?: {
+    DeleteResponse?: {
+      Results?: {
+        StatusCode?: string;
+        StatusMessage?: string;
+      };
+    };
+  };
+}
+
 @Injectable()
 export class QueryDefinitionService {
   private readonly logger = new Logger(QueryDefinitionService.name);
@@ -32,6 +43,7 @@ export class QueryDefinitionService {
    * Looks up the QPP folder from tenantSettings and uses folder-based retrieval.
    * MCE SOAP API requires ObjectID for QueryDefinition deletes.
    *
+   * @param knownObjectId - If provided, skips the retrieve step (optimization for sweeper)
    * @returns true if deleted, false if not found
    * @throws Error on SOAP request failures
    */
@@ -40,16 +52,23 @@ export class QueryDefinitionService {
     userId: string,
     mid: string,
     customerKey: string,
+    knownObjectId?: string,
   ): Promise<boolean> {
-    // Look up qppFolderId from tenantSettings
+    if (knownObjectId) {
+      return this.deleteByObjectId(
+        tenantId,
+        userId,
+        mid,
+        customerKey,
+        knownObjectId,
+      );
+    }
+
     const settings = await this.db
       .select({ qppFolderId: tenantSettings.qppFolderId })
       .from(tenantSettings)
       .where(
-        and(
-          eq(tenantSettings.tenantId, tenantId),
-          eq(tenantSettings.mid, mid),
-        ),
+        and(eq(tenantSettings.tenantId, tenantId), eq(tenantSettings.mid, mid)),
       )
       .limit(1);
 
@@ -62,7 +81,6 @@ export class QueryDefinitionService {
       customerKey,
     );
 
-    // If found by CustomerKey, use that. Otherwise try folder+key as fallback.
     let objectIdByFolder: string | null = null;
     if (!objectIdByKey && folderId) {
       objectIdByFolder = await this.retrieveObjectIdByFolderAndKey(
@@ -74,7 +92,6 @@ export class QueryDefinitionService {
       );
     }
 
-    // Use whichever ObjectID we found
     const objectId = objectIdByKey ?? objectIdByFolder;
     if (!objectId) {
       this.logger.debug(
@@ -176,17 +193,24 @@ export class QueryDefinitionService {
     const deleteSoap = `
       <DeleteRequest xmlns="http://exacttarget.com/wsdl/partnerAPI">
          <Objects xsi:type="QueryDefinition">
-            <ObjectID>${objectId}</ObjectID>
+            <ObjectID>${this.escapeXml(objectId)}</ObjectID>
          </Objects>
       </DeleteRequest>`;
 
-    const deleteResponse = await this.mceBridge.soapRequest(
+    const deleteResponse = await this.mceBridge.soapRequest<SoapDeleteResponse>(
       tenantId,
       userId,
       mid,
       deleteSoap,
       "Delete",
     );
+
+    const result = deleteResponse.Body?.DeleteResponse?.Results;
+    if (!result || result.StatusCode !== "OK") {
+      throw new Error(
+        `Delete QueryDefinition failed: ${result?.StatusMessage ?? "Unknown error"}`,
+      );
+    }
 
     this.logger.debug(
       `Delete QueryDefinition response for ${customerKey} (ObjectID: ${objectId}): ${JSON.stringify(deleteResponse)}`,

@@ -103,6 +103,7 @@ export class ShellQuerySweeper {
             <ObjectType>QueryDefinition</ObjectType>
             <Properties>CustomerKey</Properties>
             <Properties>Name</Properties>
+            <Properties>ObjectID</Properties>
             <Filter xsi:type="ComplexFilterPart">
                <LeftOperand xsi:type="SimpleFilterPart">
                   <Property>CategoryID</Property>
@@ -137,7 +138,13 @@ export class ShellQuerySweeper {
       if (!q.CustomerKey) {
         continue;
       }
-      await this.deleteQueryDefinition(tenantId, userId, mid, q.CustomerKey);
+      await this.deleteQueryDefinition(
+        tenantId,
+        userId,
+        mid,
+        q.CustomerKey,
+        q.ObjectID,
+      );
     }
   }
 
@@ -146,6 +153,7 @@ export class ShellQuerySweeper {
     userId: string,
     mid: string,
     customerKey: string,
+    objectId?: string,
   ): Promise<void> {
     try {
       const deleted = await this.queryDefinitionService.deleteByCustomerKey(
@@ -153,6 +161,7 @@ export class ShellQuerySweeper {
         userId,
         mid,
         customerKey,
+        objectId,
       );
       if (deleted) {
         this.logger.log(`Deleted QueryDefinition: ${customerKey}`);

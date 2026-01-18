@@ -63,15 +63,13 @@ describe("QueryDefinitionService", () => {
     service = module.get<QueryDefinitionService>(QueryDefinitionService);
   });
 
-  // SOAP call sequence:
-  // 1) CustomerKey retrieve (always)
-  // 2) Folder+key retrieve (only if CustomerKey not found AND folderId exists)
-  // 3) Delete (only if ObjectID found)
   const emptyResponse = { Body: { RetrieveResponseMsg: {} } };
+  const successfulDeleteResponse = {
+    Body: { DeleteResponse: { Results: { StatusCode: "OK" } } },
+  };
 
   describe("deleteByCustomerKey", () => {
     it("retrieves ObjectID and deletes by ObjectID when found by CustomerKey", async () => {
-      // Arrange - CustomerKey retrieve succeeds
       mockMceBridge.soapRequest
         .mockResolvedValueOnce({
           Body: {
@@ -80,9 +78,8 @@ describe("QueryDefinitionService", () => {
             },
           },
         })
-        .mockResolvedValueOnce({}); // delete
+        .mockResolvedValueOnce(successfulDeleteResponse);
 
-      // Act
       const result = await service.deleteByCustomerKey(
         mockContext.tenantId,
         mockContext.userId,
@@ -90,15 +87,13 @@ describe("QueryDefinitionService", () => {
         "QPP_Query_abc",
       );
 
-      // Assert - only 2 calls: retrieve + delete (no folder fallback needed)
       expect(result).toBe(true);
       expect(mockMceBridge.soapRequest).toHaveBeenCalledTimes(2);
     });
 
     it("retrieves ObjectID by folder+key when CustomerKey retrieve fails", async () => {
-      // Arrange - CustomerKey not found, folder+key succeeds
       mockMceBridge.soapRequest
-        .mockResolvedValueOnce(emptyResponse) // CustomerKey not found
+        .mockResolvedValueOnce(emptyResponse)
         .mockResolvedValueOnce({
           Body: {
             RetrieveResponseMsg: {
@@ -106,9 +101,8 @@ describe("QueryDefinitionService", () => {
             },
           },
         })
-        .mockResolvedValueOnce({}); // delete
+        .mockResolvedValueOnce(successfulDeleteResponse);
 
-      // Act
       const result = await service.deleteByCustomerKey(
         mockContext.tenantId,
         mockContext.userId,
@@ -116,11 +110,8 @@ describe("QueryDefinitionService", () => {
         "QPP_Query_abc",
       );
 
-      // Assert - 3 calls: retrieve + folder-retrieve + delete
       expect(result).toBe(true);
       expect(mockMceBridge.soapRequest).toHaveBeenCalledTimes(3);
-
-      // Delete uses ObjectID from folder+key retrieve
       expect(mockMceBridge.soapRequest).toHaveBeenNthCalledWith(
         3,
         mockContext.tenantId,
@@ -132,7 +123,6 @@ describe("QueryDefinitionService", () => {
     });
 
     it("handles array results from MCE (uses first result)", async () => {
-      // Arrange
       mockMceBridge.soapRequest
         .mockResolvedValueOnce({
           Body: {
@@ -144,9 +134,8 @@ describe("QueryDefinitionService", () => {
             },
           },
         })
-        .mockResolvedValueOnce({}); // delete
+        .mockResolvedValueOnce(successfulDeleteResponse);
 
-      // Act
       const result = await service.deleteByCustomerKey(
         mockContext.tenantId,
         mockContext.userId,
@@ -154,7 +143,6 @@ describe("QueryDefinitionService", () => {
         "QPP_Query_abc",
       );
 
-      // Assert
       expect(result).toBe(true);
       expect(mockMceBridge.soapRequest).toHaveBeenNthCalledWith(
         2,

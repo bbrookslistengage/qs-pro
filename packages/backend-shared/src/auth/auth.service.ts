@@ -154,6 +154,9 @@ export class AuthService {
 
     const tenant = await this.tenantRepo.upsert({ eid, tssd });
 
+    // sfUserId is a Salesforce User ID (18-char format), which is globally unique
+    // across all MCE enterprises. A user belongs to exactly one MCE enterprise,
+    // so we check globally rather than per-tenant.
     const existingUser = await this.userRepo.findBySfUserId(sfUserId);
 
     if (!existingUser) {
@@ -252,7 +255,10 @@ export class AuthService {
     mid: string,
     forceRefresh = false,
   ): Promise<{ accessToken: string; tssd: string }> {
-    const lockKey = `${tenantId}:${userId}:${mid}:${forceRefresh ? "force" : "normal"}`;
+    // Lock by (tenantId, userId, mid) only—regardless of forceRefresh.
+    // This prevents concurrent MCE refresh_token API calls for the same session,
+    // which could cause invalid_grant errors if MCE rotates tokens on use.
+    const lockKey = `${tenantId}:${userId}:${mid}`;
     const existingLock = this.refreshLocks.get(lockKey);
     if (existingLock) {
       return existingLock;
@@ -435,6 +441,9 @@ export class AuthService {
 
     const tenant = await this.tenantRepo.upsert({ eid: effectiveEid, tssd });
 
+    // sfUserId is a Salesforce User ID (18-char format), which is globally unique
+    // across all MCE enterprises. A user belongs to exactly one MCE enterprise,
+    // so we check globally rather than per-tenant.
     const existingUser = await this.userRepo.findBySfUserId(effectiveSfUserId);
 
     if (!existingUser) {

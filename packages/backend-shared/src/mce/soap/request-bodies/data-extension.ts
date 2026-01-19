@@ -118,7 +118,7 @@ export function buildCreateDataExtension(
     <DataRetentionPeriod>Days</DataRetentionPeriod>
     <RowBasedRetention>false</RowBasedRetention>
     <ResetRetentionPeriodOnImport>false</ResetRetentionPeriodOnImport>
-    <DeleteAtEndOfRetentionPeriod>true</DeleteAtEndOfRetentionPeriod>
+    <DeleteAtEndOfRetentionPeriod>false</DeleteAtEndOfRetentionPeriod>
     <Fields>
       ${fieldsXml}
     </Fields>
@@ -148,6 +148,22 @@ export function buildRetrieveDataExtensions(clientId?: string): string {
     <Properties>Name</Properties>
     <Properties>CategoryID</Properties>
     <Properties>IsSendable</Properties>
+  </RetrieveRequest>
+</RetrieveRequestMsg>`;
+}
+
+export function buildRetrieveDataExtensionByName(name: string): string {
+  return `<RetrieveRequestMsg xmlns="http://exacttarget.com/wsdl/partnerAPI">
+  <RetrieveRequest>
+    <ObjectType>DataExtension</ObjectType>
+    <Properties>ObjectID</Properties>
+    <Properties>CustomerKey</Properties>
+    <Properties>Name</Properties>
+    <Filter xsi:type="SimpleFilterPart">
+      <Property>Name</Property>
+      <SimpleOperator>equals</SimpleOperator>
+      <Value>${escapeXml(name)}</Value>
+    </Filter>
   </RetrieveRequest>
 </RetrieveRequestMsg>`;
 }

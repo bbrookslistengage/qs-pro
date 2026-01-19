@@ -205,6 +205,7 @@ describe('ShellQueryProcessor', () => {
         tenantId: 't1',
         userId: 'u1',
         mid: 'm1',
+        queryDefinitionId: '', // Force retrieve path
       });
 
       mockDb.setSelectResult([{ status: 'canceled' }]);

@@ -122,6 +122,7 @@ export function buildRetrieveDataExtensions(clientId?: string): string {
   <RetrieveRequest>
     ${clientContext}
     <ObjectType>DataExtension</ObjectType>
+    <Properties>ObjectID</Properties>
     <Properties>CustomerKey</Properties>
     <Properties>Name</Properties>
     <Properties>CategoryID</Properties>

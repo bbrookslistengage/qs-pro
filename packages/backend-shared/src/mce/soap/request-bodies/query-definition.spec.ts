@@ -57,6 +57,22 @@ function extractObjectIdFromObjects(xml: string): string | null {
   return objectsMatch?.[1] ?? null;
 }
 
+function extractDataExtensionTargetValue(
+  xml: string,
+  tagName: "CustomerKey" | "Name",
+): string | null {
+  const targetMatch = xml.match(
+    /<DataExtensionTarget>[\s\S]*?<\/DataExtensionTarget>/,
+  );
+  if (!targetMatch) {
+    return null;
+  }
+
+  const regex = new RegExp(`<${tagName}>([^<]*)</${tagName}>`);
+  const match = targetMatch[0].match(regex);
+  return match?.[1] ?? null;
+}
+
 function hasRequestType(xml: string, type: string): boolean {
   const patterns: Record<string, RegExp> = {
     Retrieve: /<RetrieveRequest/,
@@ -143,6 +159,17 @@ describe("QueryDefinition SOAP Request Builders", () => {
       const xml = buildCreateQueryDefinition(defaultParams);
 
       expect(extractObjectIdFromObjects(xml)).toBe("target-object-id");
+    });
+
+    it("should include DataExtensionTarget name and customerKey for the target DE", () => {
+      const xml = buildCreateQueryDefinition(defaultParams);
+
+      expect(extractDataExtensionTargetValue(xml, "CustomerKey")).toBe(
+        "target-de-key",
+      );
+      expect(extractDataExtensionTargetValue(xml, "Name")).toBe(
+        "Target DE Name",
+      );
     });
 
     it("should escape XML special characters in all user inputs", () => {

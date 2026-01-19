@@ -27,6 +27,8 @@ export interface DataExtensionField {
   name: string;
   fieldType: string;
   maxLength?: number;
+  isPrimaryKey?: boolean;
+  isRequired?: boolean;
 }
 
 export interface CreateDataExtensionParams {
@@ -106,7 +108,9 @@ export class DataExtensionService {
     mid: string,
     dataExtensionName: string,
   ): Promise<DataExtensionField[]> {
-    const soapBody = buildRetrieveDataExtensionFields(dataExtensionName);
+    const soapBody = buildRetrieveDataExtensionFields({
+      name: dataExtensionName,
+    });
 
     const response = await this.mceBridge.soapRequest<SoapRetrieveResponse>(
       tenantId,
@@ -135,6 +139,8 @@ export class DataExtensionService {
       maxLength: item.MaxLength
         ? parseInt(String(item.MaxLength), 10)
         : undefined,
+      isPrimaryKey: item.IsPrimaryKey === "true",
+      isRequired: item.IsRequired === "true",
     }));
   }
 

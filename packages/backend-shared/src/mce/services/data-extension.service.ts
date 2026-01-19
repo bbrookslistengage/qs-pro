@@ -6,6 +6,7 @@ import {
   buildContinueRequest,
   buildCreateDataExtension,
   buildDeleteDataExtension,
+  buildRetrieveDataExtensionByName,
   buildRetrieveDataExtensionFields,
   buildRetrieveDataExtensions,
 } from "../soap/request-bodies";
@@ -102,14 +103,68 @@ export class DataExtensionService {
     return results;
   }
 
+  async retrieveByName(
+    tenantId: string,
+    userId: string,
+    mid: string,
+    name: string,
+  ): Promise<DataExtension | null> {
+    const soapBody = buildRetrieveDataExtensionByName(name);
+
+    const response = await this.mceBridge.soapRequest<SoapRetrieveResponse>(
+      tenantId,
+      userId,
+      mid,
+      soapBody,
+      "Retrieve",
+    );
+
+    const msg = response.Body?.RetrieveResponseMsg;
+    const status = msg?.OverallStatus;
+
+    if (status && status !== "OK" && status !== "MoreDataAvailable") {
+      throw new MceOperationError("RetrieveDataExtensionByName", status);
+    }
+
+    const rawResults = msg?.Results;
+    if (!rawResults) {
+      return null;
+    }
+
+    const items = Array.isArray(rawResults) ? rawResults : [rawResults];
+    const item = items[0];
+    if (!item) {
+      return null;
+    }
+
+    return {
+      name: String(item.Name ?? ""),
+      customerKey: String(item.CustomerKey ?? ""),
+      objectId: String(item.ObjectID ?? ""),
+    };
+  }
+
   async retrieveFields(
     tenantId: string,
     userId: string,
     mid: string,
     dataExtensionName: string,
   ): Promise<DataExtensionField[]> {
+    // First, get the CustomerKey by looking up the DE by name
+    // (DataExtensionField can only be filtered by DataExtension.CustomerKey, not Name)
+    const dataExtension = await this.retrieveByName(
+      tenantId,
+      userId,
+      mid,
+      dataExtensionName,
+    );
+
+    if (!dataExtension) {
+      return [];
+    }
+
     const soapBody = buildRetrieveDataExtensionFields({
-      name: dataExtensionName,
+      customerKey: dataExtension.customerKey,
     });
 
     const response = await this.mceBridge.soapRequest<SoapRetrieveResponse>(

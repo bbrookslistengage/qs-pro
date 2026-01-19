@@ -28,7 +28,7 @@ interface AsyncStatusResult {
   ObjectID?: string;
   Type?: string;
   Properties?: {
-    Property?: AsyncStatusProperty[];
+    Property?: AsyncStatusProperty | AsyncStatusProperty[];
   };
   Status?: string;
   ErrorMsg?: string;

@@ -34,6 +34,12 @@ export class AsyncStatusService {
     const rawProperties = result?.Properties?.Property;
 
     if (!rawProperties) {
+      if (result?.Status || result?.ErrorMsg) {
+        return {
+          status: result.Status,
+          errorMsg: result.ErrorMsg,
+        };
+      }
       return {};
     }
 
@@ -48,8 +54,8 @@ export class AsyncStatusService {
     );
 
     return {
-      status: statusProp?.Value,
-      errorMsg: errorMsgProp?.Value,
+      status: statusProp?.Value ?? result?.Status,
+      errorMsg: errorMsgProp?.Value ?? result?.ErrorMsg,
       completedDate: completedDateProp?.Value,
     };
   }

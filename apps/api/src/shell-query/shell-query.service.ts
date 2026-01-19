@@ -6,7 +6,11 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { RestDataService, type RowsetResponse } from '@qs-pro/backend-shared';
+import {
+  buildQppResultsDataExtensionName,
+  RestDataService,
+  type RowsetResponse,
+} from '@qs-pro/backend-shared';
 import type { TableMetadata } from '@qs-pro/shared-types';
 import { Queue } from 'bullmq';
 import * as crypto from 'crypto';
@@ -162,10 +166,7 @@ export class ShellQueryService {
 
     // Proxy to MCE REST Rowset API
     // The DE name follows the convention: QPP_[SnippetName]_[Hash]
-    const hash = run.id.substring(0, 8);
-    const deName = run.snippetName
-      ? `QPP_${run.snippetName.replace(/\s+/g, '_')}_${hash}`
-      : `QPP_Results_${hash}`;
+    const deName = buildQppResultsDataExtensionName(run.id, run.snippetName);
 
     const pageSize = 50;
 

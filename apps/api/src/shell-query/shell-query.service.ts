@@ -6,11 +6,11 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import type { TableMetadata } from '@qs-pro/shared-types';
+import { MceBridgeService } from '@qpp/backend-shared';
+import type { TableMetadata } from '@qpp/shared-types';
 import { Queue } from 'bullmq';
 import * as crypto from 'crypto';
 
-import { MceBridgeService } from '../mce/mce-bridge.service';
 import type { ShellQueryRunRepository } from './shell-query-run.repository';
 
 export interface ShellQueryContext {
@@ -187,10 +187,15 @@ export class ShellQueryService {
     this.logger.debug(`Fetching results for run ${runId}`);
 
     try {
-      const mceResponse = await this.mceBridge.request(tenantId, userId, mid, {
-        method: 'GET',
-        url,
-      });
+      const mceResponse = await this.mceBridge.request<MceRowsetResponse>(
+        tenantId,
+        userId,
+        mid,
+        {
+          method: 'GET',
+          url,
+        },
+      );
 
       this.logger.debug(
         `MCE rowset response: count=${mceResponse.count ?? 0}, page=${mceResponse.page ?? 1}`,

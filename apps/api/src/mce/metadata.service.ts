@@ -1,8 +1,7 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Inject, Injectable } from '@nestjs/common';
+import { MceBridgeService } from '@qpp/backend-shared';
 import * as cacheManager from 'cache-manager';
-
-import { MceBridgeService } from './mce-bridge.service';
 
 interface MceSoapFolder {
   ID: string | number;
@@ -79,7 +78,7 @@ export class MetadataService {
     const MAX_PAGES = 50;
 
     do {
-      const soapBody = continueRequest
+      const soapBody: string = continueRequest
         ? `
       <RetrieveRequestMsg xmlns="http://exacttarget.com/wsdl/partnerAPI">
          <RetrieveRequest>
@@ -105,13 +104,14 @@ export class MetadataService {
       </RetrieveRequestMsg>
     `;
 
-      const response = (await this.bridge.soapRequest(
-        tenantId,
-        userId,
-        mid,
-        soapBody,
-        'Retrieve',
-      )) as MceSoapResponse;
+      const response: MceSoapResponse =
+        await this.bridge.soapRequest<MceSoapResponse>(
+          tenantId,
+          userId,
+          mid,
+          soapBody,
+          'Retrieve',
+        );
 
       const retrieveResponse = response?.Body?.RetrieveResponseMsg;
       const results = retrieveResponse?.Results ?? [];
@@ -121,7 +121,7 @@ export class MetadataService {
 
       allFolders = allFolders.concat(folders);
 
-      const status = retrieveResponse?.OverallStatus;
+      const status: string | undefined = retrieveResponse?.OverallStatus;
       continueRequest =
         status === 'MoreDataAvailable'
           ? (retrieveResponse?.RequestID ?? null)
@@ -207,7 +207,7 @@ export class MetadataService {
     const MAX_PAGES = 50;
 
     do {
-      const soapBody = continueRequest
+      const soapBody: string = continueRequest
         ? `
       <RetrieveRequestMsg xmlns="http://exacttarget.com/wsdl/partnerAPI">
          <RetrieveRequest>
@@ -228,13 +228,14 @@ export class MetadataService {
       </RetrieveRequestMsg>
     `;
 
-      const response = (await this.bridge.soapRequest(
-        tenantId,
-        userId,
-        mid,
-        soapBody,
-        'Retrieve',
-      )) as MceSoapResponse;
+      const response: MceSoapResponse =
+        await this.bridge.soapRequest<MceSoapResponse>(
+          tenantId,
+          userId,
+          mid,
+          soapBody,
+          'Retrieve',
+        );
 
       const retrieveResponse = response?.Body?.RetrieveResponseMsg;
       const results = retrieveResponse?.Results ?? [];
@@ -242,7 +243,7 @@ export class MetadataService {
 
       allDEs = allDEs.concat(des);
 
-      const status = retrieveResponse?.OverallStatus;
+      const status: string | undefined = retrieveResponse?.OverallStatus;
       continueRequest =
         status === 'MoreDataAvailable'
           ? (retrieveResponse?.RequestID ?? null)
@@ -283,13 +284,13 @@ export class MetadataService {
       </RetrieveRequestMsg>
     `;
 
-    const response = (await this.bridge.soapRequest(
+    const response = await this.bridge.soapRequest<MceSoapResponse>(
       tenantId,
       userId,
       mid,
       soapBody,
       'Retrieve',
-    )) as MceSoapResponse;
+    );
     const results = response?.Body?.RetrieveResponseMsg?.Results ?? [];
     const fields = Array.isArray(results) ? results : [results];
 

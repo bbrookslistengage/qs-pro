@@ -4,10 +4,10 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { Test, TestingModule } from '@nestjs/testing';
+import { MceBridgeService } from '@qpp/backend-shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SessionGuard } from '../src/auth/session.guard';
-import { MceBridgeService } from '../src/mce/mce-bridge.service';
 import { ShellQueryController } from '../src/shell-query/shell-query.controller';
 import { ShellQueryService } from '../src/shell-query/shell-query.service';
 import { ShellQuerySseService } from '../src/shell-query/shell-query-sse.service';

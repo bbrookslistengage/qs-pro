@@ -3,9 +3,9 @@ import * as crypto from 'node:crypto';
 import { getQueueToken } from '@nestjs/bullmq';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
+import { MceBridgeService } from '@qpp/backend-shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { MceBridgeService } from '../../mce/mce-bridge.service';
 import {
   type ShellQueryContext,
   ShellQueryService,

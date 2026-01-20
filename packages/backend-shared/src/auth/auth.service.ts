@@ -15,6 +15,7 @@ import { decrypt, encrypt } from "@qpp/database";
 import axios from "axios";
 import * as jose from "jose";
 
+import { AppError, ErrorCode } from "../common/errors";
 import { RlsContextService } from "../database/rls-context.service";
 import { SeatLimitService } from "./seat-limit.service";
 
@@ -594,12 +595,18 @@ export class AuthService {
       mid,
     );
     if (!creds) {
-      throw new UnauthorizedException("No credentials found");
+      throw new AppError(
+        ErrorCode.MCE_CREDENTIALS_MISSING,
+        `No credentials found for user ${userId} tenant ${tenantId} MID ${mid}`,
+      );
     }
 
     const tenant = await this.tenantRepo.findById(tenantId);
     if (!tenant) {
-      throw new UnauthorizedException("Tenant not found");
+      throw new AppError(
+        ErrorCode.MCE_TENANT_NOT_FOUND,
+        `Tenant ${tenantId} not found`,
+      );
     }
 
     if (
@@ -609,7 +616,10 @@ export class AuthService {
     ) {
       const encryptionKey = this.configService.get<string>("ENCRYPTION_KEY");
       if (!encryptionKey) {
-        throw new InternalServerErrorException("ENCRYPTION_KEY not configured");
+        throw new AppError(
+          ErrorCode.CONFIG_ERROR,
+          "ENCRYPTION_KEY not configured",
+        );
       }
       const decryptedAccessToken = decrypt(creds.accessToken, encryptionKey);
       return {
@@ -621,7 +631,10 @@ export class AuthService {
 
     const encryptionKey = this.configService.get<string>("ENCRYPTION_KEY");
     if (!encryptionKey) {
-      throw new InternalServerErrorException("ENCRYPTION_KEY not configured");
+      throw new AppError(
+        ErrorCode.CONFIG_ERROR,
+        "ENCRYPTION_KEY not configured",
+      );
     }
 
     const decryptedRefreshToken = decrypt(creds.refreshToken, encryptionKey);
@@ -631,7 +644,8 @@ export class AuthService {
 
     try {
       if (!clientId || !clientSecret) {
-        throw new InternalServerErrorException(
+        throw new AppError(
+          ErrorCode.CONFIG_ERROR,
           "MCE client credentials not configured",
         );
       }
@@ -657,6 +671,10 @@ export class AuthService {
         didRefresh: true,
       };
     } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+
       if (axios.isAxiosError(error)) {
         const data = error.response?.data;
         const errorCode =
@@ -666,13 +684,19 @@ export class AuthService {
               : ""
             : "";
         if (errorCode === "access_denied" || errorCode === "invalid_grant") {
-          throw new UnauthorizedException(
+          throw new AppError(
+            ErrorCode.MCE_AUTH_EXPIRED,
             "MCE session is invalid or access is revoked. Please re-authenticate.",
+            error,
           );
         }
       }
       this.logTokenError("Refresh token failed", error);
-      throw new UnauthorizedException("Failed to refresh token");
+      throw new AppError(
+        ErrorCode.MCE_AUTH_EXPIRED,
+        "Failed to refresh token",
+        error,
+      );
     }
   }
 

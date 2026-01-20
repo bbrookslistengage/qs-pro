@@ -13,7 +13,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Sql } from 'postgres';
 
 import { AppModule } from './app.module';
-import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
+import { configureApp } from './configure-app';
 
 type Session = {
   get(key: string): unknown;
@@ -60,8 +60,7 @@ async function bootstrap() {
     { bodyParser: false },
   );
 
-  app.setGlobalPrefix('api');
-  app.useGlobalFilters(new GlobalExceptionFilter());
+  configureApp(app);
 
   await app.register(formBody);
 

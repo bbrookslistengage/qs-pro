@@ -7,6 +7,7 @@
 
 import { type AST, Parser } from "node-sql-parser";
 
+import { AppError, ErrorCode } from "@qpp/backend-shared";
 import {
   type DataViewField,
   getSystemDataViewFields,
@@ -53,13 +54,6 @@ interface AstStatement {
   with?: Array<{ name: { value: string }; stmt: AstStatement }>;
   _next?: AstStatement;
   union?: string;
-}
-
-export class SelectStarExpansionError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "SelectStarExpansionError";
-  }
 }
 
 function stripBrackets(name: string): string {
@@ -193,7 +187,8 @@ async function getFieldsForTable(
 
   const fields = await metadataFn.getFieldsForTable(effectiveTableName);
   if (!fields) {
-    throw new SelectStarExpansionError(
+    throw new AppError(
+      ErrorCode.SELECT_STAR_EXPANSION_FAILED,
       `Unable to expand SELECT *. Metadata unavailable for table ${effectiveTableName}. Try listing columns explicitly.`,
     );
   }
@@ -217,7 +212,8 @@ function buildExpandedColumnList(
   return fields
     .map((f) => {
       if (f.Name.includes("]")) {
-        throw new SelectStarExpansionError(
+        throw new AppError(
+          ErrorCode.SELECT_STAR_EXPANSION_FAILED,
           `Unable to expand SELECT *. Column name "${f.Name}" contains a closing bracket ("])"). List columns explicitly.`,
         );
       }
@@ -305,7 +301,8 @@ export async function expandSelectStar(
     const starTablePrefix = getStarTablePrefix(stmt.columns);
 
     if (hasUnqualifiedSelectStar(stmt.columns) && tables.length > 1) {
-      throw new SelectStarExpansionError(
+      throw new AppError(
+        ErrorCode.SELECT_STAR_EXPANSION_FAILED,
         `SELECT * with multiple tables is ambiguous. Use table.* (e.g., ${tables[0]}.* ) or list columns explicitly.`,
       );
     }

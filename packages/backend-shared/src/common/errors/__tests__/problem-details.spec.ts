@@ -90,17 +90,18 @@ describe("appErrorToProblemDetails", () => {
     });
   });
 
-  it("preserves type and title for upstream 5xx errors (MCE_SERVER_ERROR)", () => {
+  it("preserves type and title for upstream 5xx errors (MCE_SERVER_ERROR), but masks detail", () => {
     const error = new AppError(
       ErrorCode.MCE_SERVER_ERROR,
-      "Salesforce API temporarily unavailable",
+      "Salesforce API returned error: [INVALID_FIELD_FOR_INSERT_UPDATE]",
     );
     const result = appErrorToProblemDetails(error, "/api/query");
 
     expect(result.status).toBe(502);
     expect(result.type).toBe("urn:qpp:error:mce-server-error");
     expect(result.title).toBe("MCE Server Error");
-    expect(result.detail).toBe("Salesforce API temporarily unavailable");
+    expect(result.detail).toBe("An unexpected error occurred");
+    expect(result.detail).not.toContain("INVALID_FIELD_FOR_INSERT_UPDATE");
   });
 
   it("masks internal infrastructure 5xx errors (DATABASE_ERROR, REDIS_ERROR)", () => {

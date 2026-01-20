@@ -1,4 +1,5 @@
 import { AppError } from "./app-error";
+import { ErrorCode } from "./error-codes";
 import { getErrorTitle, getHttpStatus } from "./error-policy";
 
 /**
@@ -29,17 +30,18 @@ export function appErrorToProblemDetails(
 ): ProblemDetails {
   const status = getHttpStatus(error.code);
   const is5xx = status >= 500;
-  // Upstream service errors are safe to expose (don't leak our infrastructure)
-  const isUpstreamError = error.code === "MCE_SERVER_ERROR";
-  const shouldMask = is5xx && !isUpstreamError;
+  // Upstream service errors expose type/title (tells client MCE is down)
+  // but mask detail (don't leak Salesforce internal errors)
+  const isUpstreamError = error.code === ErrorCode.MCE_SERVER_ERROR;
+  const shouldMaskType = is5xx && !isUpstreamError;
 
   return {
-    type: shouldMask
+    type: shouldMaskType
       ? "urn:qpp:error:internal-server-error"
       : `urn:qpp:error:${error.code.toLowerCase().replace(/_/g, "-")}`,
-    title: shouldMask ? "Internal Server Error" : getErrorTitle(error.code),
+    title: shouldMaskType ? "Internal Server Error" : getErrorTitle(error.code),
     status,
-    detail: shouldMask ? "An unexpected error occurred" : error.message,
+    detail: is5xx ? "An unexpected error occurred" : error.message,
     instance: requestPath,
   };
 }

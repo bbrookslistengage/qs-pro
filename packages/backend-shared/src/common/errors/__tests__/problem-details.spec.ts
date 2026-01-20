@@ -16,7 +16,7 @@ describe("appErrorToProblemDetails", () => {
     });
   });
 
-  it("masks detail for 5xx errors (security)", () => {
+  it("masks type, title, and detail for 5xx errors (security)", () => {
     const error = new AppError(
       ErrorCode.DATABASE_ERROR,
       "Connection to postgres:5432 failed",
@@ -24,8 +24,11 @@ describe("appErrorToProblemDetails", () => {
     const result = appErrorToProblemDetails(error, "/api/query");
 
     expect(result.status).toBe(500);
+    expect(result.type).toBe("urn:qpp:error:internal-server-error");
+    expect(result.title).toBe("Internal Server Error");
     expect(result.detail).toBe("An unexpected error occurred");
     expect(result.detail).not.toContain("postgres");
+    expect(result.type).not.toContain("database");
   });
 
   it("converts error code to URN format (underscores to hyphens, lowercase)", () => {
@@ -57,5 +60,33 @@ describe("appErrorToProblemDetails", () => {
     );
     const result = appErrorToProblemDetails(error, "/api/shell-query/execute");
     expect(result.instance).toBe("/api/shell-query/execute");
+  });
+
+  it("keeps specific type and title for 4xx errors", () => {
+    const tests = [
+      [
+        ErrorCode.MCE_BAD_REQUEST,
+        "urn:qpp:error:mce-bad-request",
+        "MCE Bad Request",
+      ],
+      [
+        ErrorCode.MCE_AUTH_EXPIRED,
+        "urn:qpp:error:mce-auth-expired",
+        "MCE Authentication Expired",
+      ],
+      [
+        ErrorCode.SEAT_LIMIT_EXCEEDED,
+        "urn:qpp:error:seat-limit-exceeded",
+        "Seat Limit Exceeded",
+      ],
+    ];
+
+    tests.forEach(([code, expectedType, expectedTitle]) => {
+      const error = new AppError(code as ErrorCode, "test message");
+      const result = appErrorToProblemDetails(error, "/test");
+      expect(result.type).toBe(expectedType);
+      expect(result.title).toBe(expectedTitle);
+      expect(result.detail).toBe("test message");
+    });
   });
 });

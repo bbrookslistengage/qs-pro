@@ -9,17 +9,12 @@ describe("toAppError", () => {
     expect(result).toBe(original);
   });
 
-  it("preserves original error as cause", () => {
-    const original = new Error("original message");
-    const result = toAppError(original);
-    expect(result.cause).toBe(original);
-    expect(result.message).toBe("original message");
-  });
-
   it("wraps plain Error with UNKNOWN code", () => {
-    const result = toAppError(new Error("something broke"));
+    const original = new Error("something broke");
+    const result = toAppError(original);
     expect(result.code).toBe(ErrorCode.UNKNOWN);
     expect(result.message).toBe("something broke");
+    expect(result.cause).toBe(original);
   });
 
   it("handles string errors gracefully", () => {
@@ -33,9 +28,9 @@ describe("toAppError", () => {
     expect(toAppError(undefined).code).toBe(ErrorCode.UNKNOWN);
   });
 
-  it("preserves cause chain in AppError", () => {
-    const originalError = new Error("root cause");
-    const result = toAppError(originalError);
-    expect(result.cause).toBe(originalError);
+  it("wraps arbitrary objects with UNKNOWN code", () => {
+    const result = toAppError({ foo: "bar" });
+    expect(result.code).toBe(ErrorCode.UNKNOWN);
+    expect(result.message).toBe("Unknown error");
   });
 });

@@ -16,8 +16,9 @@ export interface ProblemDetails {
 /**
  * Converts an AppError to RFC 9457 Problem Details format.
  *
- * Security: 5xx errors get generic detail messages to avoid leaking
- * implementation details. Full error is logged server-side.
+ * Security: 5xx errors get generic type, title, and detail messages to avoid
+ * leaking implementation details (database, cache, etc.). Full error is logged
+ * server-side for debugging.
  */
 export function appErrorToProblemDetails(
   error: AppError,
@@ -27,8 +28,10 @@ export function appErrorToProblemDetails(
   const is5xx = status >= 500;
 
   return {
-    type: `urn:qpp:error:${error.code.toLowerCase().replace(/_/g, "-")}`,
-    title: getErrorTitle(error.code),
+    type: is5xx
+      ? "urn:qpp:error:internal-server-error"
+      : `urn:qpp:error:${error.code.toLowerCase().replace(/_/g, "-")}`,
+    title: is5xx ? "Internal Server Error" : getErrorTitle(error.code),
     status,
     detail: is5xx ? "An unexpected error occurred" : error.message,
     instance: requestPath,

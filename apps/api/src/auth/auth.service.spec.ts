@@ -1,15 +1,21 @@
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
+  AppError,
   AuthService,
+  ErrorCode,
+  ErrorMessages,
   RlsContextService,
   SeatLimitService,
 } from '@qpp/backend-shared';
 import type {
+  Credential,
   ICredentialsRepository,
   ITenantRepository,
   IUserRepository,
+  Tenant,
 } from '@qpp/database';
+import { encrypt } from '@qpp/database';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import {
@@ -211,5 +217,279 @@ describe('AuthService', () => {
         name: 'SF User',
       }),
     );
+  });
+
+  describe('refreshToken error handling', () => {
+    it('throws MCE_CREDENTIALS_MISSING when no credentials found', async () => {
+      vi.mocked(credRepo.findByUserTenantMid).mockResolvedValueOnce(undefined);
+
+      try {
+        await service.refreshToken('t-1', 'u-1', 'mid-1');
+        expect.fail('Expected AppError to be thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(AppError);
+        expect((error as AppError).code).toBe(
+          ErrorCode.MCE_CREDENTIALS_MISSING,
+        );
+        expect((error as AppError).message).toBe(
+          ErrorMessages[ErrorCode.MCE_CREDENTIALS_MISSING],
+        );
+        expect((error as AppError).context).toEqual({
+          userId: 'u-1',
+          tenantId: 't-1',
+          mid: 'mid-1',
+        });
+      }
+    });
+
+    it('throws MCE_TENANT_NOT_FOUND when tenant does not exist', async () => {
+      const credential: Partial<Credential> = {
+        userId: 'u-1',
+        tenantId: 't-1',
+        mid: 'mid-1',
+        refreshToken: 'Q7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u=',
+      };
+      vi.mocked(credRepo.findByUserTenantMid).mockResolvedValueOnce(
+        credential as Credential,
+      );
+      vi.mocked(tenantRepo.findById).mockResolvedValueOnce(undefined);
+
+      try {
+        await service.refreshToken('t-1', 'u-1', 'mid-1');
+        expect.fail('Expected AppError to be thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(AppError);
+        expect((error as AppError).code).toBe(ErrorCode.MCE_TENANT_NOT_FOUND);
+        expect((error as AppError).message).toBe(
+          ErrorMessages[ErrorCode.MCE_TENANT_NOT_FOUND],
+        );
+        expect((error as AppError).context).toEqual({ tenantId: 't-1' });
+      }
+    });
+
+    it('throws CONFIG_ERROR when ENCRYPTION_KEY missing in valid token path', async () => {
+      const futureDate = new Date(Date.now() + 60 * 60 * 1000);
+      const credential: Partial<Credential> = {
+        userId: 'u-1',
+        tenantId: 't-1',
+        mid: 'mid-1',
+        accessToken: 'encrypted-token',
+        refreshToken: 'encrypted-refresh',
+        expiresAt: futureDate,
+      };
+      const tenant: Partial<Tenant> = {
+        id: 't-1',
+        eid: '12345',
+        tssd: 'test-tssd',
+      };
+
+      vi.mocked(credRepo.findByUserTenantMid).mockResolvedValueOnce(
+        credential as Credential,
+      );
+      vi.mocked(tenantRepo.findById).mockResolvedValueOnce(tenant as Tenant);
+
+      const configService = module.get<ConfigService>(ConfigService);
+      vi.mocked(configService.get).mockImplementation((key: string) => {
+        if (key === 'ENCRYPTION_KEY') {
+          return undefined;
+        }
+        if (key === 'MCE_CLIENT_ID') {
+          return 'client-id';
+        }
+        if (key === 'MCE_CLIENT_SECRET') {
+          return 'client-secret';
+        }
+        return 'some-value';
+      });
+
+      try {
+        await service.refreshToken('t-1', 'u-1', 'mid-1', false);
+        expect.fail('Expected AppError to be thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(AppError);
+        expect((error as AppError).code).toBe(ErrorCode.CONFIG_ERROR);
+        expect((error as AppError).message).toBe(
+          ErrorMessages[ErrorCode.CONFIG_ERROR],
+        );
+      }
+    });
+
+    it('throws CONFIG_ERROR when MCE client credentials not configured', async () => {
+      const encryptionKey =
+        '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
+      const encryptedRefreshToken = encrypt(
+        'valid-refresh-token',
+        encryptionKey,
+      );
+
+      const credential: Partial<Credential> = {
+        userId: 'u-1',
+        tenantId: 't-1',
+        mid: 'mid-1',
+        refreshToken: encryptedRefreshToken,
+        expiresAt: new Date(Date.now() - 1000),
+      };
+      const tenant: Partial<Tenant> = {
+        id: 't-1',
+        eid: '12345',
+        tssd: 'test-tssd',
+      };
+
+      vi.mocked(credRepo.findByUserTenantMid).mockResolvedValueOnce(
+        credential as Credential,
+      );
+      vi.mocked(tenantRepo.findById).mockResolvedValueOnce(tenant as Tenant);
+
+      const configService = module.get<ConfigService>(ConfigService);
+      vi.mocked(configService.get).mockImplementation((key: string) => {
+        if (key === 'ENCRYPTION_KEY') {
+          return encryptionKey;
+        }
+        if (key === 'MCE_CLIENT_ID') {
+          return undefined;
+        }
+        if (key === 'MCE_CLIENT_SECRET') {
+          return 'client-secret';
+        }
+        return 'some-value';
+      });
+
+      try {
+        await service.refreshToken('t-1', 'u-1', 'mid-1', true);
+        expect.fail('Expected AppError to be thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(AppError);
+        expect((error as AppError).code).toBe(ErrorCode.CONFIG_ERROR);
+        expect((error as AppError).message).toBe(
+          ErrorMessages[ErrorCode.CONFIG_ERROR],
+        );
+      }
+    });
+
+    it('throws MCE_AUTH_EXPIRED when MCE returns access_denied', async () => {
+      server.use(
+        http.post(
+          'https://test-tssd.auth.marketingcloudapis.com/v2/token',
+          () =>
+            HttpResponse.json(
+              { error: 'access_denied', error_description: 'Access revoked' },
+              { status: 401 },
+            ),
+        ),
+      );
+
+      const encryptionKey =
+        '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
+      const encryptedRefreshToken = encrypt(
+        'valid-refresh-token',
+        encryptionKey,
+      );
+
+      const credential: Partial<Credential> = {
+        userId: 'u-1',
+        tenantId: 't-1',
+        mid: 'mid-1',
+        refreshToken: encryptedRefreshToken,
+        expiresAt: new Date(Date.now() - 1000),
+      };
+      const tenant: Partial<Tenant> = {
+        id: 't-1',
+        eid: '12345',
+        tssd: 'test-tssd',
+      };
+
+      vi.mocked(credRepo.findByUserTenantMid).mockResolvedValueOnce(
+        credential as Credential,
+      );
+      vi.mocked(tenantRepo.findById).mockResolvedValueOnce(tenant as Tenant);
+
+      const configService = module.get<ConfigService>(ConfigService);
+      vi.mocked(configService.get).mockImplementation((key: string) => {
+        if (key === 'ENCRYPTION_KEY') {
+          return encryptionKey;
+        }
+        if (key === 'MCE_CLIENT_ID') {
+          return 'client-id';
+        }
+        if (key === 'MCE_CLIENT_SECRET') {
+          return 'client-secret';
+        }
+        return 'some-value';
+      });
+
+      try {
+        await service.refreshToken('t-1', 'u-1', 'mid-1', true);
+        expect.fail('Expected AppError to be thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(AppError);
+        expect((error as AppError).code).toBe(ErrorCode.MCE_AUTH_EXPIRED);
+        expect((error as AppError).message).toBe(
+          ErrorMessages[ErrorCode.MCE_AUTH_EXPIRED],
+        );
+      }
+    });
+
+    it('throws MCE_AUTH_EXPIRED when MCE returns invalid_grant', async () => {
+      server.use(
+        http.post(
+          'https://test-tssd.auth.marketingcloudapis.com/v2/token',
+          () =>
+            HttpResponse.json(
+              { error: 'invalid_grant', error_description: 'Grant expired' },
+              { status: 401 },
+            ),
+        ),
+      );
+
+      const encryptionKey =
+        '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
+      const encryptedRefreshToken = encrypt(
+        'valid-refresh-token',
+        encryptionKey,
+      );
+
+      const credential: Partial<Credential> = {
+        userId: 'u-1',
+        tenantId: 't-1',
+        mid: 'mid-1',
+        refreshToken: encryptedRefreshToken,
+        expiresAt: new Date(Date.now() - 1000),
+      };
+      const tenant: Partial<Tenant> = {
+        id: 't-1',
+        eid: '12345',
+        tssd: 'test-tssd',
+      };
+
+      vi.mocked(credRepo.findByUserTenantMid).mockResolvedValueOnce(
+        credential as Credential,
+      );
+      vi.mocked(tenantRepo.findById).mockResolvedValueOnce(tenant as Tenant);
+
+      const configService = module.get<ConfigService>(ConfigService);
+      vi.mocked(configService.get).mockImplementation((key: string) => {
+        if (key === 'ENCRYPTION_KEY') {
+          return encryptionKey;
+        }
+        if (key === 'MCE_CLIENT_ID') {
+          return 'client-id';
+        }
+        if (key === 'MCE_CLIENT_SECRET') {
+          return 'client-secret';
+        }
+        return 'some-value';
+      });
+
+      try {
+        await service.refreshToken('t-1', 'u-1', 'mid-1', true);
+        expect.fail('Expected AppError to be thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(AppError);
+        expect((error as AppError).code).toBe(ErrorCode.MCE_AUTH_EXPIRED);
+        expect((error as AppError).message).toBe(
+          ErrorMessages[ErrorCode.MCE_AUTH_EXPIRED],
+        );
+      }
+    });
   });
 });

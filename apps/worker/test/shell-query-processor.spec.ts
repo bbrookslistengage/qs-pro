@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getQueueToken } from '@nestjs/bullmq';
 import { ShellQueryProcessor } from '../src/shell-query/shell-query.processor';
 import { RunToTempFlow } from '../src/shell-query/strategies/run-to-temp.strategy';
-import { RlsContextService, MceBridgeService, AsyncStatusService, RestDataService } from '@qpp/backend-shared';
+import { RlsContextService, MceBridgeService, AsyncStatusService, RestDataService, AppError, ErrorCode, ErrorMessages } from '@qpp/backend-shared';
 import { DelayedError } from 'bullmq';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createMockBullJob, createMockPollBullJob } from './factories';
@@ -467,10 +467,12 @@ describe('ShellQueryProcessor', () => {
         errorMsg: '',
       });
 
-      mockRestDataService.getRowset.mockRejectedValueOnce({ status: 401, message: 'No credentials found' });
+      mockRestDataService.getRowset.mockRejectedValueOnce(
+        new AppError(ErrorCode.MCE_CREDENTIALS_MISSING),
+      );
 
       await expect(processor.process(job as any)).rejects.toThrow(
-        'No credentials found for tenant t1 MID m1',
+        ErrorMessages[ErrorCode.MCE_CREDENTIALS_MISSING],
       );
       expect(mockDb.update).toHaveBeenCalled();
     });
@@ -606,10 +608,12 @@ describe('ShellQueryProcessor', () => {
         errorMsg: '',
       });
 
-      mockRestDataService.getRowset.mockRejectedValue({ status: 401, message: 'No credentials found' });
+      mockRestDataService.getRowset.mockRejectedValue(
+        new AppError(ErrorCode.MCE_CREDENTIALS_MISSING),
+      );
 
       await expect(processor.process(job as any)).rejects.toThrow(
-        'No credentials found for tenant t1 MID m1',
+        ErrorMessages[ErrorCode.MCE_CREDENTIALS_MISSING],
       );
       expect(mockDb.update).toHaveBeenCalled();
     });

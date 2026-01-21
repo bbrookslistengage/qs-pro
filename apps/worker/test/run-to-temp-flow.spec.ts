@@ -4,6 +4,8 @@ import { MceQueryValidator } from '../src/shell-query/mce-query-validator';
 import {
   DataExtensionService,
   DataFolderService,
+  ErrorCode,
+  ErrorMessages,
   QueryDefinitionService,
   RlsContextService,
 } from '@qpp/backend-shared';
@@ -130,7 +132,7 @@ describe('RunToTempFlow', () => {
       errors: ['Invalid syntax near SELECT'],
     });
 
-    await expect(strategy.execute(job)).rejects.toThrow('Invalid syntax near SELECT');
+    await expect(strategy.execute(job)).rejects.toThrow(ErrorMessages[ErrorCode.MCE_VALIDATION_FAILED]);
     expect(mockDataExtensionService.create).not.toHaveBeenCalled();
     expect(mockDataFolderService.retrieve).not.toHaveBeenCalled();
     expect(mockQueryDefinitionService.create).not.toHaveBeenCalled();

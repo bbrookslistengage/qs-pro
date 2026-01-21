@@ -1,9 +1,14 @@
 import { InjectQueue, Processor, WorkerHost } from "@nestjs/bullmq";
 import { Inject, Logger } from "@nestjs/common";
 import {
+  AppError,
   AsyncStatusService,
   buildDeleteQueryDefinition,
+  ErrorCode,
+  getHttpStatus,
   type IsRunningResponse,
+  isTerminal,
+  isUnrecoverable,
   MceBridgeService,
   RestDataService,
   RlsContextService,
@@ -201,23 +206,26 @@ export class ShellQueryProcessor extends WorkerHost {
       return { status: "poll-enqueued", runId, taskId: result.taskId };
     } catch (error: unknown) {
       const durationMs = Date.now() - startTime;
-      const err = error as {
-        message?: string;
-        stack?: string;
-        status?: number;
-      };
+      const message =
+        error instanceof AppError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Unknown error";
+      const stack = error instanceof Error ? error.stack : undefined;
+
       this.logger.error(
         {
-          message: `Execute job ${job.id} failed: ${err.message || "Unknown error"}`,
+          message: `Execute job ${job.id} failed: ${message}`,
           tenantId,
           runId,
           status: "failed",
           durationMs,
-          error: err.message || "Unknown error",
-          stack: err.stack,
+          error: message,
+          stack,
           timestamp: new Date().toISOString(),
         },
-        err.stack,
+        stack,
         "ShellQueryProcessor",
       );
 
@@ -228,19 +236,20 @@ export class ShellQueryProcessor extends WorkerHost {
         this.metricsFailuresTotal as {
           inc: (labels: { error_type: string }) => void;
         }
-      ).inc({ error_type: err.status?.toString() || "unknown" });
+      ).inc({
+        error_type:
+          error instanceof AppError
+            ? getHttpStatus(error.code).toString()
+            : "unknown",
+      });
 
-      const isTerminal = this.isTerminalError(error);
+      const terminalError = isTerminal(error);
 
       await this.updateStatus(tenantId, userId, mid, runId, "failed", {
-        errorMessage: err.message || "Unknown error",
+        errorMessage: message,
         completedAt: new Date(),
       });
-      await this.publishStatusEvent(
-        runId,
-        "failed",
-        err.message || "Unknown error",
-      );
+      await this.publishStatusEvent(runId, "failed", message);
 
       await this.rlsContext.runWithUserContext(
         tenantId,
@@ -251,8 +260,8 @@ export class ShellQueryProcessor extends WorkerHost {
         },
       );
 
-      if (isTerminal) {
-        throw new UnrecoverableError(err.message || "Unknown error");
+      if (terminalError) {
+        throw new UnrecoverableError(message);
       }
       throw error;
     } finally {
@@ -628,19 +637,16 @@ export class ShellQueryProcessor extends WorkerHost {
         throw error;
       }
 
-      const err = error as { message?: string; terminal?: boolean };
-      this.logger.error(
-        `Poll job ${job.id} failed: ${err.message || "Unknown error"}`,
-      );
+      const message =
+        error instanceof AppError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Unknown error";
+      this.logger.error(`Poll job ${job.id} failed: ${message}`);
 
-      if (err.terminal) {
-        await this.markFailed(
-          tenantId,
-          userId,
-          mid,
-          runId,
-          err.message || "Unknown error",
-        );
+      if (isTerminal(error)) {
+        await this.markFailed(tenantId, userId, mid, runId, message);
         await this.rlsContext.runWithUserContext(
           tenantId,
           mid,
@@ -655,7 +661,7 @@ export class ShellQueryProcessor extends WorkerHost {
             );
           },
         );
-        throw new UnrecoverableError(err.message || "Unknown error");
+        throw new UnrecoverableError(message);
       }
 
       throw error;
@@ -789,16 +795,15 @@ export class ShellQueryProcessor extends WorkerHost {
 
       return true;
     } catch (error) {
-      const err = error as { message?: string; status?: number };
-      if (err.status === 401) {
-        const authError = new Error(
-          `No credentials found for tenant ${tenantId} MID ${mid}`,
-        ) as Error & { terminal: boolean };
-        authError.terminal = true;
-        throw authError;
+      // Unrecoverable errors (auth/config/permissions) propagate immediately
+      if (isUnrecoverable(error)) {
+        throw error;
       }
+
+      // Other errors (including MCE_BAD_REQUEST) = "not ready yet", continue probing
+      const message = error instanceof Error ? error.message : "Unknown error";
       this.logger.debug(
-        `Rowset readiness check failed for "${deName}": ${err.message || "Unknown error"} (status: ${err.status || "N/A"})`,
+        `Rowset readiness check failed for "${deName}": ${message}`,
       );
       return false;
     }
@@ -826,17 +831,14 @@ export class ShellQueryProcessor extends WorkerHost {
 
       return { hasRows, count, itemsLength };
     } catch (error) {
-      const err = error as { message?: string; status?: number };
-      if (err.status === 401) {
-        const authError = new Error(
-          `No credentials found for tenant ${tenantId} MID ${mid}`,
-        ) as Error & { terminal: boolean };
-        authError.terminal = true;
-        throw authError;
+      // Unrecoverable errors (auth/config/permissions) propagate immediately
+      if (isUnrecoverable(error)) {
+        throw error;
       }
-      this.logger.debug(
-        `Row probe failed for "${deName}": ${err.message || "Unknown error"} (status: ${err.status || "N/A"})`,
-      );
+
+      // Other errors = probe failed, but not fatal
+      const message = error instanceof Error ? error.message : "Unknown error";
+      this.logger.debug(`Row probe failed for "${deName}": ${message}`);
       return { hasRows: false };
     }
   }
@@ -880,17 +882,27 @@ export class ShellQueryProcessor extends WorkerHost {
           needsIdFallback: false,
         };
       } catch (error) {
-        const err = error as { message?: string; status?: number };
+        // Unrecoverable errors (auth/config/permissions) propagate immediately
+        if (isUnrecoverable(error)) {
+          throw error;
+        }
 
-        if (err.status === 404 || err.status === 400) {
+        // MCE_BAD_REQUEST (400) or not-found = "this identifier didn't work" - try next candidate
+        if (
+          error instanceof AppError &&
+          error.code === ErrorCode.MCE_BAD_REQUEST
+        ) {
           this.logger.debug(
-            `REST isRunning check failed with ${err.status} using ${candidate.kind}="${candidate.value}"`,
+            `REST isRunning check failed with 400 using ${candidate.kind}="${candidate.value}"`,
           );
           continue;
         }
 
+        // Other errors - assume still running (safe default for polling)
+        const message =
+          error instanceof Error ? error.message : "Unknown error";
         this.logger.warn(
-          `REST isRunning check failed using ${candidate.kind}="${candidate.value}": ${err.message || "Unknown error"}`,
+          `REST isRunning check failed using ${candidate.kind}="${candidate.value}": ${message}`,
         );
         return { isRunning: true, needsIdFallback: false };
       }
@@ -932,19 +944,6 @@ export class ShellQueryProcessor extends WorkerHost {
     (
       this.metricsJobsTotal as { inc: (labels: { status: string }) => void }
     ).inc({ status: "failed" });
-  }
-
-  private isTerminalError(error: unknown): boolean {
-    const err = error as { terminal?: boolean; status?: number };
-    if (err.terminal) {
-      return true;
-    }
-
-    if (err.status) {
-      return [400, 401, 403].includes(err.status);
-    }
-
-    return false;
   }
 
   private async publishStatusEvent(

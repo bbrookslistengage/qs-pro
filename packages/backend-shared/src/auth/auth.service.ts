@@ -15,6 +15,7 @@ import { decrypt, encrypt } from "@qpp/database";
 import axios from "axios";
 import * as jose from "jose";
 
+import { AppError, ErrorCode } from "../common/errors";
 import { RlsContextService } from "../database/rls-context.service";
 import { SeatLimitService } from "./seat-limit.service";
 
@@ -594,12 +595,25 @@ export class AuthService {
       mid,
     );
     if (!creds) {
-      throw new UnauthorizedException("No credentials found");
+      this.logger.warn({
+        message: "MCE credentials not found",
+        userId,
+        tenantId,
+        mid,
+      });
+      throw new AppError(ErrorCode.MCE_CREDENTIALS_MISSING, undefined, {
+        userId,
+        tenantId,
+        mid,
+      });
     }
 
     const tenant = await this.tenantRepo.findById(tenantId);
     if (!tenant) {
-      throw new UnauthorizedException("Tenant not found");
+      this.logger.warn({ message: "Tenant not found", tenantId });
+      throw new AppError(ErrorCode.MCE_TENANT_NOT_FOUND, undefined, {
+        tenantId,
+      });
     }
 
     if (
@@ -609,7 +623,7 @@ export class AuthService {
     ) {
       const encryptionKey = this.configService.get<string>("ENCRYPTION_KEY");
       if (!encryptionKey) {
-        throw new InternalServerErrorException("ENCRYPTION_KEY not configured");
+        throw new AppError(ErrorCode.CONFIG_ERROR);
       }
       const decryptedAccessToken = decrypt(creds.accessToken, encryptionKey);
       return {
@@ -621,7 +635,7 @@ export class AuthService {
 
     const encryptionKey = this.configService.get<string>("ENCRYPTION_KEY");
     if (!encryptionKey) {
-      throw new InternalServerErrorException("ENCRYPTION_KEY not configured");
+      throw new AppError(ErrorCode.CONFIG_ERROR);
     }
 
     const decryptedRefreshToken = decrypt(creds.refreshToken, encryptionKey);
@@ -631,9 +645,7 @@ export class AuthService {
 
     try {
       if (!clientId || !clientSecret) {
-        throw new InternalServerErrorException(
-          "MCE client credentials not configured",
-        );
+        throw new AppError(ErrorCode.CONFIG_ERROR);
       }
 
       const body = new URLSearchParams({
@@ -657,6 +669,10 @@ export class AuthService {
         didRefresh: true,
       };
     } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+
       if (axios.isAxiosError(error)) {
         const data = error.response?.data;
         const errorCode =
@@ -666,13 +682,11 @@ export class AuthService {
               : ""
             : "";
         if (errorCode === "access_denied" || errorCode === "invalid_grant") {
-          throw new UnauthorizedException(
-            "MCE session is invalid or access is revoked. Please re-authenticate.",
-          );
+          throw new AppError(ErrorCode.MCE_AUTH_EXPIRED, error);
         }
       }
       this.logTokenError("Refresh token failed", error);
-      throw new UnauthorizedException("Failed to refresh token");
+      throw new AppError(ErrorCode.MCE_AUTH_EXPIRED, error);
     }
   }
 

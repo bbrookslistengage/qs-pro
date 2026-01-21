@@ -1,9 +1,9 @@
-import { HttpException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { AppError, ErrorCode, ErrorMessages } from "../common/errors";
 import { MCE_AUTH_PROVIDER, MceAuthProvider } from "./mce-auth.provider";
 import { MceBridgeService } from "./mce-bridge.service";
 
@@ -70,6 +70,7 @@ describe("MceBridgeService", () => {
         "tenant-1",
         "user-1",
         "mid-1",
+        false, // forceRefresh parameter
       );
       expect(vi.mocked(axios.request)).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -158,60 +159,101 @@ describe("MceBridgeService", () => {
       expect(vi.mocked(axios.request)).toHaveBeenCalledTimes(2);
     });
 
-    it("should normalize axios 401 error to ProblemDetails", async () => {
-      const error = new AxiosError(
-        "Unauthorized",
-        "ERR_BAD_REQUEST",
-        {} as InternalAxiosRequestConfig,
-        null,
-        {
-          status: 401,
-          statusText: "Unauthorized",
-          data: { message: "Token expired" },
-          headers: {},
-          config: {} as InternalAxiosRequestConfig,
-        },
-      );
-      vi.spyOn(axios, "request").mockRejectedValue(error);
+    it("should retry internally on 401 and succeed", async () => {
+      vi.spyOn(axios, "request")
+        .mockRejectedValueOnce(createAxiosError(401))
+        .mockResolvedValueOnce({ data: { success: true } });
+
+      const response = await service.request("t1", "u1", "m1", {
+        url: "/test",
+      });
+
+      expect(vi.mocked(authProvider.invalidateToken)).toHaveBeenCalled();
+      expect(vi.mocked(authProvider.refreshToken)).toHaveBeenCalledTimes(2);
+      expect(response).toEqual({ success: true });
+    });
+
+    it("should throw MCE_AUTH_EXPIRED after 401 retry fails", async () => {
+      vi.spyOn(axios, "request")
+        .mockRejectedValueOnce(createAxiosError(401))
+        .mockRejectedValueOnce(createAxiosError(401));
 
       try {
-        await service.request("tenant-1", "user-1", "mid-1", { url: "/test" });
-        // Should fail
-        expect(true).toBe(false);
-      } catch (e: unknown) {
-        const err = e as HttpException;
-        expect(err.getStatus()).toBe(401);
-        const response = err.getResponse() as Record<string, unknown>;
-        expect(response.title).toBe("Unauthorized");
-        expect(response.type).toBe("https://httpstatuses.com/401");
+        await service.request("t1", "u1", "m1", { url: "/test" });
+        expect.fail("Expected AppError to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(AppError);
+        expect((error as AppError).code).toBe(ErrorCode.MCE_AUTH_EXPIRED);
       }
     });
 
-    it("should normalize axios 500 error to ProblemDetails", async () => {
-      const error = new AxiosError(
-        "Internal Server Error",
-        "ERR_BAD_RESPONSE",
-        {} as InternalAxiosRequestConfig,
-        null,
-        {
-          status: 500,
-          statusText: "Internal Server Error",
-          data: { message: "Something went wrong" },
-          headers: {},
-          config: {} as InternalAxiosRequestConfig,
-        },
+    it("should throw MCE_BAD_REQUEST for 400", async () => {
+      vi.spyOn(axios, "request").mockRejectedValue(
+        createAxiosError(400, "Invalid params"),
       );
-      vi.spyOn(axios, "request").mockRejectedValue(error);
 
       try {
-        await service.request("tenant-1", "user-1", "mid-1", { url: "/test" });
-        expect(true).toBe(false);
-      } catch (e: unknown) {
-        const err = e as HttpException;
-        expect(err.getStatus()).toBe(500);
-        const response = err.getResponse() as Record<string, unknown>;
-        expect(response.title).toBe("Internal Server Error");
+        await service.request("t1", "u1", "m1", { url: "/test" });
+        expect.fail("Expected AppError to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(AppError);
+        expect((error as AppError).code).toBe(ErrorCode.MCE_BAD_REQUEST);
+        expect((error as AppError).message).toBe(
+          ErrorMessages[ErrorCode.MCE_BAD_REQUEST],
+        );
+      }
+    });
+
+    it("should throw MCE_FORBIDDEN for 403", async () => {
+      vi.spyOn(axios, "request").mockRejectedValue(createAxiosError(403));
+
+      try {
+        await service.request("t1", "u1", "m1", { url: "/test" });
+        expect.fail("Expected AppError to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(AppError);
+        expect((error as AppError).code).toBe(ErrorCode.MCE_FORBIDDEN);
+      }
+    });
+
+    it("should throw MCE_SERVER_ERROR for 500", async () => {
+      vi.spyOn(axios, "request").mockRejectedValue(createAxiosError(500));
+
+      try {
+        await service.request("t1", "u1", "m1", { url: "/test" });
+        expect.fail("Expected AppError to be thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(AppError);
+        expect((error as AppError).code).toBe(ErrorCode.MCE_SERVER_ERROR);
+      }
+    });
+
+    it("should pass through AppError from AuthService", async () => {
+      const authError = new AppError(ErrorCode.MCE_CREDENTIALS_MISSING);
+      vi.mocked(authProvider.refreshToken).mockRejectedValue(authError);
+
+      try {
+        await service.request("t1", "u1", "m1", { url: "/test" });
+        expect.fail("Expected AppError to be thrown");
+      } catch (error) {
+        expect(error).toBe(authError); // Same instance, not wrapped
       }
     });
   });
 });
+
+function createAxiosError(status: number, message = "Error"): AxiosError {
+  return new AxiosError(
+    message,
+    "ERR",
+    {} as InternalAxiosRequestConfig,
+    null,
+    {
+      status,
+      statusText: message,
+      data: { message },
+      headers: {},
+      config: {} as InternalAxiosRequestConfig,
+    },
+  );
+}

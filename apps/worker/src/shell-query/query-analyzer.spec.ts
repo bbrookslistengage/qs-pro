@@ -1,3 +1,4 @@
+import { AppError, ErrorCode, ErrorMessages } from "@qpp/backend-shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -7,7 +8,6 @@ import {
   extractTableNames,
   type MetadataFetcher,
   replaceStarInQuery,
-  SelectStarExpansionError,
 } from "./query-analyzer";
 import { type ColumnDefinition, inferSchema } from "./schema-inferrer";
 
@@ -128,10 +128,10 @@ describe("Query Analyzer", () => {
 
       // Act & Assert
       await expect(expandSelectStar(sql, mockMetadataFn)).rejects.toThrow(
-        SelectStarExpansionError,
+        AppError,
       );
       await expect(expandSelectStar(sql, mockMetadataFn)).rejects.toThrow(
-        "Unable to expand SELECT *. Metadata unavailable for table UnknownTable",
+        ErrorMessages[ErrorCode.SELECT_STAR_EXPANSION_FAILED],
       );
     });
 
@@ -197,10 +197,10 @@ describe("Query Analyzer", () => {
       const sql = "SELECT * FROM WeirdDEWithBracket";
 
       await expect(expandSelectStar(sql, mockMetadataFn)).rejects.toThrow(
-        SelectStarExpansionError,
+        AppError,
       );
       await expect(expandSelectStar(sql, mockMetadataFn)).rejects.toThrow(
-        'Column name "Field]Name"',
+        ErrorMessages[ErrorCode.SELECT_STAR_EXPANSION_FAILED],
       );
     });
 

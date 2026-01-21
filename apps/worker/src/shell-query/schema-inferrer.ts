@@ -5,6 +5,7 @@
  * based on the query expressions.
  */
 
+import { AppError, ErrorCode } from "@qpp/backend-shared";
 import { Parser } from "node-sql-parser";
 
 import {
@@ -17,13 +18,6 @@ import {
   getSystemDataViewFields,
   isSystemDataView,
 } from "./system-data-views";
-
-export class SchemaInferenceError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "SchemaInferenceError";
-  }
-}
 
 const parser = new Parser();
 const DIALECT = "transactsql";
@@ -576,9 +570,7 @@ export async function inferSchema(
       | AstStatement
       | AstStatement[];
   } catch {
-    throw new SchemaInferenceError(
-      "Could not parse query to infer output columns. Use explicit column names instead of SELECT *.",
-    );
+    throw new AppError(ErrorCode.SCHEMA_INFERENCE_FAILED);
   }
 
   const statements = Array.isArray(ast) ? ast : [ast];
@@ -661,9 +653,7 @@ export async function inferSchema(
   }
 
   if (columns.length === 0) {
-    throw new SchemaInferenceError(
-      "Could not determine output columns. Use explicit column names in your SELECT statement.",
-    );
+    throw new AppError(ErrorCode.SCHEMA_INFERENCE_FAILED);
   }
 
   return columns;

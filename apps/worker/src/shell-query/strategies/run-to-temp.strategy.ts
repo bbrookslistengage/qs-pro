@@ -1,9 +1,11 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import {
+  AppError,
   buildQppResultsDataExtensionName,
   type DataExtensionField,
   DataExtensionService,
   DataFolderService,
+  ErrorCode,
   QueryDefinitionService,
   RlsContextService,
 } from "@qpp/backend-shared";
@@ -79,9 +81,12 @@ export class RunToTempFlow implements IFlowStrategy {
     });
 
     if (!validationResult.valid) {
-      const errorMessage =
-        validationResult.errors?.join("; ") ?? "Query validation failed";
-      throw new MceValidationError(errorMessage);
+      throw new AppError(
+        ErrorCode.MCE_VALIDATION_FAILED,
+        undefined,
+        undefined,
+        { violations: validationResult.errors },
+      );
     }
 
     const metadataFetcher = this.createMetadataFetcher(job);
@@ -458,14 +463,5 @@ export class RunToTempFlow implements IFlowStrategy {
 
     this.logger.log(`Query started with TaskID: ${result.taskId}`);
     return result.taskId;
-  }
-}
-
-export class MceValidationError extends Error {
-  readonly terminal = true;
-
-  constructor(message: string) {
-    super(message);
-    this.name = "MceValidationError";
   }
 }

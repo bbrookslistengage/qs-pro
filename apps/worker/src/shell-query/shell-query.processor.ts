@@ -645,22 +645,25 @@ export class ShellQueryProcessor extends WorkerHost {
             : "Unknown error";
       this.logger.error(`Poll job ${job.id} failed: ${message}`);
 
+      // Update status and cleanup for ALL errors (not just terminal)
+      await this.markFailed(tenantId, userId, mid, runId, message);
+      await this.rlsContext.runWithUserContext(
+        tenantId,
+        mid,
+        userId,
+        async () => {
+          await this.cleanupAssetsForPoll(
+            tenantId,
+            userId,
+            mid,
+            runId,
+            queryDefinitionId,
+          );
+        },
+      );
+
+      // THEN decide whether to make it unrecoverable
       if (isTerminal(error)) {
-        await this.markFailed(tenantId, userId, mid, runId, message);
-        await this.rlsContext.runWithUserContext(
-          tenantId,
-          mid,
-          userId,
-          async () => {
-            await this.cleanupAssetsForPoll(
-              tenantId,
-              userId,
-              mid,
-              runId,
-              queryDefinitionId,
-            );
-          },
-        );
         throw new UnrecoverableError(message);
       }
 

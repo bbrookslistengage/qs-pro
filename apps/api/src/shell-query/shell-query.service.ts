@@ -188,10 +188,8 @@ export class ShellQueryService {
 
       return this.normalizeRowsetResponse(mceResponse, page, pageSize);
     } catch (e: unknown) {
-      const error = e as { message?: string };
-      this.logger.error(
-        `Failed to fetch results for run ${runId}: ${error.message}`,
-      );
+      const message = e instanceof Error ? e.message : 'Unknown error';
+      this.logger.error(`Failed to fetch results for run ${runId}: ${message}`);
       throw e;
     }
   }

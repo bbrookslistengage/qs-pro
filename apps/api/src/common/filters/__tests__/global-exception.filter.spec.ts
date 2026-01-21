@@ -7,7 +7,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { AppError, ErrorCode } from '@qpp/backend-shared';
+import { AppError, ErrorCode, ErrorMessages } from '@qpp/backend-shared';
 import request from 'supertest';
 
 import { GlobalExceptionFilter } from '../global-exception.filter';
@@ -17,12 +17,12 @@ import { GlobalExceptionFilter } from '../global-exception.filter';
 class TestController {
   @Get('app-error')
   throwAppError() {
-    throw new AppError(ErrorCode.MCE_VALIDATION_FAILED, 'Invalid query');
+    throw new AppError(ErrorCode.MCE_VALIDATION_FAILED);
   }
 
   @Get('app-error-mce-server')
   throwAppErrorMceServer() {
-    throw new AppError(ErrorCode.MCE_SERVER_ERROR, 'MCE encountered an error');
+    throw new AppError(ErrorCode.MCE_SERVER_ERROR);
   }
 
   @Get('bad-request')
@@ -81,7 +81,7 @@ describe('GlobalExceptionFilter', () => {
         type: 'urn:qpp:error:mce-validation-failed',
         title: 'Query Validation Failed',
         status: 400,
-        detail: 'Invalid query',
+        detail: ErrorMessages[ErrorCode.MCE_VALIDATION_FAILED],
         instance: '/test/app-error',
       });
     });

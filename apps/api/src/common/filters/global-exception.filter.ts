@@ -33,6 +33,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     // Classify exception and get Problem Details
     const problemDetails = this.classifyException(exception, path);
 
+    // Log context for AppError (server-side only, never exposed to client)
+    if (exception instanceof AppError && exception.context) {
+      this.logger.warn({
+        message: 'AppError context',
+        code: exception.code,
+        context: exception.context,
+        path,
+      });
+    }
+
     // Log appropriately
     if (problemDetails.status >= 500) {
       this.logger.error(`[${problemDetails.status}] ${path}`, exception);

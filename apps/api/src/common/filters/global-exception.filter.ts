@@ -34,6 +34,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const problemDetails = this.classifyException(exception, path);
 
     // Log context for AppError (server-side only, never exposed to client)
+    // TODO: When log aggregation is added, consider logging statusMessage at DEBUG
+    // level only (it's untrusted upstream data that may contain sensitive details).
+    // See: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html
     if (exception instanceof AppError && exception.context) {
       this.logger.warn({
         message: 'AppError context',

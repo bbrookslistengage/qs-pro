@@ -6,8 +6,8 @@ import { ErrorMessages } from "./error-messages";
  *
  * Contains two categories of data:
  * 1. Correlation IDs (tenantId, userId, mid, runId, mceRequestId) - always safe to log
- * 2. Operational details (operation, status, statusMessage) - may include upstream
- *    service messages that could contain object names or account identifiers
+ * 2. Operational details (operation, status, statusMessage, maxPages) - may include
+ *    upstream service messages that could contain object names or account identifiers
  *
  * Current logging policy: entire context logged at WARN level for debugging.
  * If log aggregation is added later, consider selective logging by category.

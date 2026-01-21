@@ -5,9 +5,9 @@
  * and expand them to explicit column lists using metadata.
  */
 
+import { AppError, ErrorCode } from "@qpp/backend-shared";
 import { type AST, Parser } from "node-sql-parser";
 
-import { AppError, ErrorCode } from "@qpp/backend-shared";
 import {
   type DataViewField,
   getSystemDataViewFields,
@@ -187,10 +187,9 @@ async function getFieldsForTable(
 
   const fields = await metadataFn.getFieldsForTable(effectiveTableName);
   if (!fields) {
-    throw new AppError(
-      ErrorCode.SELECT_STAR_EXPANSION_FAILED,
-      `Unable to expand SELECT *. Metadata unavailable for table ${effectiveTableName}. Try listing columns explicitly.`,
-    );
+    throw new AppError(ErrorCode.SELECT_STAR_EXPANSION_FAILED, undefined, {
+      tableName: effectiveTableName,
+    });
   }
 
   return fields;
@@ -212,10 +211,9 @@ function buildExpandedColumnList(
   return fields
     .map((f) => {
       if (f.Name.includes("]")) {
-        throw new AppError(
-          ErrorCode.SELECT_STAR_EXPANSION_FAILED,
-          `Unable to expand SELECT *. Column name "${f.Name}" contains a closing bracket ("])"). List columns explicitly.`,
-        );
+        throw new AppError(ErrorCode.SELECT_STAR_EXPANSION_FAILED, undefined, {
+          columnName: f.Name,
+        });
       }
       const colName = needsBracketQuoting(f.Name)
         ? bracketQuote(f.Name)
@@ -301,10 +299,9 @@ export async function expandSelectStar(
     const starTablePrefix = getStarTablePrefix(stmt.columns);
 
     if (hasUnqualifiedSelectStar(stmt.columns) && tables.length > 1) {
-      throw new AppError(
-        ErrorCode.SELECT_STAR_EXPANSION_FAILED,
-        `SELECT * with multiple tables is ambiguous. Use table.* (e.g., ${tables[0]}.* ) or list columns explicitly.`,
-      );
+      throw new AppError(ErrorCode.SELECT_STAR_EXPANSION_FAILED, undefined, {
+        tables,
+      });
     }
 
     let targetTable: string;

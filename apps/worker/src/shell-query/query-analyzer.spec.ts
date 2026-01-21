@@ -1,6 +1,6 @@
+import { AppError, ErrorCode, ErrorMessages } from "@qpp/backend-shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AppError } from "@qpp/backend-shared";
 import {
   buildTableAliasMap,
   containsSelectStar,
@@ -131,7 +131,7 @@ describe("Query Analyzer", () => {
         AppError,
       );
       await expect(expandSelectStar(sql, mockMetadataFn)).rejects.toThrow(
-        "Unable to expand SELECT *. Metadata unavailable for table UnknownTable",
+        ErrorMessages[ErrorCode.SELECT_STAR_EXPANSION_FAILED],
       );
     });
 
@@ -200,7 +200,7 @@ describe("Query Analyzer", () => {
         AppError,
       );
       await expect(expandSelectStar(sql, mockMetadataFn)).rejects.toThrow(
-        'Column name "Field]Name"',
+        ErrorMessages[ErrorCode.SELECT_STAR_EXPANSION_FAILED],
       );
     });
 

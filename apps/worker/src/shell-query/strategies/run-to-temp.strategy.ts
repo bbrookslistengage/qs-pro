@@ -81,9 +81,12 @@ export class RunToTempFlow implements IFlowStrategy {
     });
 
     if (!validationResult.valid) {
-      const errorMessage =
-        validationResult.errors?.join("; ") ?? "Query validation failed";
-      throw new AppError(ErrorCode.MCE_VALIDATION_FAILED, errorMessage);
+      throw new AppError(
+        ErrorCode.MCE_VALIDATION_FAILED,
+        undefined,
+        { sql: sqlText },
+        { violations: validationResult.errors },
+      );
     }
 
     const metadataFetcher = this.createMetadataFetcher(job);

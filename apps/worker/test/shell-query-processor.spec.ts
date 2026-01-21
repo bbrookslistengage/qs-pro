@@ -742,5 +742,49 @@ describe('ShellQueryProcessor', () => {
       expect(mockRunToTempFlow.retrieveQueryDefinitionObjectId).toHaveBeenCalled();
       expect(mockMceBridge.soapRequest).toHaveBeenCalled();
     });
+
+    it('should no-op on intermediate failures that will retry', async () => {
+      const mockRedis = createRedisStub();
+      const mockMetrics = createMetricsStub();
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          ShellQueryProcessor,
+          { provide: RunToTempFlow, useValue: mockRunToTempFlow },
+          { provide: MceBridgeService, useValue: mockMceBridge },
+          { provide: RestDataService, useValue: mockRestDataService },
+          { provide: AsyncStatusService, useValue: mockAsyncStatusService },
+          { provide: RlsContextService, useValue: createRlsContextStub() },
+          { provide: 'DATABASE', useValue: mockDb },
+          { provide: 'REDIS_CLIENT', useValue: mockRedis },
+          { provide: 'METRICS_JOBS_TOTAL', useValue: mockMetrics },
+          { provide: 'METRICS_DURATION', useValue: mockMetrics },
+          { provide: 'METRICS_FAILURES_TOTAL', useValue: mockMetrics },
+          { provide: 'METRICS_ACTIVE_JOBS', useValue: mockMetrics },
+          { provide: getQueueToken('shell-query'), useValue: mockQueue },
+        ],
+      }).compile();
+
+      const testProcessor = module.get<ShellQueryProcessor>(ShellQueryProcessor);
+
+      const job = createMockBullJob({
+        runId: 'run-1',
+        tenantId: 't1',
+        userId: 'u1',
+        mid: 'm1',
+      });
+      (job as unknown as { opts: { attempts: number }; attemptsMade: number }).opts =
+        { attempts: 3 };
+      (job as unknown as { opts: { attempts: number }; attemptsMade: number }).attemptsMade =
+        1;
+
+      await testProcessor.onFailed(job as any, new Error('Transient failure'));
+
+      expect(mockDb.update).not.toHaveBeenCalled();
+      expect(mockRedis.publish).not.toHaveBeenCalled();
+      expect(mockMetrics.inc).not.toHaveBeenCalled();
+      expect(mockRunToTempFlow.retrieveQueryDefinitionObjectId).not.toHaveBeenCalled();
+      expect(mockMceBridge.soapRequest).not.toHaveBeenCalled();
+    });
   });
 });

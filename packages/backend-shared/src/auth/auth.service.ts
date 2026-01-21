@@ -101,11 +101,15 @@ export class AuthService {
       }
 
       if (!sfUserId || !eid || !mid) {
-        throw new Error("JWT missing required identity claims");
+        throw new AppError(ErrorCode.MCE_AUTH_EXPIRED, undefined, {
+          reason: "JWT missing required identity claims",
+        });
       }
 
       if (!tssd) {
-        throw new Error("Could not determine TSSD from JWT");
+        throw new AppError(ErrorCode.MCE_AUTH_EXPIRED, undefined, {
+          reason: "Could not determine TSSD from JWT",
+        });
       }
 
       return {
@@ -706,11 +710,15 @@ export class AuthService {
   private assertValidTssd(value: string): string {
     const trimmed = value.trim();
     if (!trimmed) {
-      throw new Error("TSSD is empty");
+      throw new AppError(ErrorCode.MCE_AUTH_EXPIRED, undefined, {
+        reason: "TSSD is empty",
+      });
     }
 
     if (!/^[a-z0-9-]+$/i.test(trimmed)) {
-      throw new Error("TSSD has invalid format");
+      throw new AppError(ErrorCode.MCE_AUTH_EXPIRED, undefined, {
+        reason: "TSSD has invalid format",
+      });
     }
 
     return trimmed.toLowerCase();

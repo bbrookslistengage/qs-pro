@@ -136,10 +136,7 @@ export class MceBridgeService {
         throw error;
       }
       if (this.isSoapLoginFailedFault(second.raw, second.parsed)) {
-        throw new AppError(
-          ErrorCode.MCE_AUTH_EXPIRED,
-          "MCE SOAP authentication failed after token refresh",
-        );
+        throw new AppError(ErrorCode.MCE_AUTH_EXPIRED);
       }
       return second.parsed as T;
     }
@@ -194,33 +191,13 @@ export class MceBridgeService {
     }
 
     if (axios.isAxiosError(error) && error.response) {
-      const { status, statusText, data } = error.response;
-      let detail: string;
-      if (typeof data === "string") {
-        detail = data;
-      } else if (
-        typeof (data as Record<string, unknown>)?.message === "string"
-      ) {
-        detail = (data as Record<string, unknown>).message as string;
-      } else {
-        detail = JSON.stringify(data);
-      }
-
-      // Map HTTP status to error code
+      const { status } = error.response;
       const code = this.mapStatusToErrorCode(status);
-      throw new AppError(
-        code,
-        detail || statusText || `MCE request failed with status ${status}`,
-        error,
-      );
+      throw new AppError(code, error);
     }
 
     // Non-Axios error or no response (network error)
-    throw new AppError(
-      ErrorCode.MCE_SERVER_ERROR,
-      error instanceof Error ? error.message : "Unknown MCE error",
-      error,
-    );
+    throw new AppError(ErrorCode.MCE_SERVER_ERROR, error);
   }
 
   private mapStatusToErrorCode(status: number): ErrorCode {

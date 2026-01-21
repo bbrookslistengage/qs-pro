@@ -595,18 +595,25 @@ export class AuthService {
       mid,
     );
     if (!creds) {
-      throw new AppError(
-        ErrorCode.MCE_CREDENTIALS_MISSING,
-        `No credentials found for user ${userId} tenant ${tenantId} MID ${mid}`,
-      );
+      this.logger.warn({
+        message: "MCE credentials not found",
+        userId,
+        tenantId,
+        mid,
+      });
+      throw new AppError(ErrorCode.MCE_CREDENTIALS_MISSING, undefined, {
+        userId,
+        tenantId,
+        mid,
+      });
     }
 
     const tenant = await this.tenantRepo.findById(tenantId);
     if (!tenant) {
-      throw new AppError(
-        ErrorCode.MCE_TENANT_NOT_FOUND,
-        `Tenant ${tenantId} not found`,
-      );
+      this.logger.warn({ message: "Tenant not found", tenantId });
+      throw new AppError(ErrorCode.MCE_TENANT_NOT_FOUND, undefined, {
+        tenantId,
+      });
     }
 
     if (
@@ -616,10 +623,7 @@ export class AuthService {
     ) {
       const encryptionKey = this.configService.get<string>("ENCRYPTION_KEY");
       if (!encryptionKey) {
-        throw new AppError(
-          ErrorCode.CONFIG_ERROR,
-          "ENCRYPTION_KEY not configured",
-        );
+        throw new AppError(ErrorCode.CONFIG_ERROR);
       }
       const decryptedAccessToken = decrypt(creds.accessToken, encryptionKey);
       return {
@@ -631,10 +635,7 @@ export class AuthService {
 
     const encryptionKey = this.configService.get<string>("ENCRYPTION_KEY");
     if (!encryptionKey) {
-      throw new AppError(
-        ErrorCode.CONFIG_ERROR,
-        "ENCRYPTION_KEY not configured",
-      );
+      throw new AppError(ErrorCode.CONFIG_ERROR);
     }
 
     const decryptedRefreshToken = decrypt(creds.refreshToken, encryptionKey);
@@ -644,10 +645,7 @@ export class AuthService {
 
     try {
       if (!clientId || !clientSecret) {
-        throw new AppError(
-          ErrorCode.CONFIG_ERROR,
-          "MCE client credentials not configured",
-        );
+        throw new AppError(ErrorCode.CONFIG_ERROR);
       }
 
       const body = new URLSearchParams({
@@ -684,19 +682,11 @@ export class AuthService {
               : ""
             : "";
         if (errorCode === "access_denied" || errorCode === "invalid_grant") {
-          throw new AppError(
-            ErrorCode.MCE_AUTH_EXPIRED,
-            "MCE session is invalid or access is revoked. Please re-authenticate.",
-            error,
-          );
+          throw new AppError(ErrorCode.MCE_AUTH_EXPIRED, error);
         }
       }
       this.logTokenError("Refresh token failed", error);
-      throw new AppError(
-        ErrorCode.MCE_AUTH_EXPIRED,
-        "Failed to refresh token",
-        error,
-      );
+      throw new AppError(ErrorCode.MCE_AUTH_EXPIRED, error);
     }
   }
 

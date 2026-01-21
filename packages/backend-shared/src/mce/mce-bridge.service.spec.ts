@@ -3,7 +3,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AppError, ErrorCode } from "../common/errors";
+import { AppError, ErrorCode, ErrorMessages } from "../common/errors";
 import { MCE_AUTH_PROVIDER, MceAuthProvider } from "./mce-auth.provider";
 import { MceBridgeService } from "./mce-bridge.service";
 
@@ -198,7 +198,9 @@ describe("MceBridgeService", () => {
       } catch (error) {
         expect(error).toBeInstanceOf(AppError);
         expect((error as AppError).code).toBe(ErrorCode.MCE_BAD_REQUEST);
-        expect((error as AppError).message).toBe("Invalid params");
+        expect((error as AppError).message).toBe(
+          ErrorMessages[ErrorCode.MCE_BAD_REQUEST],
+        );
       }
     });
 
@@ -227,10 +229,7 @@ describe("MceBridgeService", () => {
     });
 
     it("should pass through AppError from AuthService", async () => {
-      const authError = new AppError(
-        ErrorCode.MCE_CREDENTIALS_MISSING,
-        "No creds",
-      );
+      const authError = new AppError(ErrorCode.MCE_CREDENTIALS_MISSING);
       vi.mocked(authProvider.refreshToken).mockRejectedValue(authError);
 
       try {

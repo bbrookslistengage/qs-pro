@@ -4,6 +4,7 @@ import {
   AppError,
   AuthService,
   ErrorCode,
+  ErrorMessages,
   RlsContextService,
   SeatLimitService,
 } from '@qpp/backend-shared';
@@ -230,10 +231,14 @@ describe('AuthService', () => {
         expect((error as AppError).code).toBe(
           ErrorCode.MCE_CREDENTIALS_MISSING,
         );
-        expect((error as AppError).message).toContain('No credentials found');
-        expect((error as AppError).message).toContain('u-1');
-        expect((error as AppError).message).toContain('t-1');
-        expect((error as AppError).message).toContain('mid-1');
+        expect((error as AppError).message).toBe(
+          ErrorMessages[ErrorCode.MCE_CREDENTIALS_MISSING],
+        );
+        expect((error as AppError).context).toEqual({
+          userId: 'u-1',
+          tenantId: 't-1',
+          mid: 'mid-1',
+        });
       }
     });
 
@@ -255,7 +260,10 @@ describe('AuthService', () => {
       } catch (error) {
         expect(error).toBeInstanceOf(AppError);
         expect((error as AppError).code).toBe(ErrorCode.MCE_TENANT_NOT_FOUND);
-        expect((error as AppError).message).toContain('Tenant t-1 not found');
+        expect((error as AppError).message).toBe(
+          ErrorMessages[ErrorCode.MCE_TENANT_NOT_FOUND],
+        );
+        expect((error as AppError).context).toEqual({ tenantId: 't-1' });
       }
     });
 
@@ -300,8 +308,8 @@ describe('AuthService', () => {
       } catch (error) {
         expect(error).toBeInstanceOf(AppError);
         expect((error as AppError).code).toBe(ErrorCode.CONFIG_ERROR);
-        expect((error as AppError).message).toContain(
-          'ENCRYPTION_KEY not configured',
+        expect((error as AppError).message).toBe(
+          ErrorMessages[ErrorCode.CONFIG_ERROR],
         );
       }
     });
@@ -352,8 +360,8 @@ describe('AuthService', () => {
       } catch (error) {
         expect(error).toBeInstanceOf(AppError);
         expect((error as AppError).code).toBe(ErrorCode.CONFIG_ERROR);
-        expect((error as AppError).message).toContain(
-          'MCE client credentials not configured',
+        expect((error as AppError).message).toBe(
+          ErrorMessages[ErrorCode.CONFIG_ERROR],
         );
       }
     });
@@ -415,7 +423,9 @@ describe('AuthService', () => {
       } catch (error) {
         expect(error).toBeInstanceOf(AppError);
         expect((error as AppError).code).toBe(ErrorCode.MCE_AUTH_EXPIRED);
-        expect((error as AppError).message).toContain('session is invalid');
+        expect((error as AppError).message).toBe(
+          ErrorMessages[ErrorCode.MCE_AUTH_EXPIRED],
+        );
       }
     });
 
@@ -476,7 +486,9 @@ describe('AuthService', () => {
       } catch (error) {
         expect(error).toBeInstanceOf(AppError);
         expect((error as AppError).code).toBe(ErrorCode.MCE_AUTH_EXPIRED);
-        expect((error as AppError).message).toContain('session is invalid');
+        expect((error as AppError).message).toBe(
+          ErrorMessages[ErrorCode.MCE_AUTH_EXPIRED],
+        );
       }
     });
   });

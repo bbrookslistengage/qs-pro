@@ -1,11 +1,15 @@
-import { InjectQueue, Processor, WorkerHost } from "@nestjs/bullmq";
+import {
+  InjectQueue,
+  OnWorkerEvent,
+  Processor,
+  WorkerHost,
+} from "@nestjs/bullmq";
 import { Inject, Logger } from "@nestjs/common";
 import {
   AppError,
   AsyncStatusService,
   buildDeleteQueryDefinition,
   ErrorCode,
-  getHttpStatus,
   type IsRunningResponse,
   isTerminal,
   isUnrecoverable,
@@ -87,9 +91,86 @@ export class ShellQueryProcessor extends WorkerHost {
     return this.handleExecute(job as Job<ShellQueryJob>);
   }
 
+  @OnWorkerEvent("failed")
+  async onFailed(
+    job: Job<ShellQueryJob | PollShellQueryJob>,
+    error: Error,
+  ): Promise<void> {
+    const { tenantId, userId, mid, runId } = job.data;
+    const message = error.message;
+
+    this.logger.error(
+      {
+        message: `Job ${job.id} permanently failed: ${message}`,
+        jobName: job.name,
+        tenantId,
+        runId,
+        attemptsMade: job.attemptsMade,
+        error: message,
+        stack: error.stack,
+        timestamp: new Date().toISOString(),
+      },
+      error.stack,
+      "ShellQueryProcessor",
+    );
+
+    (
+      this.metricsJobsTotal as { inc: (labels: { status: string }) => void }
+    ).inc({ status: "failed" });
+    (
+      this.metricsFailuresTotal as {
+        inc: (labels: { error_type: string }) => void;
+      }
+    ).inc({
+      error_type: "permanent",
+    });
+
+    try {
+      await this.updateStatus(tenantId, userId, mid, runId, "failed", {
+        errorMessage: message,
+        completedAt: new Date(),
+      });
+    } catch (statusError) {
+      this.logger.error(
+        `Failed to update status for run ${runId}: ${statusError instanceof Error ? statusError.message : "Unknown error"}`,
+      );
+    }
+
+    try {
+      await this.publishStatusEvent(runId, "failed", message);
+    } catch (sseError) {
+      this.logger.error(
+        `Failed to publish SSE event for run ${runId}: ${sseError instanceof Error ? sseError.message : "Unknown error"}`,
+      );
+    }
+
+    const queryDefinitionId =
+      "queryDefinitionId" in job.data ? job.data.queryDefinitionId : undefined;
+
+    try {
+      await this.rlsContext.runWithUserContext(
+        tenantId,
+        mid,
+        userId,
+        async () => {
+          await this.cleanupAssetsForPoll(
+            tenantId,
+            userId,
+            mid,
+            runId,
+            queryDefinitionId,
+          );
+        },
+      );
+    } catch (cleanupError) {
+      const cleanupMessage =
+        cleanupError instanceof Error ? cleanupError.message : "Unknown error";
+      this.logger.warn(`Cleanup failed for run ${runId}: ${cleanupMessage}`);
+    }
+  }
+
   private async handleExecute(job: Job<ShellQueryJob>): Promise<unknown> {
     const { runId, tenantId, userId, mid, sqlText } = job.data;
-    const startTime = Date.now();
     const sqlTextHash = crypto
       .createHash("sha256")
       .update(sqlText || "")
@@ -190,14 +271,12 @@ export class ShellQueryProcessor extends WorkerHost {
         removeOnFail: { age: 86400 },
       });
 
-      const durationMs = Date.now() - startTime;
       this.logger.log(
         {
           message: `Execute job ${runId} completed, poll job enqueued`,
           tenantId,
           runId,
           taskId: result.taskId,
-          durationMs,
           timestamp: new Date().toISOString(),
         },
         "ShellQueryProcessor",
@@ -205,62 +284,16 @@ export class ShellQueryProcessor extends WorkerHost {
 
       return { status: "poll-enqueued", runId, taskId: result.taskId };
     } catch (error: unknown) {
-      const durationMs = Date.now() - startTime;
       const message =
         error instanceof AppError
           ? error.message
           : error instanceof Error
             ? error.message
             : "Unknown error";
-      const stack = error instanceof Error ? error.stack : undefined;
 
-      this.logger.error(
-        {
-          message: `Execute job ${job.id} failed: ${message}`,
-          tenantId,
-          runId,
-          status: "failed",
-          durationMs,
-          error: message,
-          stack,
-          timestamp: new Date().toISOString(),
-        },
-        stack,
-        "ShellQueryProcessor",
-      );
+      this.logger.warn(`Execute job ${job.id} attempt failed: ${message}`);
 
-      (
-        this.metricsJobsTotal as { inc: (labels: { status: string }) => void }
-      ).inc({ status: "failed" });
-      (
-        this.metricsFailuresTotal as {
-          inc: (labels: { error_type: string }) => void;
-        }
-      ).inc({
-        error_type:
-          error instanceof AppError
-            ? getHttpStatus(error.code).toString()
-            : "unknown",
-      });
-
-      const terminalError = isTerminal(error);
-
-      await this.updateStatus(tenantId, userId, mid, runId, "failed", {
-        errorMessage: message,
-        completedAt: new Date(),
-      });
-      await this.publishStatusEvent(runId, "failed", message);
-
-      await this.rlsContext.runWithUserContext(
-        tenantId,
-        mid,
-        userId,
-        async () => {
-          await this.cleanupAssets(job.data);
-        },
-      );
-
-      if (terminalError) {
+      if (isTerminal(error)) {
         throw new UnrecoverableError(message);
       }
       throw error;
@@ -643,30 +676,12 @@ export class ShellQueryProcessor extends WorkerHost {
           : error instanceof Error
             ? error.message
             : "Unknown error";
-      this.logger.error(`Poll job ${job.id} failed: ${message}`);
 
-      // Update status and cleanup for ALL errors (not just terminal)
-      await this.markFailed(tenantId, userId, mid, runId, message);
-      await this.rlsContext.runWithUserContext(
-        tenantId,
-        mid,
-        userId,
-        async () => {
-          await this.cleanupAssetsForPoll(
-            tenantId,
-            userId,
-            mid,
-            runId,
-            queryDefinitionId,
-          );
-        },
-      );
+      this.logger.warn(`Poll job ${job.id} attempt failed: ${message}`);
 
-      // THEN decide whether to make it unrecoverable
       if (isTerminal(error)) {
         throw new UnrecoverableError(message);
       }
-
       throw error;
     } finally {
       (this.metricsActiveJobs as { dec: () => void }).dec();
@@ -798,12 +813,10 @@ export class ShellQueryProcessor extends WorkerHost {
 
       return true;
     } catch (error) {
-      // Unrecoverable errors (auth/config/permissions) propagate immediately
       if (isUnrecoverable(error)) {
         throw error;
       }
 
-      // Other errors (including MCE_BAD_REQUEST) = "not ready yet", continue probing
       const message = error instanceof Error ? error.message : "Unknown error";
       this.logger.debug(
         `Rowset readiness check failed for "${deName}": ${message}`,
@@ -834,12 +847,10 @@ export class ShellQueryProcessor extends WorkerHost {
 
       return { hasRows, count, itemsLength };
     } catch (error) {
-      // Unrecoverable errors (auth/config/permissions) propagate immediately
       if (isUnrecoverable(error)) {
         throw error;
       }
 
-      // Other errors = probe failed, but not fatal
       const message = error instanceof Error ? error.message : "Unknown error";
       this.logger.debug(`Row probe failed for "${deName}": ${message}`);
       return { hasRows: false };
@@ -885,12 +896,10 @@ export class ShellQueryProcessor extends WorkerHost {
           needsIdFallback: false,
         };
       } catch (error) {
-        // Unrecoverable errors (auth/config/permissions) propagate immediately
         if (isUnrecoverable(error)) {
           throw error;
         }
 
-        // MCE_BAD_REQUEST (400) or not-found = "this identifier didn't work" - try next candidate
         if (
           error instanceof AppError &&
           error.code === ErrorCode.MCE_BAD_REQUEST
@@ -901,7 +910,6 @@ export class ShellQueryProcessor extends WorkerHost {
           continue;
         }
 
-        // Other errors - assume still running (safe default for polling)
         const message =
           error instanceof Error ? error.message : "Unknown error";
         this.logger.warn(
@@ -1011,11 +1019,6 @@ export class ShellQueryProcessor extends WorkerHost {
     );
   }
 
-  private async cleanupAssets(jobData: ShellQueryJob) {
-    const { tenantId, userId, mid, runId } = jobData;
-    await this.cleanupAssetsForPoll(tenantId, userId, mid, runId);
-  }
-
   private async cleanupAssetsForPoll(
     tenantId: string,
     userId: string,
@@ -1057,10 +1060,8 @@ export class ShellQueryProcessor extends WorkerHost {
       );
       this.logger.log(`Successfully deleted QueryDefinition for run ${runId}`);
     } catch (e: unknown) {
-      const err = e as { message?: string };
-      this.logger.warn(
-        `Cleanup failed for ${runId}: ${err.message || "Unknown error"}`,
-      );
+      const message = e instanceof Error ? e.message : "Unknown error";
+      this.logger.warn(`Cleanup failed for ${runId}: ${message}`);
     }
   }
 }

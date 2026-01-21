@@ -124,7 +124,7 @@ describe('Shell Query Cancellation & Sweeper', () => {
       expect(mockMceBridge.soapRequest).toHaveBeenCalled();
     });
 
-    it('should cleanup on execute job failure', async () => {
+    it('should cleanup on execute job failure via onFailed event handler', async () => {
       const job = createMockBullJob({
         runId: 'run-1',
         tenantId: 't1',
@@ -158,8 +158,13 @@ describe('Shell Query Cancellation & Sweeper', () => {
       const testProcessor = module.get<ShellQueryProcessor>(ShellQueryProcessor);
       testProcessor.setTestMode(true);
 
+      // Verify process throws the error (cleanup now happens in onFailed)
       await expect(testProcessor.process(job as any)).rejects.toThrow('Flow error');
 
+      // Simulate BullMQ calling the onFailed event handler
+      await testProcessor.onFailed(job as any, new Error('Flow error'));
+
+      // Now verify cleanup was called via onFailed
       expect(failureRunToTempFlow.retrieveQueryDefinitionObjectId).toHaveBeenCalledWith(
         't1', 'u1', 'm1',
         expect.stringContaining('QPP_Query_'),

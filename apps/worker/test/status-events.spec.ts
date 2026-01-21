@@ -166,7 +166,7 @@ describe('Status Event Flow', () => {
     }
   });
 
-  it('should include errorMessage in failed terminal state', async () => {
+  it('should include errorMessage in failed terminal state via onFailed event handler', async () => {
     const job = createMockBullJob({
       runId: 'run-error-test',
       tenantId: 't1',
@@ -179,9 +179,13 @@ describe('Status Event Flow', () => {
     const errorMessage = 'MCE Query Execution Error: Invalid syntax';
     mockRunToTempFlow.execute.mockRejectedValue(new Error(errorMessage));
 
+    // process() throws the error (failure lifecycle moved to onFailed)
     await expect(
       processor.process(job as unknown as Parameters<typeof processor.process>[0]),
     ).rejects.toThrow();
+
+    // Simulate BullMQ calling the onFailed event handler
+    await processor.onFailed(job as any, new Error(errorMessage));
 
     const failedEvent = publishedEvents.find(
       (e) => (e.payload as { status: string }).status === 'failed',

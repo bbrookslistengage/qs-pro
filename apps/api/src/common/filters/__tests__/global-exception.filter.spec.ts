@@ -2,13 +2,15 @@ import {
   BadRequestException,
   Controller,
   Get,
-  INestApplication,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from '@nestjs/platform-fastify';
 import { Test } from '@nestjs/testing';
 import { AppError, ErrorCode, ErrorMessages } from '@qpp/backend-shared';
-import request from 'supertest';
 
 import { GlobalExceptionFilter } from '../global-exception.filter';
 
@@ -52,16 +54,19 @@ class TestController {
 }
 
 describe('GlobalExceptionFilter', () => {
-  let app: INestApplication;
+  let app: NestFastifyApplication;
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
       controllers: [TestController],
     }).compile();
 
-    app = module.createNestApplication();
+    app = module.createNestApplication<NestFastifyApplication>(
+      new FastifyAdapter(),
+    );
     app.useGlobalFilters(new GlobalExceptionFilter());
     await app.init();
+    await app.getHttpAdapter().getInstance().ready();
   });
 
   afterAll(async () => {
@@ -70,14 +75,16 @@ describe('GlobalExceptionFilter', () => {
 
   describe('AppError handling', () => {
     it('returns RFC 9457 Problem Details for AppError', async () => {
-      const response = await request(app.getHttpServer())
-        .get('/test/app-error')
-        .expect(400);
+      const response = await app.inject({
+        method: 'GET',
+        url: '/test/app-error',
+      });
 
+      expect(response.statusCode).toBe(400);
       expect(response.headers['content-type']).toContain(
         'application/problem+json',
       );
-      expect(response.body).toMatchObject({
+      expect(response.json()).toMatchObject({
         type: 'urn:qpp:error:mce-validation-failed',
         title: 'Query Validation Failed',
         status: 400,
@@ -88,11 +95,13 @@ describe('GlobalExceptionFilter', () => {
 
     it('masks detail for 5xx AppError (except upstream)', async () => {
       // MCE_SERVER_ERROR (502 - upstream) should expose type/title
-      const response = await request(app.getHttpServer())
-        .get('/test/app-error-mce-server')
-        .expect(502);
+      const response = await app.inject({
+        method: 'GET',
+        url: '/test/app-error-mce-server',
+      });
 
-      expect(response.body).toMatchObject({
+      expect(response.statusCode).toBe(502);
+      expect(response.json()).toMatchObject({
         type: 'urn:qpp:error:mce-server-error',
         title: 'MCE Server Error',
         status: 502,
@@ -104,14 +113,16 @@ describe('GlobalExceptionFilter', () => {
 
   describe('HttpException handling (preserves NestJS semantics)', () => {
     it('returns 400 for BadRequestException with RFC 9457 format', async () => {
-      const response = await request(app.getHttpServer())
-        .get('/test/bad-request')
-        .expect(400);
+      const response = await app.inject({
+        method: 'GET',
+        url: '/test/bad-request',
+      });
 
+      expect(response.statusCode).toBe(400);
       expect(response.headers['content-type']).toContain(
         'application/problem+json',
       );
-      expect(response.body).toMatchObject({
+      expect(response.json()).toMatchObject({
         type: 'urn:qpp:error:http-400',
         title: 'Bad Request',
         status: 400,
@@ -121,11 +132,13 @@ describe('GlobalExceptionFilter', () => {
     });
 
     it('returns 404 for NotFoundException', async () => {
-      const response = await request(app.getHttpServer())
-        .get('/test/not-found')
-        .expect(404);
+      const response = await app.inject({
+        method: 'GET',
+        url: '/test/not-found',
+      });
 
-      expect(response.body).toMatchObject({
+      expect(response.statusCode).toBe(404);
+      expect(response.json()).toMatchObject({
         type: 'urn:qpp:error:http-404',
         title: 'Not Found',
         status: 404,
@@ -135,11 +148,13 @@ describe('GlobalExceptionFilter', () => {
     });
 
     it('returns 401 for UnauthorizedException', async () => {
-      const response = await request(app.getHttpServer())
-        .get('/test/unauthorized')
-        .expect(401);
+      const response = await app.inject({
+        method: 'GET',
+        url: '/test/unauthorized',
+      });
 
-      expect(response.body).toMatchObject({
+      expect(response.statusCode).toBe(401);
+      expect(response.json()).toMatchObject({
         type: 'urn:qpp:error:http-401',
         title: 'Unauthorized',
         status: 401,
@@ -151,14 +166,16 @@ describe('GlobalExceptionFilter', () => {
 
   describe('Unknown error handling', () => {
     it('returns 500 with masked detail for unknown Error', async () => {
-      const response = await request(app.getHttpServer())
-        .get('/test/unknown-error')
-        .expect(500);
+      const response = await app.inject({
+        method: 'GET',
+        url: '/test/unknown-error',
+      });
 
+      expect(response.statusCode).toBe(500);
       expect(response.headers['content-type']).toContain(
         'application/problem+json',
       );
-      expect(response.body).toMatchObject({
+      expect(response.json()).toMatchObject({
         type: 'urn:qpp:error:internal-error',
         title: 'Internal Server Error',
         status: 500,
@@ -167,15 +184,17 @@ describe('GlobalExceptionFilter', () => {
       });
 
       // Ensure internal message is not leaked
-      expect(response.body.detail).not.toContain('Something unexpected');
+      expect(response.json().detail).not.toContain('Something unexpected');
     });
 
     it('returns 500 with masked detail for non-Error objects', async () => {
-      const response = await request(app.getHttpServer())
-        .get('/test/plain-unknown')
-        .expect(500);
+      const response = await app.inject({
+        method: 'GET',
+        url: '/test/plain-unknown',
+      });
 
-      expect(response.body).toMatchObject({
+      expect(response.statusCode).toBe(500);
+      expect(response.json()).toMatchObject({
         type: 'urn:qpp:error:internal-error',
         title: 'Internal Server Error',
         status: 500,
@@ -184,7 +203,7 @@ describe('GlobalExceptionFilter', () => {
       });
 
       // Ensure custom object is not leaked
-      expect(JSON.stringify(response.body)).not.toContain('custom');
+      expect(JSON.stringify(response.json())).not.toContain('custom');
     });
   });
 
@@ -198,7 +217,10 @@ describe('GlobalExceptionFilter', () => {
       ];
 
       for (const endpoint of endpoints) {
-        const response = await request(app.getHttpServer()).get(endpoint);
+        const response = await app.inject({
+          method: 'GET',
+          url: endpoint,
+        });
         expect(response.headers['content-type']).toContain(
           'application/problem+json',
         );
@@ -210,32 +232,38 @@ describe('GlobalExceptionFilter', () => {
     it('sanitizes query parameters from instance path', async () => {
       // The filter sanitizes paths by removing query strings
       // Test this by checking the instance field
-      const response = await request(app.getHttpServer())
-        .get('/test/app-error?foo=bar&baz=qux')
-        .expect(400);
+      const response = await app.inject({
+        method: 'GET',
+        url: '/test/app-error?foo=bar&baz=qux',
+      });
 
-      expect(response.body.instance).toBe('/test/app-error');
+      expect(response.statusCode).toBe(400);
+      expect(response.json().instance).toBe('/test/app-error');
     });
   });
 
   describe('RFC 9457 compliance', () => {
     it('includes all required Problem Details fields', async () => {
-      const response = await request(app.getHttpServer())
-        .get('/test/app-error')
-        .expect(400);
+      const response = await app.inject({
+        method: 'GET',
+        url: '/test/app-error',
+      });
 
+      expect(response.statusCode).toBe(400);
       const requiredFields = ['type', 'title', 'status', 'detail', 'instance'];
       for (const field of requiredFields) {
-        expect(response.body).toHaveProperty(field);
+        expect(response.json()).toHaveProperty(field);
       }
     });
 
     it('type field uses urn:qpp:error prefix for domain errors', async () => {
-      const response = await request(app.getHttpServer())
-        .get('/test/app-error')
-        .expect(400);
+      const response = await app.inject({
+        method: 'GET',
+        url: '/test/app-error',
+      });
 
-      expect(response.body.type).toMatch(/^urn:qpp:error:/);
+      expect(response.statusCode).toBe(400);
+      expect(response.json().type).toMatch(/^urn:qpp:error:/);
     });
 
     it('status field matches HTTP status code', async () => {
@@ -248,9 +276,12 @@ describe('GlobalExceptionFilter', () => {
       ];
 
       for (const { endpoint, expectedStatus } of testCases) {
-        const response = await request(app.getHttpServer()).get(endpoint);
-        expect(response.status).toBe(expectedStatus);
-        expect(response.body.status).toBe(expectedStatus);
+        const response = await app.inject({
+          method: 'GET',
+          url: endpoint,
+        });
+        expect(response.statusCode).toBe(expectedStatus);
+        expect(response.json().status).toBe(expectedStatus);
       }
     });
   });

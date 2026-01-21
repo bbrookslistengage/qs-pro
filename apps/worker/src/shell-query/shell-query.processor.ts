@@ -99,6 +99,26 @@ export class ShellQueryProcessor extends WorkerHost {
     const { tenantId, userId, mid, runId } = job.data;
     const message = error.message;
 
+    const maxAttempts = job.opts.attempts ?? 1;
+    const isFinalAttempt = job.attemptsMade >= maxAttempts;
+    const isUnrecoverable = error instanceof UnrecoverableError;
+    const isPermanentFailure = isUnrecoverable || isFinalAttempt;
+
+    if (!isPermanentFailure) {
+      this.logger.warn(
+        {
+          message: `Job ${job.id} attempt ${job.attemptsMade}/${maxAttempts} failed, will retry`,
+          jobName: job.name,
+          tenantId,
+          runId,
+          error: message,
+          timestamp: new Date().toISOString(),
+        },
+        "ShellQueryProcessor",
+      );
+      return;
+    }
+
     this.logger.error(
       {
         message: `Job ${job.id} permanently failed: ${message}`,
@@ -106,6 +126,8 @@ export class ShellQueryProcessor extends WorkerHost {
         tenantId,
         runId,
         attemptsMade: job.attemptsMade,
+        maxAttempts,
+        isUnrecoverable,
         error: message,
         stack: error.stack,
         timestamp: new Date().toISOString(),

@@ -28,6 +28,7 @@ const TERMINAL_CODES = new Set<ErrorCode>([
 
   // Infrastructure (misconfiguration won't fix itself)
   ErrorCode.CONFIG_ERROR,
+  ErrorCode.INTERNAL_ERROR,
 ]);
 
 /**
@@ -133,6 +134,7 @@ export function getErrorTitle(code: ErrorCode): string {
     [ErrorCode.CONFIG_ERROR]: "Configuration Error",
     [ErrorCode.DATABASE_ERROR]: "Database Error",
     [ErrorCode.REDIS_ERROR]: "Redis Error",
+    [ErrorCode.INTERNAL_ERROR]: "Internal Error",
     [ErrorCode.UNKNOWN]: "Internal Server Error",
   };
   return titles[code];

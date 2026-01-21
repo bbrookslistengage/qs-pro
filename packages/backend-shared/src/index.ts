@@ -14,7 +14,6 @@ export {
   type ValidationViolation,
   ValidationViolations,
 } from "./common/errors";
-export { SeatLimitExceededException } from "./common/exceptions/seat-limit-exceeded.exception";
 export * from "./database/database.module";
 export * from "./database/db-context";
 export * from "./database/rls-context.service";

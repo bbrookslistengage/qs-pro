@@ -1,7 +1,8 @@
 import { Injectable } from "@nestjs/common";
 
-import { MceOperationError, McePaginationError } from "../errors";
+import { AppError, ErrorCode } from "../../common/errors";
 import { MceBridgeService } from "../mce-bridge.service";
+import { mceSoapFailure } from "../mce-errors";
 import {
   buildContinueRequest,
   buildCreateDataFolder,
@@ -60,7 +61,7 @@ export class DataFolderService {
       const status = msg?.OverallStatus;
 
       if (status && status !== "OK" && status !== "MoreDataAvailable") {
-        throw new MceOperationError("RetrieveDataFolder", status);
+        throw mceSoapFailure("RetrieveDataFolder", status);
       }
 
       const rawResults = msg?.Results;
@@ -85,7 +86,10 @@ export class DataFolderService {
       page++;
 
       if (page >= MAX_PAGES && requestId) {
-        throw new McePaginationError("RetrieveDataFolder", MAX_PAGES);
+        throw new AppError(ErrorCode.MCE_PAGINATION_EXCEEDED, undefined, {
+          operation: "RetrieveDataFolder",
+          maxPages: MAX_PAGES,
+        });
       }
     } while (requestId);
 
@@ -110,7 +114,7 @@ export class DataFolderService {
 
     const result = response.Body?.CreateResponse?.Results;
     if (result?.StatusCode !== "OK") {
-      throw new MceOperationError(
+      throw mceSoapFailure(
         "CreateDataFolder",
         result?.StatusCode ?? "Unknown",
         result?.StatusMessage,
@@ -119,7 +123,7 @@ export class DataFolderService {
 
     const newId = result?.NewID;
     if (!newId) {
-      throw new MceOperationError(
+      throw mceSoapFailure(
         "CreateDataFolder",
         "NoID",
         "Data Folder created but no ID returned",

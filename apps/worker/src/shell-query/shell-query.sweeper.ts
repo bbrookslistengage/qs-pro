@@ -1,6 +1,10 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
-import { QueryDefinitionService, RlsContextService } from "@qpp/backend-shared";
+import {
+  isUnrecoverable,
+  QueryDefinitionService,
+  RlsContextService,
+} from "@qpp/backend-shared";
 import {
   and,
   credentials,
@@ -109,8 +113,18 @@ export class ShellQuerySweeper {
           query.objectId,
         );
         this.logger.log(`Deleted QueryDefinition: ${query.customerKey}`);
-      } catch {
-        // Asset may already be deleted
+      } catch (error: unknown) {
+        // Unrecoverable errors (auth/config) should propagate
+        if (isUnrecoverable(error)) {
+          throw error;
+        }
+
+        // Asset may already be deleted or other transient error - log and continue
+        const message =
+          error instanceof Error ? error.message : "Unknown error";
+        this.logger.debug(
+          `Failed to delete QueryDefinition ${query.customerKey}: ${message}`,
+        );
       }
     }
   }

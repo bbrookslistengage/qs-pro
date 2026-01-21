@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { MceBridgeService } from "@qpp/backend-shared";
+import { AppError, MceBridgeService } from "@qpp/backend-shared";
 import * as crypto from "crypto";
 
 export interface ValidationResult {
@@ -69,13 +69,14 @@ export class MceQueryValidator {
           : ["Query validation failed"],
       };
     } catch (error: unknown) {
-      const err = error as { message?: string; status?: number };
+      const message = error instanceof Error ? error.message : "Unknown error";
+      const errorCode = error instanceof AppError ? error.code : undefined;
       this.logger.warn({
         message:
           "Query validation endpoint error - proceeding with execution (graceful degradation)",
         sqlHash,
-        error: err.message,
-        status: err.status,
+        error: message,
+        errorCode,
       });
 
       return { valid: true };

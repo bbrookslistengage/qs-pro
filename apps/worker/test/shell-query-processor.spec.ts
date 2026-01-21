@@ -103,7 +103,7 @@ describe('ShellQueryProcessor', () => {
       mockRunToTempFlow.execute.mockRejectedValue(new Error('MCE Down'));
 
       await expect(processor.process(job as any)).rejects.toThrow('MCE Down');
-      expect(mockDb.update).toHaveBeenCalled();
+      // Status update now happens in onFailed event handler, not during process()
       expect(mockQueue.add).not.toHaveBeenCalled();
     });
   });
@@ -450,7 +450,7 @@ describe('ShellQueryProcessor', () => {
       );
     });
 
-    it('should fail immediately when row probe returns 401 (missing credentials)', async () => {
+    it('should throw unrecoverable error when row probe returns 401 (missing credentials)', async () => {
       const pollStartedAt = new Date(Date.now() - 6 * 1000).toISOString();
       const job = createMockPollBullJob({
         runId: 'run-1',
@@ -471,10 +471,10 @@ describe('ShellQueryProcessor', () => {
         new AppError(ErrorCode.MCE_CREDENTIALS_MISSING),
       );
 
+      // Should throw an UnrecoverableError (status update happens in onFailed event handler)
       await expect(processor.process(job as any)).rejects.toThrow(
         ErrorMessages[ErrorCode.MCE_CREDENTIALS_MISSING],
       );
-      expect(mockDb.update).toHaveBeenCalled();
     });
 
     it('should skip row probe when elapsed time is below minimum runtime', async () => {
@@ -593,7 +593,7 @@ describe('ShellQueryProcessor', () => {
       expect(result).toEqual({ status: 'rowset-not-queryable', runId: 'run-1' });
     });
 
-    it('should fail immediately when rowset readiness check hits 401 (missing credentials)', async () => {
+    it('should throw unrecoverable error when rowset readiness check hits 401 (missing credentials)', async () => {
       const job = createMockPollBullJob({
         runId: 'run-1',
         tenantId: 't1',
@@ -612,10 +612,10 @@ describe('ShellQueryProcessor', () => {
         new AppError(ErrorCode.MCE_CREDENTIALS_MISSING),
       );
 
+      // Should throw an UnrecoverableError (status update happens in onFailed event handler)
       await expect(processor.process(job as any)).rejects.toThrow(
         ErrorMessages[ErrorCode.MCE_CREDENTIALS_MISSING],
       );
-      expect(mockDb.update).toHaveBeenCalled();
     });
   });
 
@@ -687,6 +687,104 @@ describe('ShellQueryProcessor', () => {
         expect.objectContaining({ rowsetReadyAttempts: 1 }),
       );
       expect(job.moveToDelayed).toHaveBeenCalledWith(now + 2400, 'token');
+    });
+  });
+
+  describe('onFailed event handler', () => {
+    it('should update status, publish SSE event, and cleanup assets on permanent failure', async () => {
+      const mockRedis = createRedisStub();
+      const mockMetrics = createMetricsStub();
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          ShellQueryProcessor,
+          { provide: RunToTempFlow, useValue: mockRunToTempFlow },
+          { provide: MceBridgeService, useValue: mockMceBridge },
+          { provide: RestDataService, useValue: mockRestDataService },
+          { provide: AsyncStatusService, useValue: mockAsyncStatusService },
+          { provide: RlsContextService, useValue: createRlsContextStub() },
+          { provide: 'DATABASE', useValue: mockDb },
+          { provide: 'REDIS_CLIENT', useValue: mockRedis },
+          { provide: 'METRICS_JOBS_TOTAL', useValue: mockMetrics },
+          { provide: 'METRICS_DURATION', useValue: mockMetrics },
+          { provide: 'METRICS_FAILURES_TOTAL', useValue: mockMetrics },
+          { provide: 'METRICS_ACTIVE_JOBS', useValue: mockMetrics },
+          { provide: getQueueToken('shell-query'), useValue: mockQueue },
+        ],
+      }).compile();
+
+      const testProcessor = module.get<ShellQueryProcessor>(ShellQueryProcessor);
+
+      const job = createMockBullJob({
+        runId: 'run-1',
+        tenantId: 't1',
+        userId: 'u1',
+        mid: 'm1',
+      });
+
+      mockRunToTempFlow.retrieveQueryDefinitionObjectId.mockResolvedValue('query-def-123');
+
+      await testProcessor.onFailed(job as any, new Error('Permanent failure'));
+
+      // Verify status was updated
+      expect(mockDb.update).toHaveBeenCalled();
+
+      // Verify SSE event was published
+      expect(mockRedis.publish).toHaveBeenCalledWith(
+        expect.stringContaining('run-status:'),
+        expect.stringContaining('failed'),
+      );
+
+      // Verify metrics were recorded
+      expect(mockMetrics.inc).toHaveBeenCalled();
+
+      // Verify cleanup was attempted
+      expect(mockRunToTempFlow.retrieveQueryDefinitionObjectId).toHaveBeenCalled();
+      expect(mockMceBridge.soapRequest).toHaveBeenCalled();
+    });
+
+    it('should no-op on intermediate failures that will retry', async () => {
+      const mockRedis = createRedisStub();
+      const mockMetrics = createMetricsStub();
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          ShellQueryProcessor,
+          { provide: RunToTempFlow, useValue: mockRunToTempFlow },
+          { provide: MceBridgeService, useValue: mockMceBridge },
+          { provide: RestDataService, useValue: mockRestDataService },
+          { provide: AsyncStatusService, useValue: mockAsyncStatusService },
+          { provide: RlsContextService, useValue: createRlsContextStub() },
+          { provide: 'DATABASE', useValue: mockDb },
+          { provide: 'REDIS_CLIENT', useValue: mockRedis },
+          { provide: 'METRICS_JOBS_TOTAL', useValue: mockMetrics },
+          { provide: 'METRICS_DURATION', useValue: mockMetrics },
+          { provide: 'METRICS_FAILURES_TOTAL', useValue: mockMetrics },
+          { provide: 'METRICS_ACTIVE_JOBS', useValue: mockMetrics },
+          { provide: getQueueToken('shell-query'), useValue: mockQueue },
+        ],
+      }).compile();
+
+      const testProcessor = module.get<ShellQueryProcessor>(ShellQueryProcessor);
+
+      const job = createMockBullJob({
+        runId: 'run-1',
+        tenantId: 't1',
+        userId: 'u1',
+        mid: 'm1',
+      });
+      (job as unknown as { opts: { attempts: number }; attemptsMade: number }).opts =
+        { attempts: 3 };
+      (job as unknown as { opts: { attempts: number }; attemptsMade: number }).attemptsMade =
+        1;
+
+      await testProcessor.onFailed(job as any, new Error('Transient failure'));
+
+      expect(mockDb.update).not.toHaveBeenCalled();
+      expect(mockRedis.publish).not.toHaveBeenCalled();
+      expect(mockMetrics.inc).not.toHaveBeenCalled();
+      expect(mockRunToTempFlow.retrieveQueryDefinitionObjectId).not.toHaveBeenCalled();
+      expect(mockMceBridge.soapRequest).not.toHaveBeenCalled();
     });
   });
 });

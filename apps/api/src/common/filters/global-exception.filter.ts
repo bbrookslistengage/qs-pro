@@ -13,13 +13,24 @@ import {
 } from '@qpp/backend-shared';
 import { FastifyReply, FastifyRequest } from 'fastify';
 
-// Mock Sentry for now as we don't have the SDK installed yet
+// Mock Sentry for now - when real SDK is added, configure beforeSend
+// to scrub sensitive fields (e.g., request headers, axios config)
 const Sentry = {
-  captureException: (exception: unknown) => {
-    // In a real app, this would send to Sentry
+  captureException: (
+    exception: unknown,
+    hint?: { extra?: Record<string, unknown> },
+  ) => {
     void exception;
+    void hint;
   },
 };
+
+function getStackTrace(error: unknown): string | undefined {
+  if (error instanceof Error) {
+    return error.stack;
+  }
+  return undefined;
+}
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -46,10 +57,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       }
     }
 
-    // Log appropriately
     if (problemDetails.status >= 500) {
-      this.logger.error(`[${problemDetails.status}] ${path}`, exception);
-      Sentry.captureException(exception);
+      const stack = getStackTrace(exception);
+      this.logger.error(`[${problemDetails.status}] ${path}`, stack);
+      Sentry.captureException(exception, {
+        extra:
+          exception instanceof AppError
+            ? safeContext(exception.context)
+            : undefined,
+      });
     } else {
       this.logger.warn(
         `[${problemDetails.status}] ${path} - ${problemDetails.detail}`,

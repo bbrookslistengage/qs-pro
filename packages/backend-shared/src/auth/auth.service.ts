@@ -9,7 +9,7 @@ import { decrypt, encrypt } from "@qpp/database";
 import axios from "axios";
 import * as jose from "jose";
 
-import { AppError, ErrorCode } from "../common/errors";
+import { AppError, ErrorCode, safeContext } from "../common/errors";
 import { RlsContextService } from "../database/rls-context.service";
 import { SeatLimitService } from "./seat-limit.service";
 
@@ -568,9 +568,11 @@ export class AuthService {
     if (axios.isAxiosError(error)) {
       const status = error.response?.status;
       const data = error.response?.data;
+      const redacted =
+        data && typeof data === "object" ? safeContext(data) : undefined;
       this.logger.error(
         `${message} (${status ?? "unknown status"})`,
-        data ? JSON.stringify(data) : undefined,
+        redacted ? JSON.stringify(redacted) : undefined,
       );
       return;
     }

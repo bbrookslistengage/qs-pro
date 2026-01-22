@@ -12,6 +12,14 @@ function truncate(value: string, maxLength: number): string {
     : `${value.slice(0, maxLength)}... [truncated]`;
 }
 
+function stripQueryString(url: string | undefined): string | undefined {
+  if (!url) {
+    return undefined;
+  }
+  const idx = url.indexOf("?");
+  return idx === -1 ? url : url.slice(0, idx);
+}
+
 /**
  * Infrastructure layer HTTP client for MCE API calls.
  * Translates HTTP errors to AppError at the boundary.
@@ -44,7 +52,7 @@ export class MceHttpClient {
 
       return new AppError(this.mapStatusToErrorCode(status), error, {
         status: String(status),
-        operation: error.config?.url,
+        operation: stripQueryString(error.config?.url),
         statusMessage: truncate(rawDetail, MAX_STATUS_MESSAGE_LENGTH),
       });
     }

@@ -65,4 +65,6 @@ export { buildDeleteQueryDefinition } from "./mce/soap/request-bodies/query-defi
 export * from "./auth/auth.module";
 export * from "./auth/auth.service";
 export * from "./auth/seat-limit.service";
+export { SessionGuard } from "./auth/session.guard";
+export { RequestLoggerMiddleware } from "./common/middleware/request-logger.middleware";
 export * from "./config";

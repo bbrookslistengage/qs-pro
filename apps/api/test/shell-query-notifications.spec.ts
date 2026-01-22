@@ -4,9 +4,9 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { Test, TestingModule } from '@nestjs/testing';
+import { SessionGuard } from '@qpp/backend-shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { SessionGuard } from '../src/auth/session.guard';
 import { configureApp } from '../src/configure-app';
 import { ShellQueryController } from '../src/shell-query/shell-query.controller';
 import { ShellQueryService } from '../src/shell-query/shell-query.service';
@@ -46,7 +46,7 @@ describe('Shell Query Notifications & Results (e2e)', () => {
     app = moduleFixture.createNestApplication<NestFastifyApplication>(
       new FastifyAdapter(),
     );
-    configureApp(app, { globalPrefix: false });
+    await configureApp(app, { globalPrefix: false });
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
   });

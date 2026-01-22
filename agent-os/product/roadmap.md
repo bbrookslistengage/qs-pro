@@ -588,3 +588,4 @@ Final hardening and compliance work before AppExchange submission. This starts a
 - **Licensing model:** AppExchange org-level licensing (per-seat or per-org). Individual users cannot upgrade independently within a client org; the org admin controls seat assignment.
 - **MVP strategy:** Ship Core + Pro for v1.0. Defer Enterprise until Pro customers request governance features. Validate before building.
 - **Audit references:** See `docs/audits/01-10-2026-roadmap/` for the 8-audit synthesis that informed this restructure.
+- **Worker admin UI:** If you ever expose the worker (`/admin/queues`), put it behind an IP allowlist / Access layer (e.g. Cloudflare Access) and keep `ADMIN_API_KEY` set to a strong random value.

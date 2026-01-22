@@ -7,6 +7,7 @@ export default defineConfig({
     globals: true,
     root: './',
     environment: 'node',
+    setupFiles: ['./test/vitest-e2e.setup.ts'],
     server: {
       deps: {
         inline: ['@qpp/database'],

@@ -1,4 +1,5 @@
 import { Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
 import {
   FastifyAdapter,
@@ -7,6 +8,7 @@ import {
 
 import { AppModule } from "./app.module";
 import { JsonLogger } from "./common/logger/json-logger.service";
+import { configureApp } from "./configure-app";
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -17,9 +19,15 @@ async function bootstrap() {
     },
   );
 
+  // Configure admin auth before initializing routes
+  configureApp(app);
+
   app.enableShutdownHooks();
 
-  const port = process.env.PORT || 3001;
+  // Get port from validated config
+  const configService = app.get(ConfigService);
+  const port = configService.get("PORT", { infer: true });
+
   await app.listen(port, "0.0.0.0");
   Logger.log(`Worker running on port ${port}`, "WorkerBootstrap");
 }

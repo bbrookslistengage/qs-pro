@@ -20,7 +20,7 @@ After either entry point, authenticated requests are authorized via the session 
 
 ## How Sessions Work
 
-Sessions are handled by `@fastify/secure-session` in `apps/api/src/main.ts`.
+Sessions are handled by `@fastify/secure-session` in `apps/api/src/configure-app.ts`.
 
 - Cookie settings (current defaults):
   - `httpOnly: true` prevents JavaScript from reading the cookie.
@@ -32,7 +32,7 @@ Sessions are handled by `@fastify/secure-session` in `apps/api/src/main.ts`.
   - `mid` (Business Unit context)
   - `csrfToken` (per-session token required on state-changing requests)
 - Authorization:
-  - `apps/api/src/auth/session.guard.ts` enforces presence of `userId`, `tenantId`, and `mid` and attaches `{ userId, tenantId, mid }` onto `request.user`.
+  - `packages/backend-shared/src/auth/session.guard.ts` (exported as `SessionGuard` from `@qpp/backend-shared`) enforces presence of `userId`, `tenantId`, and `mid` and attaches `{ userId, tenantId, mid }` onto `request.user`.
 
 ## Tenant + BU Isolation (Postgres RLS)
 
@@ -54,7 +54,7 @@ Implementation (current approach):
 - On response finish/close/error, we reset the settings and release the connection back to the pool.
 
 Code references:
-- Request-lifetime DB context + RLS setup: `apps/api/src/main.ts`
+- Request-lifetime DB context + RLS setup: `apps/api/src/configure-app.ts`
 - Async request context holder: `apps/api/src/database/db-context.ts`
 
 This is the difference between:

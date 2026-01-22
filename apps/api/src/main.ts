@@ -1,18 +1,12 @@
 import formBody from '@fastify/formbody';
 import secureSession from '@fastify/secure-session';
-import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
-import {
-  AppError,
-  ErrorCode,
-  getDbFromContext,
-  runWithDbContext,
-} from '@qpp/backend-shared';
+import { getDbFromContext, runWithDbContext } from '@qpp/backend-shared';
 import { createDatabaseFromClient } from '@qpp/database';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Sql } from 'postgres';
@@ -71,85 +65,19 @@ async function bootstrap() {
 
     await app.register(formBody);
 
-    const logger = new Logger('Bootstrap');
     const configService = app.get(ConfigService);
-    const sessionSecret =
-      configService.get<string>('SESSION_SECRET') ?? process.env.SESSION_SECRET;
-    const sessionSalt =
-      configService.get<string>('SESSION_SALT') ?? process.env.SESSION_SALT;
 
-    if (!sessionSecret || !sessionSalt) {
-      logger.error(
-        'SESSION_SECRET and SESSION_SALT are required; set them in the repo root `.env`.',
-      );
-      throw new AppError(ErrorCode.CONFIG_ERROR, undefined, {
-        reason: 'SESSION_SECRET and SESSION_SALT are required',
-      });
-    }
-
-    if (sessionSecret.length < 32) {
-      logger.error(
-        'SESSION_SECRET must be at least 32 characters (use `npx --yes @fastify/secure-session` or a secret manager).',
-      );
-      throw new AppError(ErrorCode.CONFIG_ERROR, undefined, {
-        reason: 'SESSION_SECRET must be at least 32 characters',
-      });
-    }
-
-    if (sessionSalt.length < 16) {
-      logger.error('SESSION_SALT must be at least 16 characters.');
-      throw new AppError(ErrorCode.CONFIG_ERROR, undefined, {
-        reason: 'SESSION_SALT must be at least 16 characters',
-      });
-    }
-
-    const cookieSecureRaw = configService.get<string>('COOKIE_SECURE');
-    const cookieSecure =
-      cookieSecureRaw === 'true'
-        ? true
-        : cookieSecureRaw === 'false'
-          ? false
-          : true;
-
-    const cookieSameSiteRaw = configService.get<string>('COOKIE_SAMESITE');
-    const cookieSameSite =
-      cookieSameSiteRaw === 'none' ||
-      cookieSameSiteRaw === 'lax' ||
-      cookieSameSiteRaw === 'strict'
-        ? cookieSameSiteRaw
-        : cookieSecure
-          ? 'none'
-          : 'lax';
-
-    if (cookieSameSite === 'none' && !cookieSecure) {
-      logger.error(
-        'Invalid cookie configuration: COOKIE_SAMESITE=none requires COOKIE_SECURE=true.',
-      );
-      throw new AppError(ErrorCode.CONFIG_ERROR, undefined, {
-        reason: 'COOKIE_SAMESITE=none requires COOKIE_SECURE=true',
-      });
-    }
-
-    const cookieDomain =
-      configService.get<string>('COOKIE_DOMAIN') ?? undefined;
-
-    const cookiePartitionedRaw =
-      configService.get<string>('COOKIE_PARTITIONED') ?? undefined;
-    const cookiePartitioned =
-      cookiePartitionedRaw === 'true'
-        ? true
-        : cookiePartitionedRaw === 'false'
-          ? false
-          : cookieSameSite === 'none';
-
-    if (cookiePartitioned && cookieDomain) {
-      logger.error(
-        'Invalid cookie configuration: COOKIE_PARTITIONED=true cannot be used with COOKIE_DOMAIN (partitioned cookies must be host-only).',
-      );
-      throw new AppError(ErrorCode.CONFIG_ERROR, undefined, {
-        reason: 'COOKIE_PARTITIONED=true cannot be used with COOKIE_DOMAIN',
-      });
-    }
+    // All config values are validated by Zod at startup
+    const sessionSecret = configService.get('SESSION_SECRET', { infer: true });
+    const sessionSalt = configService.get('SESSION_SALT', { infer: true });
+    const cookieSecure = configService.get('COOKIE_SECURE', { infer: true });
+    const cookieSameSite = configService.get('COOKIE_SAMESITE', {
+      infer: true,
+    });
+    const cookieDomain = configService.get('COOKIE_DOMAIN', { infer: true });
+    const cookiePartitioned = configService.get('COOKIE_PARTITIONED', {
+      infer: true,
+    });
 
     adapter
       .getInstance()
@@ -281,7 +209,8 @@ async function bootstrap() {
       }
     });
 
-    await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
+    const port = configService.get('PORT', { infer: true });
+    await app.listen(port, '0.0.0.0');
   } catch (error) {
     handleFatalError(error);
   }

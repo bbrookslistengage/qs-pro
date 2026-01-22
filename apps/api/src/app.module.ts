@@ -2,7 +2,7 @@ import path from 'node:path';
 
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { DatabaseModule } from '@qpp/backend-shared';
+import { DatabaseModule, validateApiEnv } from '@qpp/backend-shared';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -18,6 +18,7 @@ import { UsersModule } from './users/users.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      validate: validateApiEnv,
       envFilePath: [
         path.resolve(process.cwd(), '.env'),
         path.resolve(__dirname, '..', '..', '..', '.env'),

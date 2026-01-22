@@ -1,13 +1,13 @@
 import { z } from "zod";
 
+const HEX_64 = /^[0-9a-fA-F]{64}$/;
+
 /**
  * Base environment schema shared by all backend applications.
  * Contains common infrastructure variables.
  */
 export const baseEnvSchema = z.object({
-  NODE_ENV: z
-    .enum(["development", "test", "production"])
-    .default("development"),
+  NODE_ENV: z.enum(["development", "test", "production"]),
   DATABASE_URL: z
     .string()
     .url()
@@ -29,11 +29,15 @@ export const apiEnvSchema = baseEnvSchema
     SESSION_SALT: z
       .string()
       .min(16, "SESSION_SALT must be at least 16 characters"),
-    ENCRYPTION_KEY: z.string().min(32),
+    ENCRYPTION_KEY: z
+      .string()
+      .regex(HEX_64, "ENCRYPTION_KEY must be 64 hex characters (32 bytes)"),
     MCE_CLIENT_ID: z.string().min(1),
     MCE_CLIENT_SECRET: z.string().min(1),
     MCE_REDIRECT_URI: z.string().url(),
-    MCE_JWT_SIGNING_SECRET: z.string().min(1),
+    MCE_JWT_SIGNING_SECRET: z
+      .string()
+      .min(32, "MCE_JWT_SIGNING_SECRET must be at least 32 characters"),
     MCE_JWT_ISSUER: z.string().optional(),
     MCE_JWT_AUDIENCE: z.string().optional(),
     COOKIE_SECURE: z
@@ -45,31 +49,67 @@ export const apiEnvSchema = baseEnvSchema
     COOKIE_PARTITIONED: z
       .enum(["true", "false"])
       .optional()
-      .transform((v: "true" | "false" | undefined) => v === "true"),
+      .transform((v: "true" | "false" | undefined) =>
+        v === undefined ? undefined : v === "true",
+      ),
   })
-  .refine(
-    (data: z.infer<ReturnType<typeof baseEnvSchema.extend>>) => {
-      // Cross-field validation: SameSite=none requires Secure=true
-      if (data.COOKIE_SAMESITE === "none" && !data.COOKIE_SECURE) {
-        return false;
+  .superRefine((data, ctx) => {
+    // Cross-field validation: SameSite=none requires Secure=true
+    if (data.COOKIE_SAMESITE === "none" && !data.COOKIE_SECURE) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "COOKIE_SAMESITE=none requires COOKIE_SECURE=true",
+      });
+    }
+
+    // Preserve legacy behavior: if COOKIE_PARTITIONED is unset, default it based on SameSite.
+    const effectivePartitioned =
+      data.COOKIE_PARTITIONED ?? data.COOKIE_SAMESITE === "none";
+
+    // Partitioned cookies must be host-only.
+    if (effectivePartitioned && data.COOKIE_DOMAIN) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "COOKIE_PARTITIONED=true cannot be used with COOKIE_DOMAIN (partitioned cookies must be host-only)",
+      });
+    }
+
+    if (data.NODE_ENV === "production") {
+      if (!data.COOKIE_SECURE) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "In production, COOKIE_SECURE must be true",
+        });
       }
-      return true;
-    },
-    { message: "COOKIE_SAMESITE=none requires COOKIE_SECURE=true" },
-  )
-  .refine(
-    (data: z.infer<ReturnType<typeof baseEnvSchema.extend>>) => {
-      // Cross-field validation: Partitioned requires no domain (partitioned cookies must be host-only)
-      if (data.COOKIE_PARTITIONED && data.COOKIE_DOMAIN) {
-        return false;
+
+      if (data.COOKIE_SAMESITE !== "none") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "In production, COOKIE_SAMESITE must be 'none'",
+        });
       }
-      return true;
-    },
-    {
-      message:
-        "COOKIE_PARTITIONED=true cannot be used with COOKIE_DOMAIN (partitioned cookies must be host-only)",
-    },
-  );
+
+      if (!effectivePartitioned) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "In production, COOKIE_PARTITIONED must be true",
+        });
+      }
+
+      if (data.COOKIE_DOMAIN) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "In production, COOKIE_DOMAIN must be unset (host-only)",
+        });
+      }
+    }
+  })
+  .transform((data) => ({
+    ...data,
+    COOKIE_PARTITIONED:
+      data.COOKIE_PARTITIONED ?? data.COOKIE_SAMESITE === "none",
+  }));
 
 /**
  * Worker application environment schema.

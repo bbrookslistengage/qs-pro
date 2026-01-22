@@ -42,30 +42,27 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<FastifyRequest>();
     const path = this.sanitizePath(request.url);
 
-    // Classify exception and get Problem Details
     const problemDetails = this.classifyException(exception, path);
+    const redactedContext =
+      exception instanceof AppError
+        ? safeContext(exception.context)
+        : undefined;
 
-    if (exception instanceof AppError) {
-      const redacted = safeContext(exception.context);
-      if (redacted) {
-        this.logger.warn({
-          message: 'AppError context',
-          code: exception.code,
-          context: redacted,
-          path,
-        });
-      }
+    if (redactedContext) {
+      this.logger.warn({
+        message: 'AppError context',
+        code: (exception as AppError).code,
+        context: redactedContext,
+        path,
+      });
     }
 
     if (problemDetails.status >= 500) {
-      const stack = getStackTrace(exception);
-      this.logger.error(`[${problemDetails.status}] ${path}`, stack);
-      Sentry.captureException(exception, {
-        extra:
-          exception instanceof AppError
-            ? safeContext(exception.context)
-            : undefined,
-      });
+      this.logger.error(
+        `[${problemDetails.status}] ${path}`,
+        getStackTrace(exception),
+      );
+      Sentry.captureException(exception, { extra: redactedContext });
     } else {
       this.logger.warn(
         `[${problemDetails.status}] ${path} - ${problemDetails.detail}`,

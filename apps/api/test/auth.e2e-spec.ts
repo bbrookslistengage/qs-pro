@@ -1,4 +1,3 @@
-import secureSession from '@fastify/secure-session';
 import {
   FastifyAdapter,
   NestFastifyApplication,
@@ -8,10 +7,11 @@ import { ITenantRepository, IUserRepository } from '@qpp/database';
 import * as jose from 'jose';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
-import request from 'supertest';
+import { agent as superagent } from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AppModule } from './../src/app.module';
+import { configureApp } from './../src/configure-app';
 
 function getRequiredEnv(key: string): string {
   // eslint-disable-next-line security/detect-object-injection -- `key` is a trusted string, not user input
@@ -20,14 +20,6 @@ function getRequiredEnv(key: string): string {
     throw new Error(`Missing env: ${key}`);
   }
   return value;
-}
-
-function getFirstCookie(headers: { 'set-cookie'?: string[] }): string {
-  const cookie = headers['set-cookie']?.[0];
-  if (!cookie) {
-    throw new Error('Expected set-cookie header');
-  }
-  return cookie;
 }
 
 const server = setupServer(
@@ -59,15 +51,7 @@ describe('Auth (e2e)', () => {
   beforeAll(async () => {
     server.listen();
 
-    process.env.MCE_CLIENT_ID = 'test-id';
-    process.env.MCE_CLIENT_SECRET = 'test-secret';
-    process.env.MCE_REDIRECT_URI = 'http://localhost/callback';
     process.env.MCE_TSSD = 'test-tssd';
-    process.env.ENCRYPTION_KEY =
-      '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
-    process.env.MCE_JWT_SIGNING_SECRET =
-      'test-jwt-secret-at-least-32-chars-long';
-    process.env.SESSION_SECRET = 'test-session-secret-at-least-32-chars';
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -77,9 +61,17 @@ describe('Auth (e2e)', () => {
       new FastifyAdapter(),
     );
 
-    await app.register(secureSession, {
-      secret: process.env.SESSION_SECRET,
-      salt: '1234567890123456',
+    await configureApp(app, {
+      globalPrefix: false,
+      session: {
+        secret: getRequiredEnv('SESSION_SECRET'),
+        salt: getRequiredEnv('SESSION_SALT'),
+        cookie: {
+          secure: false,
+          sameSite: 'lax',
+        },
+      },
+      rls: true,
     });
 
     await app.init();
@@ -92,6 +84,7 @@ describe('Auth (e2e)', () => {
   });
 
   it('/auth/login (POST) should handle MCE JWT and set session', async () => {
+    const testAgent = superagent(app.getHttpServer());
     const secret = getRequiredEnv('MCE_JWT_SIGNING_SECRET');
     const encodedSecret = new TextEncoder().encode(secret);
 
@@ -107,37 +100,32 @@ describe('Auth (e2e)', () => {
       .setExpirationTime('1h')
       .sign(encodedSecret);
 
-    const response = await request(app.getHttpServer())
+    const response = await testAgent
       .post('/auth/login')
       .send({ jwt })
       .expect(302);
 
     expect(response.headers.location).toBe('/');
-    const cookie = getFirstCookie(response.headers);
 
-    // Verify user created
     const userRepo: IUserRepository = app.get('USER_REPOSITORY');
     const user = await userRepo.findBySfUserId('sf-user-jwt');
     expect(user).toBeDefined();
     expect(user?.sfUserId).toBe('sf-user-jwt');
 
-    // Verify /auth/me works with the cookie
-    const meResponse = await request(app.getHttpServer())
-      .get('/auth/me')
-      .set('Cookie', cookie)
-      .expect(200);
+    const meResponse = await testAgent.get('/auth/me').expect(200);
 
     expect(meResponse.body.user.id).toBe(user?.id);
     expect(meResponse.body.tenant.eid).toBe('eid-jwt');
   });
 
   it('/auth/callback (GET) should save credentials and return user', async () => {
-    const loginResponse = await request(app.getHttpServer())
+    const testAgent = superagent(app.getHttpServer());
+
+    const loginResponse = await testAgent
       .get('/auth/login')
       .query({ tssd: 'test-tssd' })
       .expect(302);
 
-    const loginCookie = getFirstCookie(loginResponse.headers);
     const redirectUrl = loginResponse.headers.location;
     expect(redirectUrl).toBeDefined();
     if (!redirectUrl) {
@@ -147,9 +135,8 @@ describe('Auth (e2e)', () => {
 
     expect(state).toBeDefined();
 
-    const response = await request(app.getHttpServer())
+    const response = await testAgent
       .get('/auth/callback')
-      .set('Cookie', loginCookie)
       .query({
         code: 'any-code',
         state,
@@ -160,22 +147,18 @@ describe('Auth (e2e)', () => {
       .expect(302);
 
     expect(response.headers.location).toBe('/');
-    const callbackCookie = getFirstCookie(response.headers);
 
-    const meResponse = await request(app.getHttpServer())
-      .get('/auth/me')
-      .set('Cookie', callbackCookie)
-      .expect(200);
+    const meResponse = await testAgent.get('/auth/me').expect(200);
 
     expect(meResponse.body.user.sfUserId).toBe('sf-user-123');
 
-    // Verify DB
     const tenantRepo: ITenantRepository = app.get('TENANT_REPOSITORY');
     const tenant = await tenantRepo.findByEid('eid-123');
     expect(tenant).toBeDefined();
   });
 
   it('/auth/refresh (GET) should return a new access token', async () => {
+    const testAgent = superagent(app.getHttpServer());
     const secret = getRequiredEnv('MCE_JWT_SIGNING_SECRET');
     const encodedSecret = new TextEncoder().encode(secret);
 
@@ -191,17 +174,9 @@ describe('Auth (e2e)', () => {
       .setExpirationTime('1h')
       .sign(encodedSecret);
 
-    const loginResponse = await request(app.getHttpServer())
-      .post('/auth/login')
-      .send({ jwt })
-      .expect(302);
+    await testAgent.post('/auth/login').send({ jwt }).expect(302);
 
-    const refreshCookie = getFirstCookie(loginResponse.headers);
-
-    const response = await request(app.getHttpServer())
-      .get('/auth/refresh')
-      .set('Cookie', refreshCookie)
-      .expect(200);
+    const response = await testAgent.get('/auth/refresh').expect(200);
 
     expect(response.body.ok).toBe(true);
   });

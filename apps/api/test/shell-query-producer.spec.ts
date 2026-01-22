@@ -56,7 +56,7 @@ describe('Shell Query Producer (e2e)', () => {
     app = moduleFixture.createNestApplication<NestFastifyApplication>(
       new FastifyAdapter(),
     );
-    configureApp(app, { globalPrefix: false });
+    await configureApp(app, { globalPrefix: false });
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
     service = moduleFixture.get<ShellQueryService>(ShellQueryService);

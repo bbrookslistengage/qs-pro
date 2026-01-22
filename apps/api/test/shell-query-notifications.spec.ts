@@ -46,7 +46,7 @@ describe('Shell Query Notifications & Results (e2e)', () => {
     app = moduleFixture.createNestApplication<NestFastifyApplication>(
       new FastifyAdapter(),
     );
-    configureApp(app, { globalPrefix: false });
+    await configureApp(app, { globalPrefix: false });
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
   });

@@ -112,13 +112,20 @@ describe('AdminAuthMiddleware', () => {
 
 describe('AdminAuthMiddleware - No API Key Configured', () => {
   let app: NestFastifyApplication;
+  let originalAdminKey: string | undefined;
 
   @Module({
     imports: [
       ConfigModule.forRoot({
         isGlobal: true,
         ignoreEnvFile: true,
-        load: [() => ({})], // No ADMIN_API_KEY configured
+        ignoreEnvVars: true, // Ignore process.env completely
+        load: [
+          () => ({
+            // Explicitly set ADMIN_API_KEY to undefined to test the "not configured" case
+            ADMIN_API_KEY: undefined,
+          }),
+        ],
       }),
     ],
     providers: [AdminAuthMiddleware],
@@ -130,6 +137,10 @@ describe('AdminAuthMiddleware - No API Key Configured', () => {
   }
 
   beforeAll(async () => {
+    // Save and delete the env var to ensure it's not set
+    originalAdminKey = process.env.ADMIN_API_KEY;
+    delete process.env.ADMIN_API_KEY;
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [NoKeyModule],
     }).compile();
@@ -150,6 +161,10 @@ describe('AdminAuthMiddleware - No API Key Configured', () => {
   afterAll(async () => {
     if (app) {
       await app.close();
+    }
+    // Restore the original env var
+    if (originalAdminKey !== undefined) {
+      process.env.ADMIN_API_KEY = originalAdminKey;
     }
   });
 

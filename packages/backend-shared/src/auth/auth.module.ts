@@ -7,11 +7,12 @@ import {
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
 import { DatabaseModule } from "../database/database.module";
+import { EncryptionModule } from "../encryption";
 import { AuthService } from "./auth.service";
 import { SeatLimitService } from "./seat-limit.service";
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, EncryptionModule],
   providers: [
     AuthService,
     SeatLimitService,

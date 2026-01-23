@@ -5,12 +5,12 @@ import type {
   ITenantRepository,
   IUserRepository,
 } from "@qpp/database";
-import { decrypt, encrypt } from "@qpp/database";
 import axios from "axios";
 import * as jose from "jose";
 
 import { AppError, ErrorCode, safeContext } from "../common/errors";
 import { RlsContextService } from "../database/rls-context.service";
+import { EncryptionService } from "../encryption";
 import { SeatLimitService } from "./seat-limit.service";
 
 export interface MceTokenResponse {
@@ -47,6 +47,7 @@ export class AuthService {
     @Inject("CREDENTIALS_REPOSITORY") private credRepo: ICredentialsRepository,
     private readonly rlsContext: RlsContextService,
     private readonly seatLimitService: SeatLimitService,
+    private readonly encryptionService: EncryptionService,
   ) {}
 
   async verifyMceJwt(jwt: string) {
@@ -335,17 +336,12 @@ export class AuthService {
     mid: string,
     tokenData: MceTokenResponse,
   ) {
-    const encryptionKey = this.configService.get<string>("ENCRYPTION_KEY");
-    if (!encryptionKey) {
-      throw new AppError(ErrorCode.CONFIG_ERROR, undefined, {
-        reason: "ENCRYPTION_KEY not configured",
-      });
-    }
-    const encryptedAccessToken = encrypt(tokenData.access_token, encryptionKey);
-    const encryptedRefreshToken = encrypt(
+    const encryptedAccessToken = this.encryptionService.encrypt(
+      tokenData.access_token,
+    ) as string;
+    const encryptedRefreshToken = this.encryptionService.encrypt(
       tokenData.refresh_token,
-      encryptionKey,
-    );
+    ) as string;
 
     await this.rlsContext.runWithTenantContext(tenantId, mid, async () => {
       await this.credRepo.upsert({
@@ -635,11 +631,9 @@ export class AuthService {
       creds.accessToken &&
       this.isAccessTokenValid(creds.expiresAt)
     ) {
-      const encryptionKey = this.configService.get<string>("ENCRYPTION_KEY");
-      if (!encryptionKey) {
-        throw new AppError(ErrorCode.CONFIG_ERROR);
-      }
-      const decryptedAccessToken = decrypt(creds.accessToken, encryptionKey);
+      const decryptedAccessToken = this.encryptionService.decrypt(
+        creds.accessToken,
+      ) as string;
       return {
         accessToken: decryptedAccessToken,
         tssd: tenant.tssd,
@@ -647,12 +641,9 @@ export class AuthService {
       };
     }
 
-    const encryptionKey = this.configService.get<string>("ENCRYPTION_KEY");
-    if (!encryptionKey) {
-      throw new AppError(ErrorCode.CONFIG_ERROR);
-    }
-
-    const decryptedRefreshToken = decrypt(creds.refreshToken, encryptionKey);
+    const decryptedRefreshToken = this.encryptionService.decrypt(
+      creds.refreshToken,
+    ) as string;
     const clientId = this.configService.get<string>("MCE_CLIENT_ID");
     const clientSecret = this.configService.get<string>("MCE_CLIENT_SECRET");
     const tokenUrl = `https://${tenant.tssd}.auth.marketingcloudapis.com/v2/token`;

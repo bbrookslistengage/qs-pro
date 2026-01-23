@@ -2,10 +2,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getQueueToken } from '@nestjs/bullmq';
 import { ShellQueryProcessor } from '../src/shell-query/shell-query.processor';
 import { RunToTempFlow } from '../src/shell-query/strategies/run-to-temp.strategy';
-import { RlsContextService, MceBridgeService, AsyncStatusService, RestDataService } from '@qpp/backend-shared';
+import { RlsContextService, MceBridgeService, AsyncStatusService, RestDataService, EncryptionService } from '@qpp/backend-shared';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createMockBullJob, createMockPollBullJob } from './factories';
-import { createDbStub, createMceBridgeStub, createRedisStub, createMetricsStub, createRlsContextStub, createQueueStub, createAsyncStatusServiceStub, createRestDataServiceStub } from './stubs';
+import { createDbStub, createMceBridgeStub, createRedisStub, createMetricsStub, createRlsContextStub, createQueueStub, createAsyncStatusServiceStub, createRestDataServiceStub, createEncryptionServiceStub } from './stubs';
 import { RunStatus, STATUS_MESSAGES } from '../src/shell-query/shell-query.types';
 
 describe('Status Event Flow', () => {
@@ -34,7 +34,9 @@ describe('Status Event Flow', () => {
     publishedEvents = [];
 
     mockRedis.publish = vi.fn().mockImplementation((channel: string, message: string) => {
-      publishedEvents.push({ channel, payload: JSON.parse(message) });
+      // Decrypt the message (stub uses 'encrypted:' prefix)
+      const decrypted = message.startsWith('encrypted:') ? message.slice(10) : message;
+      publishedEvents.push({ channel, payload: JSON.parse(decrypted) });
       return Promise.resolve();
     });
 
@@ -45,6 +47,7 @@ describe('Status Event Flow', () => {
         { provide: MceBridgeService, useValue: mockMceBridge },
         { provide: RestDataService, useValue: mockRestDataService },
         { provide: AsyncStatusService, useValue: mockAsyncStatusService },
+        { provide: EncryptionService, useValue: createEncryptionServiceStub() },
         { provide: RlsContextService, useValue: createRlsContextStub() },
         { provide: 'DATABASE', useValue: mockDb },
         { provide: 'REDIS_CLIENT', useValue: mockRedis },

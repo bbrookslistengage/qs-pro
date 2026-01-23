@@ -3,6 +3,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   AppError,
   buildQppResultsDataExtensionName,
+  EncryptionService,
   ErrorCode,
   RestDataService,
   type RowsetResponse,
@@ -46,6 +47,7 @@ export class ShellQueryService {
     private restDataService: RestDataService,
     @Inject('SHELL_QUERY_RUN_REPOSITORY')
     private readonly runRepo: ShellQueryRunRepository,
+    private readonly encryptionService: EncryptionService,
   ) {}
 
   async createRun(
@@ -85,13 +87,20 @@ export class ShellQueryService {
       status: 'queued',
     });
 
-    // 3. Add to Queue
+    // 3. Add to Queue (encrypt sqlText for at-rest security in Redis)
+    const encryptedSqlText = this.encryptionService.encrypt(sqlText);
+    if (!encryptedSqlText) {
+      throw new AppError(ErrorCode.INTERNAL_ERROR, undefined, {
+        operation: 'createRun',
+        reason: 'Failed to encrypt sqlText',
+      });
+    }
     await this.shellQueryQueue.add(
       'execute-shell-query',
       {
         runId,
         ...context,
-        sqlText,
+        sqlText: encryptedSqlText,
         snippetName,
         tableMetadata,
       },
@@ -140,7 +149,10 @@ export class ShellQueryService {
     };
 
     if (run.status === 'failed' && run.errorMessage) {
-      response.errorMessage = run.errorMessage;
+      const decryptedError = this.encryptionService.decrypt(run.errorMessage);
+      if (decryptedError) {
+        response.errorMessage = decryptedError;
+      }
     }
 
     return response;
@@ -166,7 +178,9 @@ export class ShellQueryService {
         throw new AppError(ErrorCode.INVALID_STATE, undefined, {
           operation: 'getResults',
           status: run.status,
-          statusMessage: run.errorMessage ?? undefined,
+          statusMessage: run.errorMessage
+            ? (this.encryptionService.decrypt(run.errorMessage) ?? undefined)
+            : undefined,
         });
       }
       throw new AppError(ErrorCode.INVALID_STATE, undefined, {

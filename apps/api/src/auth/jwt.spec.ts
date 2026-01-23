@@ -2,6 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   AuthService,
+  EncryptionService,
   RlsContextService,
   SeatLimitService,
 } from '@qpp/backend-shared';
@@ -47,6 +48,13 @@ describe('AuthService JWT Verification', () => {
           provide: SeatLimitService,
           useValue: {
             checkSeatLimit: vi.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: EncryptionService,
+          useValue: {
+            encrypt: vi.fn((v: string) => `encrypted:${v}`),
+            decrypt: vi.fn((v: string) => v.replace('encrypted:', '')),
           },
         },
       ],

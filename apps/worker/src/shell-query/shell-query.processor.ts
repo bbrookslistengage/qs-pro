@@ -9,6 +9,7 @@ import {
   AppError,
   AsyncStatusService,
   buildDeleteQueryDefinition,
+  EncryptionService,
   ErrorCode,
   type IsRunningResponse,
   isTerminal,
@@ -66,6 +67,7 @@ export class ShellQueryProcessor extends WorkerHost {
     private readonly mceBridge: MceBridgeService,
     private readonly asyncStatusService: AsyncStatusService,
     private readonly restDataService: RestDataService,
+    private readonly encryptionService: EncryptionService,
     @Inject("DATABASE")
     private readonly db: PostgresJsDatabase<Record<string, never>>,
     @Inject("REDIS_CLIENT") private readonly redis: unknown,
@@ -192,10 +194,14 @@ export class ShellQueryProcessor extends WorkerHost {
   }
 
   private async handleExecute(job: Job<ShellQueryJob>): Promise<unknown> {
-    const { runId, tenantId, userId, mid, sqlText } = job.data;
+    const { runId, tenantId, userId, mid, sqlText: encryptedSqlText } = job.data;
+    const sqlText = this.encryptionService.decrypt(encryptedSqlText);
+    if (!sqlText) {
+      throw new UnrecoverableError("Failed to decrypt sqlText");
+    }
     const sqlTextHash = crypto
       .createHash("sha256")
-      .update(sqlText || "")
+      .update(sqlText)
       .digest("hex");
 
     this.logger.log(
@@ -246,7 +252,10 @@ export class ShellQueryProcessor extends WorkerHost {
         mid,
         userId,
         async () => {
-          return await this.runToTempFlow.execute(job.data, publishStatus);
+          return await this.runToTempFlow.execute(
+            { ...job.data, sqlText },
+            publishStatus,
+          );
         },
       );
 
@@ -1011,6 +1020,11 @@ export class ShellQueryProcessor extends WorkerHost {
     const channel = `run-status:${runId}`;
     const lastEventKey = `run-status:last:${runId}`;
     const eventJson = JSON.stringify(event);
+    const encryptedEventJson = this.encryptionService.encrypt(eventJson);
+    if (!encryptedEventJson) {
+      this.logger.error(`Failed to encrypt SSE event for run ${runId}`);
+      return;
+    }
 
     const redisClient = this.redis as {
       publish: (channel: string, message: string) => Promise<void>;
@@ -1023,8 +1037,8 @@ export class ShellQueryProcessor extends WorkerHost {
     };
 
     await Promise.all([
-      redisClient.publish(channel, eventJson),
-      redisClient.set(lastEventKey, eventJson, "EX", LAST_EVENT_TTL_SECONDS),
+      redisClient.publish(channel, encryptedEventJson),
+      redisClient.set(lastEventKey, encryptedEventJson, "EX", LAST_EVENT_TTL_SECONDS),
     ]);
   }
 
@@ -1036,6 +1050,16 @@ export class ShellQueryProcessor extends WorkerHost {
     status: ShellQueryRunStatus,
     extra: Record<string, unknown> = {},
   ) {
+    const processedExtra = { ...extra };
+    if (
+      typeof processedExtra.errorMessage === "string" &&
+      processedExtra.errorMessage
+    ) {
+      processedExtra.errorMessage = this.encryptionService.encrypt(
+        processedExtra.errorMessage,
+      );
+    }
+
     await this.rlsContext.runWithUserContext(
       tenantId,
       mid,
@@ -1043,7 +1067,7 @@ export class ShellQueryProcessor extends WorkerHost {
       async () => {
         await this.db
           .update(shellQueryRuns)
-          .set({ status, ...extra })
+          .set({ status, ...processedExtra })
           .where(eq(shellQueryRuns.id, runId));
       },
     );

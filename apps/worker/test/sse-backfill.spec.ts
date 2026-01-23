@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getQueueToken } from '@nestjs/bullmq';
 import { ShellQueryProcessor } from '../src/shell-query/shell-query.processor';
 import { RunToTempFlow } from '../src/shell-query/strategies/run-to-temp.strategy';
-import { RlsContextService, MceBridgeService, AsyncStatusService, RestDataService } from '@qpp/backend-shared';
+import { RlsContextService, MceBridgeService, AsyncStatusService, RestDataService, EncryptionService } from '@qpp/backend-shared';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createMockBullJob, createMockPollBullJob } from './factories';
 import {
@@ -14,7 +14,14 @@ import {
   createQueueStub,
   createAsyncStatusServiceStub,
   createRestDataServiceStub,
+  createEncryptionServiceStub,
 } from './stubs';
+
+// Helper to decrypt Redis event data (stub uses 'encrypted:' prefix)
+function decryptEventData(encrypted: string): unknown {
+  const decrypted = encrypted.startsWith('encrypted:') ? encrypted.slice(10) : encrypted;
+  return JSON.parse(decrypted);
+}
 
 describe('ShellQueryProcessor SSE Backfill', () => {
   let processor: ShellQueryProcessor;
@@ -48,6 +55,7 @@ describe('ShellQueryProcessor SSE Backfill', () => {
         { provide: MceBridgeService, useValue: mockMceBridge },
         { provide: RestDataService, useValue: mockRestDataService },
         { provide: AsyncStatusService, useValue: mockAsyncStatusService },
+        { provide: EncryptionService, useValue: createEncryptionServiceStub() },
         { provide: RlsContextService, useValue: createRlsContextStub() },
         { provide: 'DATABASE', useValue: mockDb },
         { provide: 'REDIS_CLIENT', useValue: mockRedis },
@@ -120,7 +128,7 @@ describe('ShellQueryProcessor SSE Backfill', () => {
       const readyEventCall = setCalls.find(
         (call: [string, string, string, number]) => {
           if (call[0] !== 'run-status:last:run-1') return false;
-          const eventData = JSON.parse(call[1]);
+          const eventData = decryptEventData(call[1]) as { status: string };
           return eventData.status === 'ready';
         },
       );
@@ -147,12 +155,12 @@ describe('ShellQueryProcessor SSE Backfill', () => {
       const failedEventCall = setCalls.find(
         (call: [string, string, string, number]) => {
           if (call[0] !== 'run-status:last:run-1') return false;
-          const eventData = JSON.parse(call[1]);
+          const eventData = decryptEventData(call[1]) as { status: string };
           return eventData.status === 'failed';
         },
       );
       expect(failedEventCall).toBeDefined();
-      const eventData = JSON.parse(failedEventCall?.[1]);
+      const eventData = decryptEventData(failedEventCall?.[1] as string) as { errorMessage: string };
       expect(eventData.errorMessage).toBe('Syntax error in query');
     });
 
@@ -174,6 +182,7 @@ describe('ShellQueryProcessor SSE Backfill', () => {
           { provide: MceBridgeService, useValue: mockMceBridge },
           { provide: RestDataService, useValue: createRestDataServiceStub() },
           { provide: AsyncStatusService, useValue: createAsyncStatusServiceStub() },
+          { provide: EncryptionService, useValue: createEncryptionServiceStub() },
           { provide: RlsContextService, useValue: createRlsContextStub() },
           { provide: 'DATABASE', useValue: mockDb },
           { provide: 'REDIS_CLIENT', useValue: mockRedis },
@@ -196,7 +205,7 @@ describe('ShellQueryProcessor SSE Backfill', () => {
       const canceledEventCall = setCalls.find(
         (call: [string, string, string, number]) => {
           if (call[0] !== 'run-status:last:run-1') return false;
-          const eventData = JSON.parse(call[1]);
+          const eventData = decryptEventData(call[1]) as { status: string };
           return eventData.status === 'canceled';
         },
       );

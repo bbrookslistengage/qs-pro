@@ -9,6 +9,7 @@ import {
   AsyncStatusService,
   QueryDefinitionService,
   RestDataService,
+  EncryptionService,
 } from '@qpp/backend-shared';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createMockBullJob, createMockPollBullJob } from './factories';
@@ -22,6 +23,7 @@ import {
   createAsyncStatusServiceStub,
   createQueryDefinitionServiceStub,
   createRestDataServiceStub,
+  createEncryptionServiceStub,
 } from './stubs';
 
 describe('Shell Query Cancellation & Sweeper', () => {
@@ -61,6 +63,7 @@ describe('Shell Query Cancellation & Sweeper', () => {
         { provide: MceBridgeService, useValue: mockMceBridge },
         { provide: RestDataService, useValue: mockRestDataService },
         { provide: AsyncStatusService, useValue: mockAsyncStatusService },
+        { provide: EncryptionService, useValue: createEncryptionServiceStub() },
         { provide: QueryDefinitionService, useValue: mockQueryDefinitionService },
         { provide: RlsContextService, useValue: createRlsContextStub() },
         { provide: 'DATABASE', useValue: mockDb },
@@ -144,6 +147,7 @@ describe('Shell Query Cancellation & Sweeper', () => {
           { provide: MceBridgeService, useValue: mockMceBridge },
           { provide: RestDataService, useValue: createRestDataServiceStub() },
           { provide: AsyncStatusService, useValue: createAsyncStatusServiceStub() },
+          { provide: EncryptionService, useValue: createEncryptionServiceStub() },
           { provide: RlsContextService, useValue: createRlsContextStub() },
           { provide: 'DATABASE', useValue: mockDb },
           { provide: 'REDIS_CLIENT', useValue: mockRedis },

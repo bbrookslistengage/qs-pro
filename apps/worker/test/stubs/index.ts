@@ -129,3 +129,14 @@ export function createRestDataServiceStub() {
     checkIsRunning: vi.fn().mockResolvedValue({ isRunning: false }),
   };
 }
+
+export function createEncryptionServiceStub() {
+  return {
+    encrypt: vi.fn((value: string | null | undefined) =>
+      value ? `encrypted:${value}` : value,
+    ),
+    decrypt: vi.fn((value: string | null | undefined) =>
+      value?.startsWith('encrypted:') ? value.slice(10) : value,
+    ),
+  };
+}

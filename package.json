@@ -16,6 +16,7 @@
     "test:web": "pnpm -r --filter \"./packages/**\" build && pnpm --filter @qpp/web test",
     "test:worker": "pnpm -r --filter \"./packages/**\" build && pnpm --filter worker test",
     "test:e2e": "pnpm -r test:e2e",
+    "test:integration": "pnpm -r --filter api --filter worker --filter @qpp/database test:integration",
     "lint": "pnpm -r lint",
     "pretypecheck": "pnpm -r --filter \"./packages/**\" build",
     "typecheck": "pnpm -r typecheck",

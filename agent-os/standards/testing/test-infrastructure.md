@@ -4,27 +4,52 @@ This document describes the test infrastructure for the qs-pro monorepo.
 
 ## Overview
 
-Tests are organized using Vitest with a projects-based configuration:
-- **Unit tests:** Co-located with source, `.unit.test.ts` suffix
-- **Integration tests:** Centralized in `test/` dirs, `.integration.test.ts` suffix
-- **E2E tests:** Centralized in `test/` dirs, `.e2e.test.ts` suffix
+Tests are organized by type with different execution contexts:
+
+| Type | Suffix | Location | Infrastructure | When to Run |
+|------|--------|----------|----------------|-------------|
+| Unit | `.unit.test.ts` | `src/**` (co-located) | None | During development |
+| Integration | `.integration.test.ts` | `test/` (centralized) | Postgres, Redis | CI only |
+| E2E | `.e2e.test.ts` | `test/` (centralized) | Full app stack | CI only |
 
 ## Running Tests
 
 ```bash
-# Run all tests
-pnpm test
+# Unit tests (fast, no infra needed - run during development)
+pnpm test                          # All unit tests
+pnpm --filter api test             # API unit tests
+pnpm --filter @qpp/web test        # Web unit tests
+pnpm --filter worker test          # Worker unit tests
 
-# Run specific test type from root
-pnpm vitest --project unit
-pnpm vitest --project integration
-pnpm vitest --project e2e
+# Integration tests (requires docker-compose up -d)
+pnpm test:integration              # All integration tests
 
-# Run tests for specific package
-pnpm --filter api test
-pnpm --filter @qpp/web test
-pnpm --filter worker test
+# E2E tests (requires full app running)
+pnpm test:e2e                      # All e2e tests
+pnpm --filter api test:e2e         # API e2e tests
+
+# Convenience scripts (build packages first)
+pnpm test:api                      # Build + API unit tests
+pnpm test:web                      # Build + Web unit tests
+pnpm test:worker                   # Build + Worker unit tests
 ```
+
+## Test Separation Philosophy
+
+**Unit tests (`pnpm test`):**
+- Run fast with no infrastructure dependencies
+- Mock all external services (DB, Redis, MCE)
+- Safe to run frequently during development
+
+**Integration tests (`pnpm test:integration`):**
+- Require running Postgres and Redis (`docker-compose up -d`)
+- Test real interactions between components
+- Run on CI before merge
+
+**E2E tests (`pnpm test:e2e`):**
+- Require the full application stack
+- Test complete user flows
+- Run on CI before merge
 
 ## Shared Test Utilities (@qpp/test-utils)
 
@@ -99,10 +124,14 @@ const mceBridgeStub = createMceBridgeStub();
 
 ## Configuration Files
 
-- `vitest.config.ts` - Root config with workspace projects
-- `vitest.shared.ts` - Shared base configuration
-- `apps/*/vitest.config.ts` - Per-app configs extending shared
-- `packages/*/vitest.config.ts` - Per-package configs extending shared
+| File | Purpose |
+|------|---------|
+| `vitest.config.ts` | Root config with workspace projects |
+| `vitest.shared.ts` | Shared base config (excludes integration/e2e) |
+| `apps/*/vitest.config.ts` | Per-app unit test configs |
+| `apps/*/vitest-integration.config.ts` | Per-app integration test configs |
+| `apps/*/vitest-e2e.config.ts` | Per-app e2e test configs |
+| `packages/*/vitest.config.ts` | Per-package unit test configs |
 
 ## File Naming Convention
 

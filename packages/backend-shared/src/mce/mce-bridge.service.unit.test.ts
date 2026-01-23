@@ -192,7 +192,9 @@ describe("MceBridgeService", () => {
         await service.request("t1", "u1", "m1", { url: "/test" });
         expect.fail("Expected AppError to be thrown");
       } catch (error) {
+        // eslint-disable-next-line vitest/no-conditional-expect -- verifying error properties after catching
         expect(error).toBeInstanceOf(AppError);
+        // eslint-disable-next-line vitest/no-conditional-expect -- verifying error properties after catching
         expect((error as AppError).code).toBe(ErrorCode.MCE_AUTH_EXPIRED);
       }
     });
@@ -207,8 +209,11 @@ describe("MceBridgeService", () => {
         await service.request("t1", "u1", "m1", { url: "/test" });
         expect.fail("Expected AppError to be thrown");
       } catch (error) {
+        // eslint-disable-next-line vitest/no-conditional-expect -- verifying error properties after catching
         expect(error).toBeInstanceOf(AppError);
+        // eslint-disable-next-line vitest/no-conditional-expect -- verifying error properties after catching
         expect((error as AppError).code).toBe(ErrorCode.MCE_BAD_REQUEST);
+        // eslint-disable-next-line vitest/no-conditional-expect -- verifying error properties after catching
         expect((error as AppError).message).toBe(
           ErrorMessages[ErrorCode.MCE_BAD_REQUEST],
         );
@@ -225,7 +230,9 @@ describe("MceBridgeService", () => {
         await service.request("t1", "u1", "m1", { url: "/test" });
         expect.fail("Expected AppError to be thrown");
       } catch (error) {
+        // eslint-disable-next-line vitest/no-conditional-expect -- verifying error properties after catching
         expect(error).toBeInstanceOf(AppError);
+        // eslint-disable-next-line vitest/no-conditional-expect -- verifying error properties after catching
         expect((error as AppError).code).toBe(ErrorCode.MCE_FORBIDDEN);
       }
     });
@@ -240,7 +247,9 @@ describe("MceBridgeService", () => {
         await service.request("t1", "u1", "m1", { url: "/test" });
         expect.fail("Expected AppError to be thrown");
       } catch (error) {
+        // eslint-disable-next-line vitest/no-conditional-expect -- verifying error properties after catching
         expect(error).toBeInstanceOf(AppError);
+        // eslint-disable-next-line vitest/no-conditional-expect -- verifying error properties after catching
         expect((error as AppError).code).toBe(ErrorCode.MCE_SERVER_ERROR);
       }
     });
@@ -253,6 +262,7 @@ describe("MceBridgeService", () => {
         await service.request("t1", "u1", "m1", { url: "/test" });
         expect.fail("Expected AppError to be thrown");
       } catch (error) {
+        // eslint-disable-next-line vitest/no-conditional-expect -- verifying error properties after catching
         expect(error).toBe(authError); // Same instance, not wrapped
       }
     });

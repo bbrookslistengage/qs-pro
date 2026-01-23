@@ -610,6 +610,7 @@ describe("node-sql-parser Feasibility Spike", () => {
       expect(result.parses).toBe(false);
       expect(result.error).toBeDefined();
       if (result.error?.location) {
+        // eslint-disable-next-line vitest/no-conditional-expect -- spike test exploring optional location property
         expect(result.error.location.start).toBeDefined();
       }
     });
@@ -646,9 +647,12 @@ describe("node-sql-parser Feasibility Spike", () => {
       if (result.error?.location) {
         const loc = result.error.location;
         if (loc.start) {
+          // eslint-disable-next-line vitest/no-conditional-expect -- spike test exploring optional location properties
           expect(typeof loc.start.line).toBe("number");
+          // eslint-disable-next-line vitest/no-conditional-expect -- spike test exploring optional location properties
           expect(typeof loc.start.column).toBe("number");
           if (loc.start.offset !== undefined) {
+            // eslint-disable-next-line vitest/no-conditional-expect -- spike test exploring optional offset property
             expect(typeof loc.start.offset).toBe("number");
           }
         }
@@ -665,6 +669,7 @@ describe("node-sql-parser Feasibility Spike", () => {
 
       expect(result.parses).toBe(false);
       if (result.error?.location?.start) {
+        // eslint-disable-next-line vitest/no-conditional-expect -- spike test exploring optional location property
         expect(result.error.location.start.line).toBeGreaterThanOrEqual(1);
       }
     });
@@ -744,6 +749,7 @@ describe("node-sql-parser Feasibility Spike", () => {
         console.log("CTE AST keys:", Object.keys(stmt));
         // eslint-disable-next-line no-console
         console.log("CTE 'with' property:", stmt.with);
+        // eslint-disable-next-line vitest/no-conditional-expect -- spike test conditionally checks AST when parsing succeeds
         expect(stmt).toHaveProperty("with");
       }
     });
@@ -759,6 +765,7 @@ describe("node-sql-parser Feasibility Spike", () => {
         assertDefined(stmt);
         // eslint-disable-next-line no-console
         console.log("INSERT AST type:", stmt.type);
+        // eslint-disable-next-line vitest/no-conditional-expect -- spike test conditionally checks AST when parsing succeeds
         expect(stmt.type).toBe("insert");
       }
     });
@@ -774,6 +781,7 @@ describe("node-sql-parser Feasibility Spike", () => {
         assertDefined(stmt);
         // eslint-disable-next-line no-console
         console.log("UPDATE AST type:", stmt.type);
+        // eslint-disable-next-line vitest/no-conditional-expect -- spike test conditionally checks AST when parsing succeeds
         expect(stmt.type).toBe("update");
       }
     });
@@ -789,6 +797,7 @@ describe("node-sql-parser Feasibility Spike", () => {
         assertDefined(stmt);
         // eslint-disable-next-line no-console
         console.log("DELETE AST type:", stmt.type);
+        // eslint-disable-next-line vitest/no-conditional-expect -- spike test conditionally checks AST when parsing succeeds
         expect(stmt.type).toBe("delete");
       }
     });
@@ -845,6 +854,7 @@ describe("node-sql-parser Feasibility Spike", () => {
         );
 
         if (offset !== undefined) {
+          // eslint-disable-next-line vitest/no-conditional-expect -- spike test exploring optional offset property
           expect(typeof offset).toBe("number");
         } else {
           const lines = sql.split("\n");

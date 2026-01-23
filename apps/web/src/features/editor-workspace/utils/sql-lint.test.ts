@@ -798,27 +798,24 @@ describe("sql lint", () => {
 
   test("lintSql_RegressionTest_ExistingBehaviorUnchanged", () => {
     // Arrange - Test that original rule behavior is unchanged
-    const testCases = [
-      { sql: "SELECT * FROM Subscribers DELETE FROM Users", expectError: true },
-      { sql: "SELECT * FROM [DELETE Me]", expectError: false },
-      {
-        sql: "WITH cte AS (SELECT Id FROM Users) SELECT * FROM cte",
-        expectError: true,
-      },
-      { sql: "SELECT * FROM #TempTable", expectError: true },
-      { sql: "DECLARE @count INT", expectError: true },
+    // Cases that should produce errors
+    const errorCases = [
+      "SELECT * FROM Subscribers DELETE FROM Users",
+      "WITH cte AS (SELECT Id FROM Users) SELECT * FROM cte",
+      "SELECT * FROM #TempTable",
+      "DECLARE @count INT",
     ];
 
-    // Act & Assert
-    testCases.forEach(({ sql, expectError }) => {
+    // Act & Assert - Each case should produce at least one error
+    for (const sql of errorCases) {
       const diagnostics = lintSql(sql);
+      expect(diagnostics.some((diag) => diag.severity === "error")).toBe(true);
+    }
 
-      if (expectError) {
-        expect(diagnostics.some((diag) => diag.severity === "error")).toBe(
-          true,
-        );
-      }
-    });
+    // Verify bracketed identifier containing keyword is NOT flagged as error
+    const safeSql = "SELECT * FROM [DELETE Me]";
+    const diagnostics = lintSql(safeSql);
+    expect(diagnostics.some((diag) => diag.severity === "error")).toBe(false);
   });
 
   test("lintSql_WithSubqueryAggregates_DoesNotAffectOuterScope", () => {

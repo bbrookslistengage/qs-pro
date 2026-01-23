@@ -13,7 +13,8 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 cd "$ROOT_DIR"
 
-# Create temp directory for collecting coverage
+# Clean and create directories for coverage collection
+rm -rf .nyc_output coverage
 mkdir -p .nyc_output coverage
 
 # Packages to test
@@ -32,14 +33,16 @@ fi
 
 echo "Running tests with coverage..."
 
+failures=0
+
 for pkg in "${PACKAGES[@]}"; do
   if [ -f "$pkg/vitest.config.ts" ]; then
     echo ""
     echo "=== Testing $pkg ==="
 
     # Run vitest with coverage in each package directory
-    # Use || true to continue even if tests fail (we still want coverage)
-    (cd "$pkg" && npx vitest run --coverage) || true
+    # Track failures but continue to collect coverage from all packages
+    (cd "$pkg" && npx vitest run --coverage) || failures=1
 
     # Copy coverage-final.json to temp directory with unique name
     pkg_name=$(echo "$pkg" | tr '/' '-')
@@ -65,3 +68,5 @@ npx nyc report --reporter=json-summary --temp-dir=coverage --report-dir=coverage
 echo ""
 echo "Coverage reports generated in coverage/"
 ls -la coverage/*.json 2>/dev/null || echo "No JSON files found"
+
+exit $failures

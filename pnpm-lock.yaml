@@ -613,6 +613,24 @@ importers:
         specifier: ^3.2.4
         version: 3.2.4(@types/node@22.19.3)(jsdom@27.4.0)(lightningcss@1.30.2)(msw@2.12.7(@types/node@22.19.3)(typescript@5.9.3))(terser@5.44.1)
 
+  packages/test-utils:
+    devDependencies:
+      '@qpp/database':
+        specifier: workspace:^
+        version: link:../database
+      '@qpp/eslint-config':
+        specifier: workspace:^
+        version: link:../eslint-config
+      '@qpp/shared-types':
+        specifier: workspace:^
+        version: link:../shared-types
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.4(@types/node@22.19.3)(jsdom@27.4.0)(lightningcss@1.30.2)(msw@2.12.7(@types/node@22.19.3)(typescript@5.9.3))(terser@5.44.1)
+
 packages:
 
   '@acemir/cssom@0.9.30':

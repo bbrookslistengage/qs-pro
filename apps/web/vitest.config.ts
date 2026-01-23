@@ -10,12 +10,7 @@ export default mergeConfig(
     plugins: [react()],
     test: {
       name: 'web',
-      include: [
-        'src/**/*.spec.ts',
-        'src/**/*.test.ts',
-        'src/**/*.spec.tsx',
-        'src/**/*.test.tsx',
-      ],
+      include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
       environment: 'jsdom',
       setupFiles: ['./src/test/setup.ts'],
     },

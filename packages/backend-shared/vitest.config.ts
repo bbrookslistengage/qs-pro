@@ -8,7 +8,7 @@ export default mergeConfig(
   defineConfig({
     test: {
       name: "backend-shared",
-      include: ["src/**/*.spec.ts", "src/**/*.test.ts"],
+      include: ["src/**/*.test.ts"],
       root: "./",
     },
     plugins: [

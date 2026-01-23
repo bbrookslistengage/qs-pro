@@ -8,12 +8,7 @@ export default mergeConfig(
   defineConfig({
     test: {
       name: 'worker',
-      include: [
-        'src/**/*.spec.ts',
-        'src/**/*.test.ts',
-        'test/**/*.spec.ts',
-        'test/**/*.test.ts',
-      ],
+      include: ['src/**/*.test.ts', 'test/**/*.test.ts'],
       root: './',
       env: {
         DATABASE_URL: 'postgresql://test:test@localhost:5432/test',

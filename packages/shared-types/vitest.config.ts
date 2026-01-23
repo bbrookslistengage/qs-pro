@@ -7,7 +7,7 @@ export default mergeConfig(
   defineConfig({
     test: {
       name: "shared-types",
-      include: ["src/**/*.spec.ts", "src/**/*.test.ts"],
+      include: ["src/**/*.test.ts"],
     },
   }),
 );

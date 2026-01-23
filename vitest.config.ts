@@ -21,7 +21,6 @@ export default defineConfig({
       include: ['apps/*/src/**', 'packages/*/src/**'],
       exclude: [
         '**/*.test.ts',
-        '**/*.spec.ts',
         '**/__tests__/**',
         '**/test/**',
         '**/node_modules/**',

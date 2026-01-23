@@ -7,7 +7,7 @@ export default mergeConfig(
   defineConfig({
     test: {
       name: "database",
-      include: ["src/**/*.spec.ts", "src/**/*.test.ts"],
+      include: ["src/**/*.test.ts"],
       root: "./",
       setupFiles: ["./vitest.setup.ts"],
     },

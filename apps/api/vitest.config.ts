@@ -8,12 +8,7 @@ export default mergeConfig(
   defineConfig({
     test: {
       name: 'api',
-      include: [
-        'src/**/*.spec.ts',
-        'src/**/*.test.ts',
-        'test/**/*.spec.ts',
-        'test/**/*.test.ts',
-      ],
+      include: ['src/**/*.test.ts', 'test/**/*.test.ts'],
       exclude: ['**/*.e2e-spec.ts', '**/*.e2e.test.ts', 'node_modules/**'],
       root: './',
     },

@@ -4,16 +4,15 @@ import { defineConfig } from 'vitest/config';
  * Root Vitest configuration with workspace projects.
  *
  * Each workspace package has its own vitest.config.ts that extends vitest.shared.ts.
- * This root config aggregates all workspace configs.
+ * This root config provides global coverage settings.
  *
- * Run specific project:
- *   pnpm vitest --project api
- *   pnpm vitest --project web
- *   pnpm vitest --project worker
+ * Recommended test commands:
+ *   pnpm test              - Run all tests (recursive, each package uses its own config)
+ *   pnpm --filter api test - Run API tests only
+ *   pnpm --filter @qpp/web test - Run web tests only
  *
- * Run all tests:
- *   pnpm test (recursive via pnpm -r test)
- *   pnpm vitest (uses this workspace config)
+ * Coverage:
+ *   pnpm test -- --coverage - Run all tests with coverage aggregation
  */
 export default defineConfig({
   test: {

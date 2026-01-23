@@ -20,7 +20,7 @@ export const infrastructureSchema = z.object({
   LOG_FORMAT: z.enum(["json", "text"]).default("text"),
   LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal"])
-    .default("info"),
+    .optional(),
 });
 
 /**

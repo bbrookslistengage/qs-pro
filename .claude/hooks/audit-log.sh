@@ -4,7 +4,9 @@
 
 set -euo pipefail
 
-LOG_DIR="/home/blakebrooks-88/repos/qs-pro/.claude/logs"
+# Derive log directory from script location (script is in .claude/hooks/, logs are in .claude/logs/)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOG_DIR="$SCRIPT_DIR/../logs"
 LOG_FILE="$LOG_DIR/audit.jsonl"
 
 # Ensure log directory exists

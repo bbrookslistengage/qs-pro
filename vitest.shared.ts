@@ -24,5 +24,17 @@ export default defineConfig({
       NODE_ENV: 'test',
       LOG_FORMAT: 'text',
     },
+    coverage: {
+      provider: 'v8',
+      include: ['src/**'],
+      exclude: [
+        '**/*.test.ts',
+        '**/__tests__/**',
+        '**/test/**',
+        '**/node_modules/**',
+        '**/dist/**',
+      ],
+      reporter: ['text', 'json', 'json-summary', 'html'],
+    },
   },
 });

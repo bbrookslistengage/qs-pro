@@ -26,17 +26,9 @@ export default defineConfig({
         '**/node_modules/**',
         '**/dist/**',
       ],
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'json', 'json-summary', 'html'],
+      reportsDirectory: './coverage',
     },
     reporters: ['default'],
-
-    projects: [
-      'apps/api/vitest.config.ts',
-      'apps/web/vitest.config.ts',
-      'apps/worker/vitest.config.ts',
-      'packages/backend-shared/vitest.config.ts',
-      'packages/database/vitest.config.ts',
-      'packages/shared-types/vitest.config.ts',
-    ],
   },
 });

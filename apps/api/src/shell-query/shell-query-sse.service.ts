@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { AppError, ErrorCode } from '@qpp/backend-shared';
+import { AppError, EncryptionService, ErrorCode } from '@qpp/backend-shared';
 import {
   concat,
   filter,
@@ -33,7 +33,10 @@ type RedisClient = {
 
 @Injectable()
 export class ShellQuerySseService {
-  constructor(@Inject('REDIS_CLIENT') private readonly redis: RedisClient) {}
+  constructor(
+    @Inject('REDIS_CLIENT') private readonly redis: RedisClient,
+    private readonly encryptionService: EncryptionService,
+  ) {}
 
   async streamRunEvents(
     runId: string,
@@ -64,7 +67,10 @@ export class ShellQuerySseService {
 
       const cachedEvent$ = from(this.redis.get(lastEventKey)).pipe(
         filter((cached): cached is string => cached !== null),
-        map((cached) => ({ data: JSON.parse(cached) }) as MessageEvent),
+        map((cached) => {
+          const decrypted = this.encryptionService.decrypt(cached);
+          return { data: JSON.parse(decrypted ?? cached) } as MessageEvent;
+        }),
       );
 
       const liveEvents$ = fromEventPattern<[string, string]>(
@@ -86,7 +92,8 @@ export class ShellQuerySseService {
       ).pipe(
         filter(([receivedChannel]) => channel === receivedChannel),
         map(([, message]) => {
-          return { data: JSON.parse(message) } as MessageEvent;
+          const decrypted = this.encryptionService.decrypt(message);
+          return { data: JSON.parse(decrypted ?? message) } as MessageEvent;
         }),
       );
 

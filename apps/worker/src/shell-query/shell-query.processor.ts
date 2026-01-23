@@ -1017,6 +1017,11 @@ export class ShellQueryProcessor extends WorkerHost {
     const channel = `run-status:${runId}`;
     const lastEventKey = `run-status:last:${runId}`;
     const eventJson = JSON.stringify(event);
+    const encryptedEventJson = this.encryptionService.encrypt(eventJson);
+    if (!encryptedEventJson) {
+      this.logger.error(`Failed to encrypt SSE event for run ${runId}`);
+      return;
+    }
 
     const redisClient = this.redis as {
       publish: (channel: string, message: string) => Promise<void>;
@@ -1029,8 +1034,8 @@ export class ShellQueryProcessor extends WorkerHost {
     };
 
     await Promise.all([
-      redisClient.publish(channel, eventJson),
-      redisClient.set(lastEventKey, eventJson, "EX", LAST_EVENT_TTL_SECONDS),
+      redisClient.publish(channel, encryptedEventJson),
+      redisClient.set(lastEventKey, encryptedEventJson, "EX", LAST_EVENT_TTL_SECONDS),
     ]);
   }
 

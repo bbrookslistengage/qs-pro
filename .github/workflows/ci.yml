@@ -61,8 +61,40 @@ jobs:
       - name: Run migrations
         run: pnpm db:migrate
 
-      - name: Unit & integration tests
-        run: pnpm test
+      - name: Unit & integration tests with coverage
+        run: pnpm test:coverage
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            coverage/coverage-summary.json
+            coverage/coverage-final.json
+          retention-days: 7
 
       - name: E2E tests
         run: pnpm test:e2e
+
+  coverage-report:
+    needs: check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage
+          path: coverage
+
+      - name: Coverage Report
+        uses: davelosert/vitest-coverage-report-action@v2
+        with:
+          json-summary-path: coverage/coverage-summary.json
+          json-final-path: coverage/coverage-final.json
+          file-coverage-mode: changes

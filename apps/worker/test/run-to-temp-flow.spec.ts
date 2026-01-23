@@ -70,7 +70,7 @@ describe('RunToTempFlow', () => {
   });
 
   it('should execute full flow: folder -> DE -> Query -> Perform', async () => {
-    const job = createMockJob();
+    const job = createMockJob({ sqlText: 'SELECT SubscriberKey FROM _Subscribers' });
 
     mockDb.setSelectResult([]);
 
@@ -96,7 +96,7 @@ describe('RunToTempFlow', () => {
   });
 
   it('should use cached folder ID when available', async () => {
-    const job = createMockJob();
+    const job = createMockJob({ sqlText: 'SELECT SubscriberKey FROM _Subscribers' });
 
     mockDb.setSelectResult([{ qppFolderId: 123 }]);
 
@@ -114,7 +114,7 @@ describe('RunToTempFlow', () => {
   });
 
   it('should throw on QueryDefinition creation failure', async () => {
-    const job = createMockJob();
+    const job = createMockJob({ sqlText: 'SELECT SubscriberKey FROM _Subscribers' });
     mockDb.setSelectResult([{ qppFolderId: 123 }]);
 
     mockDataExtensionService.create.mockResolvedValue({ objectId: 'obj-de-789' });

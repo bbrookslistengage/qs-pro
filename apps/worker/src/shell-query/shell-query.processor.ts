@@ -252,7 +252,10 @@ export class ShellQueryProcessor extends WorkerHost {
         mid,
         userId,
         async () => {
-          return await this.runToTempFlow.execute(job.data, publishStatus);
+          return await this.runToTempFlow.execute(
+            { ...job.data, sqlText },
+            publishStatus,
+          );
         },
       );
 

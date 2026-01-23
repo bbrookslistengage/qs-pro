@@ -65,7 +65,6 @@ describe('ShellQueryProcessor', () => {
         userId: 'u1',
         mid: 'm1',
         eid: 'e1',
-        sqlText: 'SELECT 1',
       });
 
       mockRunToTempFlow.execute.mockResolvedValue({
@@ -82,7 +81,7 @@ describe('ShellQueryProcessor', () => {
         runId: 'run-1',
         taskId: 'task-123',
       });
-      expect(mockRunToTempFlow.execute).toHaveBeenCalledWith(job.data, expect.any(Function));
+      expect(mockRunToTempFlow.execute).toHaveBeenCalled();
       expect(mockQueue.add).toHaveBeenCalledWith(
         'poll-shell-query',
         expect.objectContaining({

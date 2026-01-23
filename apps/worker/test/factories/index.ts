@@ -1,6 +1,12 @@
 import { vi } from 'vitest';
 import { ShellQueryJob, PollShellQueryJob } from '../../src/shell-query/shell-query.types';
 
+// Default plaintext SQL for reference in tests
+export const DEFAULT_SQL_TEXT = 'SELECT SubscriberKey FROM _Subscribers';
+
+// Encrypted using stub's 'encrypted:' prefix pattern (matches createEncryptionServiceStub)
+export const DEFAULT_ENCRYPTED_SQL_TEXT = `encrypted:${DEFAULT_SQL_TEXT}`;
+
 export function createMockJob(overrides: Partial<ShellQueryJob> = {}): ShellQueryJob {
   return {
     runId: 'run-test-123',
@@ -8,7 +14,7 @@ export function createMockJob(overrides: Partial<ShellQueryJob> = {}): ShellQuer
     userId: 'user-1',
     mid: 'mid-1',
     eid: 'eid-1',
-    sqlText: 'SELECT SubscriberKey FROM _Subscribers',
+    sqlText: DEFAULT_ENCRYPTED_SQL_TEXT,
     snippetName: 'Test Query',
     ...overrides,
   };

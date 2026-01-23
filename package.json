@@ -31,6 +31,9 @@
     "packages/shared-types/**/*.ts": "pnpm --filter @qpp/shared-types exec eslint --fix"
   },
   "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=20"
+  },
   "devDependencies": {
     "concurrently": "^9.2.1",
     "dotenv": "^16.4.5",

@@ -9,6 +9,7 @@ import {
   AppError,
   AsyncStatusService,
   buildDeleteQueryDefinition,
+  EncryptionService,
   ErrorCode,
   type IsRunningResponse,
   isTerminal,
@@ -66,6 +67,7 @@ export class ShellQueryProcessor extends WorkerHost {
     private readonly mceBridge: MceBridgeService,
     private readonly asyncStatusService: AsyncStatusService,
     private readonly restDataService: RestDataService,
+    private readonly encryptionService: EncryptionService,
     @Inject("DATABASE")
     private readonly db: PostgresJsDatabase<Record<string, never>>,
     @Inject("REDIS_CLIENT") private readonly redis: unknown,
@@ -1036,6 +1038,16 @@ export class ShellQueryProcessor extends WorkerHost {
     status: ShellQueryRunStatus,
     extra: Record<string, unknown> = {},
   ) {
+    const processedExtra = { ...extra };
+    if (
+      typeof processedExtra.errorMessage === "string" &&
+      processedExtra.errorMessage
+    ) {
+      processedExtra.errorMessage = this.encryptionService.encrypt(
+        processedExtra.errorMessage,
+      );
+    }
+
     await this.rlsContext.runWithUserContext(
       tenantId,
       mid,
@@ -1043,7 +1055,7 @@ export class ShellQueryProcessor extends WorkerHost {
       async () => {
         await this.db
           .update(shellQueryRuns)
-          .set({ status, ...extra })
+          .set({ status, ...processedExtra })
           .where(eq(shellQueryRuns.id, runId));
       },
     );

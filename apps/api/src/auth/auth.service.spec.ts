@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import {
   AppError,
   AuthService,
+  EncryptionService,
   ErrorCode,
   ErrorMessages,
   RlsContextService,
@@ -160,6 +161,18 @@ describe('AuthService', () => {
             checkSeatLimit: vi.fn().mockResolvedValue(undefined),
           },
         },
+        {
+          provide: EncryptionService,
+          useValue: {
+            encrypt: vi.fn((v: string) =>
+              encrypt(
+                v,
+                '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff',
+              ),
+            ),
+            decrypt: vi.fn((v: string) => `decrypted:${v}`),
+          },
+        },
       ],
     }).compile();
 
@@ -267,7 +280,7 @@ describe('AuthService', () => {
       }
     });
 
-    it('throws CONFIG_ERROR when ENCRYPTION_KEY missing in valid token path', async () => {
+    it('throws CONFIG_ERROR when EncryptionService throws due to missing key', async () => {
       const futureDate = new Date(Date.now() + 60 * 60 * 1000);
       const credential: Partial<Credential> = {
         userId: 'u-1',
@@ -288,18 +301,12 @@ describe('AuthService', () => {
       );
       vi.mocked(tenantRepo.findById).mockResolvedValueOnce(tenant as Tenant);
 
-      const configService = module.get<ConfigService>(ConfigService);
-      vi.mocked(configService.get).mockImplementation((key: string) => {
-        if (key === 'ENCRYPTION_KEY') {
-          return undefined;
-        }
-        if (key === 'MCE_CLIENT_ID') {
-          return 'client-id';
-        }
-        if (key === 'MCE_CLIENT_SECRET') {
-          return 'client-secret';
-        }
-        return 'some-value';
+      const encryptionService =
+        module.get<EncryptionService>(EncryptionService);
+      vi.mocked(encryptionService.decrypt).mockImplementationOnce(() => {
+        throw new AppError(ErrorCode.CONFIG_ERROR, undefined, {
+          reason: 'ENCRYPTION_KEY not configured',
+        });
       });
 
       try {
@@ -315,18 +322,11 @@ describe('AuthService', () => {
     });
 
     it('throws CONFIG_ERROR when MCE client credentials not configured', async () => {
-      const encryptionKey =
-        '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
-      const encryptedRefreshToken = encrypt(
-        'valid-refresh-token',
-        encryptionKey,
-      );
-
       const credential: Partial<Credential> = {
         userId: 'u-1',
         tenantId: 't-1',
         mid: 'mid-1',
-        refreshToken: encryptedRefreshToken,
+        refreshToken: 'encrypted-refresh-token',
         expiresAt: new Date(Date.now() - 1000),
       };
       const tenant: Partial<Tenant> = {
@@ -342,9 +342,6 @@ describe('AuthService', () => {
 
       const configService = module.get<ConfigService>(ConfigService);
       vi.mocked(configService.get).mockImplementation((key: string) => {
-        if (key === 'ENCRYPTION_KEY') {
-          return encryptionKey;
-        }
         if (key === 'MCE_CLIENT_ID') {
           return undefined;
         }

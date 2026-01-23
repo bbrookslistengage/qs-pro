@@ -194,10 +194,14 @@ export class ShellQueryProcessor extends WorkerHost {
   }
 
   private async handleExecute(job: Job<ShellQueryJob>): Promise<unknown> {
-    const { runId, tenantId, userId, mid, sqlText } = job.data;
+    const { runId, tenantId, userId, mid, sqlText: encryptedSqlText } = job.data;
+    const sqlText = this.encryptionService.decrypt(encryptedSqlText);
+    if (!sqlText) {
+      throw new UnrecoverableError("Failed to decrypt sqlText");
+    }
     const sqlTextHash = crypto
       .createHash("sha256")
-      .update(sqlText || "")
+      .update(sqlText)
       .digest("hex");
 
     this.logger.log(

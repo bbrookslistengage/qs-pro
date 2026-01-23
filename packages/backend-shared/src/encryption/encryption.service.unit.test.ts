@@ -70,8 +70,11 @@ describe("EncryptionService", () => {
       try {
         service.encrypt("test");
       } catch (error) {
+        // eslint-disable-next-line vitest/no-conditional-expect -- verifying error properties after catching
         expect(error).toBeInstanceOf(AppError);
+        // eslint-disable-next-line vitest/no-conditional-expect -- verifying error properties after catching
         expect((error as AppError).code).toBe(ErrorCode.CONFIG_ERROR);
+        // eslint-disable-next-line vitest/no-conditional-expect -- verifying error properties after catching
         expect((error as AppError).context).toEqual({
           reason: "ENCRYPTION_KEY not configured",
         });
@@ -124,7 +127,9 @@ describe("EncryptionService", () => {
       try {
         service.decrypt("encrypted");
       } catch (error) {
+        // eslint-disable-next-line vitest/no-conditional-expect -- verifying error properties after catching
         expect(error).toBeInstanceOf(AppError);
+        // eslint-disable-next-line vitest/no-conditional-expect -- verifying error properties after catching
         expect((error as AppError).code).toBe(ErrorCode.CONFIG_ERROR);
       }
     });

@@ -17,6 +17,7 @@
     "test:worker": "pnpm -r --filter \"./packages/**\" build && pnpm --filter worker test",
     "test:e2e": "pnpm -r test:e2e",
     "test:integration": "pnpm -r --filter api --filter worker --filter @qpp/database test:integration",
+    "test:coverage": "bash scripts/test-coverage.sh",
     "lint": "pnpm -r lint",
     "pretypecheck": "pnpm -r --filter \"./packages/**\" build",
     "typecheck": "pnpm -r typecheck",
@@ -36,11 +37,13 @@
     "node": ">=20"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "3",
     "concurrently": "^9.2.1",
     "dotenv": "^16.4.5",
     "esbuild": "0.25.12",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
+    "nyc": "^17.1.0",
     "vitest": "^3.0.0"
   }
 }

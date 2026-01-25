@@ -1,15 +1,15 @@
-import { type TenantFeatures } from "@qpp/shared-types";
+import type { TenantFeatures } from "@qpp/shared-types";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import { useTenantFeatures } from "@/hooks/use-tenant-features";
-import * as featuresService from "@/services/features";
-
-vi.mock("@/services/features", () => ({
-  getTenantFeatures: vi.fn(),
-}));
+import {
+  featuresQueryKeys,
+  useTenantFeatures,
+} from "@/hooks/use-tenant-features";
+import { server } from "@/test/mocks/server";
 
 const createWrapper = (queryClient: QueryClient) => {
   return function Wrapper({ children }: { children: ReactNode }) {
@@ -26,37 +26,210 @@ const createQueryClient = () =>
     },
   });
 
+const mockFeatures: TenantFeatures = {
+  basicLinting: true,
+  syntaxHighlighting: true,
+  quickFixes: false,
+  minimap: false,
+  advancedAutocomplete: false,
+  teamSnippets: false,
+  auditLogs: false,
+  createDataExtension: false,
+  deployToAutomation: false,
+  systemDataViews: true,
+};
+
 describe("useTenantFeatures", () => {
   beforeEach(() => {
-    vi.restoreAllMocks();
+    server.resetHandlers();
   });
 
-  it("fetches from /api/features on mount", async () => {
-    // Arrange
+  it("fetches features on mount", async () => {
     const queryClient = createQueryClient();
     const wrapper = createWrapper(queryClient);
-    const mockFeatures: TenantFeatures = {
-      basicLinting: true,
-      syntaxHighlighting: true,
-      quickFixes: false,
-      minimap: false,
-      advancedAutocomplete: false,
-      teamSnippets: false,
-      auditLogs: false,
-    };
-    const getTenantFeaturesMock = vi.mocked(featuresService.getTenantFeatures);
-    getTenantFeaturesMock.mockResolvedValueOnce(mockFeatures);
 
-    // Act
+    server.use(
+      http.get("/api/features", () => {
+        return HttpResponse.json(mockFeatures);
+      }),
+    );
+
     const { result } = renderHook(() => useTenantFeatures("tenant-1"), {
       wrapper,
     });
 
-    // Assert
+    expect(result.current.isLoading).toBe(true);
+
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
-    expect(getTenantFeaturesMock).toHaveBeenCalledTimes(1);
     expect(result.current.data).toEqual(mockFeatures);
+  });
+
+  it("returns loading state initially", async () => {
+    const queryClient = createQueryClient();
+    const wrapper = createWrapper(queryClient);
+
+    server.use(
+      http.get("/api/features", async () => {
+        await new Promise(() => {});
+      }),
+    );
+
+    const { result } = renderHook(() => useTenantFeatures(), { wrapper });
+
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.data).toBeUndefined();
+  });
+
+  it("returns error state on API failure", async () => {
+    const queryClient = createQueryClient();
+    const wrapper = createWrapper(queryClient);
+
+    server.use(
+      http.get("/api/features", () => {
+        return new HttpResponse(null, { status: 500 });
+      }),
+    );
+
+    const { result } = renderHook(() => useTenantFeatures(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+    expect(result.current.error).toBeDefined();
+  });
+
+  it("does not retry on failure (retry: false)", async () => {
+    const queryClient = createQueryClient();
+    const wrapper = createWrapper(queryClient);
+    let fetchCount = 0;
+
+    server.use(
+      http.get("/api/features", () => {
+        fetchCount++;
+        return new HttpResponse(null, { status: 500 });
+      }),
+    );
+
+    const { result } = renderHook(() => useTenantFeatures(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    expect(fetchCount).toBe(1);
+  });
+
+  it("caches data for 5 minutes (staleTime)", async () => {
+    const queryClient = createQueryClient();
+    const wrapper = createWrapper(queryClient);
+    let fetchCount = 0;
+
+    server.use(
+      http.get("/api/features", () => {
+        fetchCount++;
+        return HttpResponse.json(mockFeatures);
+      }),
+    );
+
+    const { result } = renderHook(() => useTenantFeatures(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    const { unmount } = renderHook(() => useTenantFeatures(), { wrapper });
+    unmount();
+
+    renderHook(() => useTenantFeatures(), { wrapper });
+
+    expect(fetchCount).toBe(1);
+  });
+
+  it("generates unique query keys per tenant", () => {
+    expect(featuresQueryKeys.all).toEqual(["features"]);
+    expect(featuresQueryKeys.tenant("tenant-1")).toEqual([
+      "features",
+      "tenant",
+      "tenant-1",
+    ]);
+    expect(featuresQueryKeys.tenant("tenant-2")).toEqual([
+      "features",
+      "tenant",
+      "tenant-2",
+    ]);
+    expect(featuresQueryKeys.tenant(null)).toEqual([
+      "features",
+      "tenant",
+      "unknown",
+    ]);
+    expect(featuresQueryKeys.tenant(undefined)).toEqual([
+      "features",
+      "tenant",
+      "unknown",
+    ]);
+  });
+
+  it("fetches fresh data for different tenant IDs", async () => {
+    const queryClient = createQueryClient();
+    const wrapper = createWrapper(queryClient);
+    let fetchCount = 0;
+
+    server.use(
+      http.get("/api/features", () => {
+        fetchCount++;
+        return HttpResponse.json(mockFeatures);
+      }),
+    );
+
+    const { result: result1 } = renderHook(
+      () => useTenantFeatures("tenant-1"),
+      { wrapper },
+    );
+
+    await waitFor(() => {
+      expect(result1.current.isSuccess).toBe(true);
+    });
+
+    const { result: result2 } = renderHook(
+      () => useTenantFeatures("tenant-2"),
+      { wrapper },
+    );
+
+    await waitFor(() => {
+      expect(result2.current.isSuccess).toBe(true);
+    });
+
+    expect(fetchCount).toBe(2);
+  });
+
+  it("returns complete feature set from API", async () => {
+    const queryClient = createQueryClient();
+    const wrapper = createWrapper(queryClient);
+
+    server.use(
+      http.get("/api/features", () => {
+        return HttpResponse.json(mockFeatures);
+      }),
+    );
+
+    const { result } = renderHook(() => useTenantFeatures(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    const data = result.current.data;
+    expect(data).toHaveProperty("basicLinting");
+    expect(data).toHaveProperty("syntaxHighlighting");
+    expect(data).toHaveProperty("quickFixes");
+    expect(data).toHaveProperty("minimap");
+    expect(data).toHaveProperty("advancedAutocomplete");
+    expect(data).toHaveProperty("teamSnippets");
+    expect(data).toHaveProperty("auditLogs");
+    expect(data).toHaveProperty("createDataExtension");
+    expect(data).toHaveProperty("deployToAutomation");
+    expect(data).toHaveProperty("systemDataViews");
   });
 });

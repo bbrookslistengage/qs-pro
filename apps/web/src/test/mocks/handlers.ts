@@ -9,7 +9,9 @@ export const defaultFeatures: TenantFeatures = {
   advancedAutocomplete: false,
   teamSnippets: false,
   auditLogs: false,
+  createDataExtension: false,
   deployToAutomation: false,
+  systemDataViews: true,
 };
 
 export const handlers = [

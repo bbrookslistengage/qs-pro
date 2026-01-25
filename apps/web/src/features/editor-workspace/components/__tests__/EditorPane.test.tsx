@@ -1,6 +1,6 @@
 import type { OnMount } from "@monaco-editor/react";
-import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -143,7 +143,7 @@ describe("MonacoQueryEditor Component", () => {
           dataExtensions={[]}
           folders={[]}
         />,
-        { wrapper: createWrapper(queryClient) }
+        { wrapper: createWrapper(queryClient) },
       );
 
       expect(screen.getByTestId("monaco-editor")).toBeInTheDocument();
@@ -159,7 +159,7 @@ describe("MonacoQueryEditor Component", () => {
           dataExtensions={[]}
           folders={[]}
         />,
-        { wrapper: createWrapper(queryClient) }
+        { wrapper: createWrapper(queryClient) },
       );
 
       const textarea = screen.getByTestId("monaco-textarea");
@@ -176,14 +176,14 @@ describe("MonacoQueryEditor Component", () => {
           dataExtensions={[]}
           folders={[]}
         />,
-        { wrapper: createWrapper(queryClient) }
+        { wrapper: createWrapper(queryClient) },
       );
 
       // Trigger onMount callback
       if (capturedOnMount) {
         capturedOnMount(
           mockEditorInstance as unknown as Parameters<OnMount>[0],
-          mockMonacoInstance as unknown as Parameters<OnMount>[1]
+          mockMonacoInstance as unknown as Parameters<OnMount>[1],
         );
       }
 
@@ -205,13 +205,13 @@ describe("MonacoQueryEditor Component", () => {
           dataExtensions={[]}
           folders={[]}
         />,
-        { wrapper: createWrapper(queryClient) }
+        { wrapper: createWrapper(queryClient) },
       );
 
       if (capturedOnMount) {
         capturedOnMount(
           mockEditorInstance as unknown as Parameters<OnMount>[0],
-          mockMonacoInstance as unknown as Parameters<OnMount>[1]
+          mockMonacoInstance as unknown as Parameters<OnMount>[1],
         );
       }
 
@@ -220,7 +220,8 @@ describe("MonacoQueryEditor Component", () => {
       const runRequestCall = mockEditorInstance.addCommand.mock.calls.find(
         (call) =>
           call[0] ===
-          (mockMonacoInstance.KeyMod.CtrlCmd | mockMonacoInstance.KeyCode.Enter)
+          (mockMonacoInstance.KeyMod.CtrlCmd |
+            mockMonacoInstance.KeyCode.Enter),
       );
       expect(runRequestCall).toBeDefined();
     });
@@ -238,13 +239,13 @@ describe("MonacoQueryEditor Component", () => {
           dataExtensions={[]}
           folders={[]}
         />,
-        { wrapper: createWrapper(queryClient) }
+        { wrapper: createWrapper(queryClient) },
       );
 
       if (capturedOnMount) {
         capturedOnMount(
           mockEditorInstance as unknown as Parameters<OnMount>[0],
-          mockMonacoInstance as unknown as Parameters<OnMount>[1]
+          mockMonacoInstance as unknown as Parameters<OnMount>[1],
         );
       }
 
@@ -252,7 +253,8 @@ describe("MonacoQueryEditor Component", () => {
       const runRequestCall = mockEditorInstance.addCommand.mock.calls.find(
         (call) =>
           call[0] ===
-          (mockMonacoInstance.KeyMod.CtrlCmd | mockMonacoInstance.KeyCode.Enter)
+          (mockMonacoInstance.KeyMod.CtrlCmd |
+            mockMonacoInstance.KeyCode.Enter),
       );
       if (runRequestCall) {
         runRequestCall[1](); // Execute the callback
@@ -274,20 +276,20 @@ describe("MonacoQueryEditor Component", () => {
           dataExtensions={[]}
           folders={[]}
         />,
-        { wrapper: createWrapper(queryClient) }
+        { wrapper: createWrapper(queryClient) },
       );
 
       if (capturedOnMount) {
         capturedOnMount(
           mockEditorInstance as unknown as Parameters<OnMount>[0],
-          mockMonacoInstance as unknown as Parameters<OnMount>[1]
+          mockMonacoInstance as unknown as Parameters<OnMount>[1],
         );
       }
 
       const saveCall = mockEditorInstance.addCommand.mock.calls.find(
         (call) =>
           call[0] ===
-          (mockMonacoInstance.KeyMod.CtrlCmd | mockMonacoInstance.KeyCode.KeyS)
+          (mockMonacoInstance.KeyMod.CtrlCmd | mockMonacoInstance.KeyCode.KeyS),
       );
       expect(saveCall).toBeDefined();
     });
@@ -305,20 +307,20 @@ describe("MonacoQueryEditor Component", () => {
           dataExtensions={[]}
           folders={[]}
         />,
-        { wrapper: createWrapper(queryClient) }
+        { wrapper: createWrapper(queryClient) },
       );
 
       if (capturedOnMount) {
         capturedOnMount(
           mockEditorInstance as unknown as Parameters<OnMount>[0],
-          mockMonacoInstance as unknown as Parameters<OnMount>[1]
+          mockMonacoInstance as unknown as Parameters<OnMount>[1],
         );
       }
 
       const saveCall = mockEditorInstance.addCommand.mock.calls.find(
         (call) =>
           call[0] ===
-          (mockMonacoInstance.KeyMod.CtrlCmd | mockMonacoInstance.KeyCode.KeyS)
+          (mockMonacoInstance.KeyMod.CtrlCmd | mockMonacoInstance.KeyCode.KeyS),
       );
       if (saveCall) {
         saveCall[1]();
@@ -338,13 +340,13 @@ describe("MonacoQueryEditor Component", () => {
           dataExtensions={[]}
           folders={[]}
         />,
-        { wrapper: createWrapper(queryClient) }
+        { wrapper: createWrapper(queryClient) },
       );
 
       if (capturedOnMount) {
         capturedOnMount(
           mockEditorInstance as unknown as Parameters<OnMount>[0],
-          mockMonacoInstance as unknown as Parameters<OnMount>[1]
+          mockMonacoInstance as unknown as Parameters<OnMount>[1],
         );
       }
 
@@ -352,7 +354,7 @@ describe("MonacoQueryEditor Component", () => {
         (call) =>
           call[0] ===
           (mockMonacoInstance.KeyMod.CtrlCmd |
-            mockMonacoInstance.KeyCode.Slash)
+            mockMonacoInstance.KeyCode.Slash),
       );
       expect(commentCall).toBeDefined();
     });
@@ -378,13 +380,13 @@ describe("MonacoQueryEditor Component", () => {
           dataExtensions={[]}
           folders={[]}
         />,
-        { wrapper: createWrapper(queryClient) }
+        { wrapper: createWrapper(queryClient) },
       );
 
       if (capturedOnMount) {
         capturedOnMount(
           mockEditorInstance as unknown as Parameters<OnMount>[0],
-          mockMonacoInstance as unknown as Parameters<OnMount>[1]
+          mockMonacoInstance as unknown as Parameters<OnMount>[1],
         );
       }
 
@@ -410,13 +412,13 @@ describe("MonacoQueryEditor Component", () => {
           dataExtensions={[]}
           folders={[]}
         />,
-        { wrapper: createWrapper(queryClient) }
+        { wrapper: createWrapper(queryClient) },
       );
 
       if (capturedOnMount) {
         capturedOnMount(
           mockEditorInstance as unknown as Parameters<OnMount>[0],
-          mockMonacoInstance as unknown as Parameters<OnMount>[1]
+          mockMonacoInstance as unknown as Parameters<OnMount>[1],
         );
       }
 
@@ -439,18 +441,18 @@ describe("MonacoQueryEditor Component", () => {
           dataExtensions={[]}
           folders={[]}
         />,
-        { wrapper: createWrapper(queryClient) }
+        { wrapper: createWrapper(queryClient) },
       );
 
       if (capturedOnMount) {
         capturedOnMount(
           mockEditorInstance as unknown as Parameters<OnMount>[0],
-          mockMonacoInstance as unknown as Parameters<OnMount>[1]
+          mockMonacoInstance as unknown as Parameters<OnMount>[1],
         );
       }
 
       expect(
-        mockMonacoInstance.languages.registerCompletionItemProvider
+        mockMonacoInstance.languages.registerCompletionItemProvider,
       ).toHaveBeenCalledWith("sql", expect.any(Object));
     });
 
@@ -465,13 +467,13 @@ describe("MonacoQueryEditor Component", () => {
           dataExtensions={[]}
           folders={[]}
         />,
-        { wrapper: createWrapper(queryClient) }
+        { wrapper: createWrapper(queryClient) },
       );
 
       if (capturedOnMount) {
         capturedOnMount(
           mockEditorInstance as unknown as Parameters<OnMount>[0],
-          mockMonacoInstance as unknown as Parameters<OnMount>[1]
+          mockMonacoInstance as unknown as Parameters<OnMount>[1],
         );
       }
 
@@ -496,18 +498,18 @@ describe("MonacoQueryEditor Component", () => {
           dataExtensions={[]}
           folders={[]}
         />,
-        { wrapper: createWrapper(queryClient) }
+        { wrapper: createWrapper(queryClient) },
       );
 
       if (capturedOnMount) {
         capturedOnMount(
           mockEditorInstance as unknown as Parameters<OnMount>[0],
-          mockMonacoInstance as unknown as Parameters<OnMount>[1]
+          mockMonacoInstance as unknown as Parameters<OnMount>[1],
         );
       }
 
       expect(
-        mockMonacoInstance.languages.registerInlineCompletionsProvider
+        mockMonacoInstance.languages.registerInlineCompletionsProvider,
       ).toHaveBeenCalledWith("sql", expect.any(Object));
     });
 
@@ -522,18 +524,18 @@ describe("MonacoQueryEditor Component", () => {
           dataExtensions={[]}
           folders={[]}
         />,
-        { wrapper: createWrapper(queryClient) }
+        { wrapper: createWrapper(queryClient) },
       );
 
       if (capturedOnMount) {
         capturedOnMount(
           mockEditorInstance as unknown as Parameters<OnMount>[0],
-          mockMonacoInstance as unknown as Parameters<OnMount>[1]
+          mockMonacoInstance as unknown as Parameters<OnMount>[1],
         );
       }
 
       expect(
-        mockMonacoInstance.languages.setLanguageConfiguration
+        mockMonacoInstance.languages.setLanguageConfiguration,
       ).toHaveBeenCalledWith("sql", expect.any(Object));
 
       const [, config] =
@@ -560,13 +562,13 @@ describe("MonacoQueryEditor Component", () => {
           dataExtensions={[]}
           folders={[]}
         />,
-        { wrapper: createWrapper(queryClient) }
+        { wrapper: createWrapper(queryClient) },
       );
 
       if (capturedOnMount) {
         capturedOnMount(
           mockEditorInstance as unknown as Parameters<OnMount>[0],
-          mockMonacoInstance as unknown as Parameters<OnMount>[1]
+          mockMonacoInstance as unknown as Parameters<OnMount>[1],
         );
       }
 
@@ -586,20 +588,20 @@ describe("MonacoQueryEditor Component", () => {
           dataExtensions={[]}
           folders={[]}
         />,
-        { wrapper: createWrapper(queryClient) }
+        { wrapper: createWrapper(queryClient) },
       );
 
       if (capturedOnMount) {
         capturedOnMount(
           mockEditorInstance as unknown as Parameters<OnMount>[0],
-          mockMonacoInstance as unknown as Parameters<OnMount>[1]
+          mockMonacoInstance as unknown as Parameters<OnMount>[1],
         );
       }
 
       // Two content change listeners: auto-bracket and suggest-retrigger
-      expect(
-        mockEditorInstance.onDidChangeModelContent
-      ).toHaveBeenCalledTimes(2);
+      expect(mockEditorInstance.onDidChangeModelContent).toHaveBeenCalledTimes(
+        2,
+      );
     });
 
     it("registers keydown listener for Tab key auto-expansion", () => {
@@ -613,13 +615,13 @@ describe("MonacoQueryEditor Component", () => {
           dataExtensions={[]}
           folders={[]}
         />,
-        { wrapper: createWrapper(queryClient) }
+        { wrapper: createWrapper(queryClient) },
       );
 
       if (capturedOnMount) {
         capturedOnMount(
           mockEditorInstance as unknown as Parameters<OnMount>[0],
-          mockMonacoInstance as unknown as Parameters<OnMount>[1]
+          mockMonacoInstance as unknown as Parameters<OnMount>[1],
         );
       }
 

@@ -140,8 +140,13 @@ describe('OAuth State Expiry (integration)', () => {
         .expect(302);
 
       const redirectUrl = loginResponse.headers.location;
+      if (!redirectUrl) {
+        throw new Error('OAuth login redirect missing location header');
+      }
       const state = new URL(redirectUrl).searchParams.get('state');
-      expect(state).toBeDefined();
+      if (!state) {
+        throw new Error('OAuth login redirect missing state param');
+      }
 
       // Step 2: Mock Date.now to be 11 minutes in the future
       const futureTime = Date.now() + 11 * 60 * 1000;
@@ -170,8 +175,13 @@ describe('OAuth State Expiry (integration)', () => {
         .expect(302);
 
       const redirectUrl = loginResponse.headers.location;
+      if (!redirectUrl) {
+        throw new Error('OAuth login redirect missing location header');
+      }
       const state = new URL(redirectUrl).searchParams.get('state');
-      expect(state).toBeDefined();
+      if (!state) {
+        throw new Error('OAuth login redirect missing state param');
+      }
 
       // Step 2: Mock Date.now to be 9 minutes in the future (within limit)
       const futureTime = Date.now() + 9 * 60 * 1000;
@@ -203,8 +213,13 @@ describe('OAuth State Expiry (integration)', () => {
         .expect(302);
 
       const redirectUrl = loginResponse.headers.location;
+      if (!redirectUrl) {
+        throw new Error('OAuth login redirect missing location header');
+      }
       const state = new URL(redirectUrl).searchParams.get('state');
-      expect(state).toBeDefined();
+      if (!state) {
+        throw new Error('OAuth login redirect missing state param');
+      }
 
       // Step 2: Mock Date.now to be 10 minutes + 100ms after login
       // The check is "Date.now() - createdAtMs > maxAgeMs" (strictly greater)
@@ -303,8 +318,13 @@ describe('OAuth State Expiry (integration)', () => {
         .expect(302);
 
       const redirectUrl = loginResponse.headers.location;
+      if (!redirectUrl) {
+        throw new Error('OAuth login redirect missing location header');
+      }
       const state = new URL(redirectUrl).searchParams.get('state');
-      expect(state).toBeDefined();
+      if (!state) {
+        throw new Error('OAuth login redirect missing state param');
+      }
 
       // Step 2: First callback succeeds
       const firstCallback = await testAgent

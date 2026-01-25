@@ -21,6 +21,10 @@ describe('ShellQuerySseService', () => {
     duplicate: ReturnType<typeof vi.fn>;
   };
   let subscriber: Subscriber;
+  let encryptionService: {
+    encrypt: ReturnType<typeof vi.fn>;
+    decrypt: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(async () => {
     subscriber = Object.assign(new EventEmitter(), {
@@ -36,6 +40,11 @@ describe('ShellQuerySseService', () => {
       duplicate: vi.fn().mockReturnValue(subscriber),
     };
 
+    encryptionService = {
+      encrypt: vi.fn((value: string) => value),
+      decrypt: vi.fn((value: string) => value),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ShellQuerySseService,
@@ -45,10 +54,7 @@ describe('ShellQuerySseService', () => {
         },
         {
           provide: EncryptionService,
-          useValue: {
-            encrypt: vi.fn((value: string) => value),
-            decrypt: vi.fn((value: string) => value),
-          },
+          useValue: encryptionService,
         },
       ],
     }).compile();
@@ -104,6 +110,17 @@ describe('ShellQuerySseService', () => {
     await expect(service.streamRunEvents('run-1', 'user-1')).rejects.toThrow(
       'subscribe failed',
     );
+  });
+
+  it('decrements the per-user limit and closes Redis subscriber on disconnect', async () => {
+    const stream = await service.streamRunEvents('run-1', 'user-1');
+    const subscription = stream.subscribe(() => {});
+
+    subscription.unsubscribe();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(redis.decr).toHaveBeenCalledWith('sse-limit:user-1');
+    expect(subscriber.quit).toHaveBeenCalled();
   });
 
   describe('SSE reconnect backfill', () => {
@@ -170,6 +187,47 @@ describe('ShellQuerySseService', () => {
       expect(messages.length).toBe(2);
       expect(messages[0]).toEqual(cachedEvent);
       expect(messages[1]).toEqual(liveEvent);
+    });
+
+    it('decrypts cached and live events before emitting', async () => {
+      const cachedEvent = {
+        status: 'executing_query',
+        message: 'Executing query...',
+        timestamp: '2026-01-17T10:00:00.000Z',
+        runId: 'run-1',
+      };
+      const liveEvent = {
+        status: 'ready',
+        message: 'Query completed',
+        timestamp: '2026-01-17T10:00:05.000Z',
+        runId: 'run-1',
+      };
+
+      vi.mocked(encryptionService.decrypt).mockImplementation(
+        (value: string) => (value.startsWith('enc:') ? value.slice(4) : value),
+      );
+      redis.get.mockResolvedValueOnce(`enc:${JSON.stringify(cachedEvent)}`);
+
+      const messages: unknown[] = [];
+
+      const stream = await service.streamRunEvents('run-1', 'user-1');
+      const subscription = stream.subscribe((event) => {
+        messages.push(event.data);
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      subscriber.emit(
+        'message',
+        'run-status:run-1',
+        `enc:${JSON.stringify(liveEvent)}`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      subscription.unsubscribe();
+      await Promise.resolve();
+
+      expect(messages).toEqual([cachedEvent, liveEvent]);
     });
 
     it('does not emit cached event when none exists', async () => {

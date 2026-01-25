@@ -78,7 +78,7 @@ const defaultHandlers = [
   ),
   // REST: Get rowset (results) - for getResults tests
   http.get(
-    'https://test-tssd.rest.marketingcloudapis.com/data/v1/customobjectdata/key/:key/rowset',
+    `https://${TEST_TSSD}.rest.marketingcloudapis.com/data/v1/customobjectdata/key/:key/rowset`,
     () => {
       return HttpResponse.json({
         items: [
@@ -151,14 +151,53 @@ describe('ShellQueryService (integration)', () => {
     // Create test tenant and user directly in DB
     const tenantResult =
       await sqlClient`INSERT INTO tenants (eid, tssd) VALUES (${testEid}, ${TEST_TSSD}) RETURNING id`;
-    testTenantId = tenantResult[0].id;
+    const tenantRow = tenantResult[0];
+    if (!tenantRow) {
+      throw new Error('Failed to insert test tenant');
+    }
+    testTenantId = tenantRow.id;
 
     const userResult = await sqlClient`
       INSERT INTO users (sf_user_id, tenant_id, email, name)
       VALUES ('sf-shell-query-int', ${testTenantId}, 'shell-query-int@example.com', 'Integration Test User')
       RETURNING id
     `;
-    testUserId = userResult[0].id;
+    const userRow = userResult[0];
+    if (!userRow) {
+      throw new Error('Failed to insert test user');
+    }
+    testUserId = userRow.id;
+
+    // Seed credentials so REST requests can authenticate without refresh.
+    const encryptedAccessToken = encryptionService.encrypt(testAccessToken);
+    const encryptedRefreshToken = encryptionService.encrypt(
+      'shell-query-int-refresh-token',
+    );
+    if (!encryptedAccessToken || !encryptedRefreshToken) {
+      throw new Error('Failed to encrypt MCE credentials for test setup');
+    }
+    const reserved = await sqlClient.reserve();
+    try {
+      await reserved`SELECT set_config('app.tenant_id', ${testTenantId}, false)`;
+      await reserved`SELECT set_config('app.mid', ${testMid}, false)`;
+      await reserved`SELECT set_config('app.user_id', ${testUserId}, false)`;
+      await reserved`
+        INSERT INTO credentials (tenant_id, user_id, mid, access_token, refresh_token, expires_at)
+        VALUES (
+          ${testTenantId}::uuid,
+          ${testUserId}::uuid,
+          ${testMid},
+          ${encryptedAccessToken},
+          ${encryptedRefreshToken},
+          ${new Date(Date.now() + 60 * 60 * 1000)}
+        )
+      `;
+      await reserved`RESET app.tenant_id`;
+      await reserved`RESET app.mid`;
+      await reserved`RESET app.user_id`;
+    } finally {
+      reserved.release();
+    }
   }, 60000);
 
   afterAll(async () => {
@@ -182,6 +221,20 @@ describe('ShellQueryService (integration)', () => {
     }
 
     // Clean up user and tenant (not RLS-protected)
+    try {
+      const reserved = await sqlClient.reserve();
+      await reserved`SELECT set_config('app.tenant_id', ${testTenantId}, false)`;
+      await reserved`SELECT set_config('app.mid', ${testMid}, false)`;
+      await reserved`SELECT set_config('app.user_id', ${testUserId}, false)`;
+      await reserved`DELETE FROM credentials WHERE user_id = ${testUserId}::uuid`;
+      await reserved`RESET app.tenant_id`;
+      await reserved`RESET app.mid`;
+      await reserved`RESET app.user_id`;
+      reserved.release();
+    } catch {
+      // Best effort cleanup
+    }
+
     if (testUserId) {
       await sqlClient`DELETE FROM users WHERE id = ${testUserId}::uuid`;
     }
@@ -317,6 +370,9 @@ describe('ShellQueryService (integration)', () => {
       // Verify database record exists
       const dbRun = await getRunFromDb(runId);
       expect(dbRun).not.toBeNull();
+      if (!dbRun) {
+        throw new Error('Expected run to exist in database');
+      }
       expect(dbRun.id).toBe(runId);
       expect(dbRun.tenant_id).toBe(testTenantId);
       expect(dbRun.user_id).toBe(testUserId);
@@ -349,6 +405,48 @@ describe('ShellQueryService (integration)', () => {
       expect(job?.data.snippetName).toBe(snippetName);
       // sqlText should be encrypted (not plaintext)
       expect(job?.data.sqlText).not.toBe(sqlText);
+    });
+
+    it('should set BullMQ job options (retries, backoff, retention, jobId)', async () => {
+      const context = createServiceContext();
+
+      const runId = await service.createRun(
+        context,
+        'SELECT * FROM _Subscribers',
+        'Job Opts Test',
+      );
+      createdRunIds.push(runId);
+
+      const job = await shellQueryQueue.getJob(runId);
+
+      expect(job).toBeDefined();
+      expect(job?.id).toBe(runId);
+      expect(job?.opts.attempts).toBe(2);
+      expect(job?.opts.backoff).toEqual({ type: 'exponential', delay: 5000 });
+      expect(job?.opts.removeOnComplete).toEqual({ age: 3600 });
+      expect(job?.opts.removeOnFail).toEqual({ age: 86400 });
+    });
+
+    it('should truncate snippetName to 100 characters', async () => {
+      const context = createServiceContext();
+      const longSnippetName = 'a'.repeat(150);
+
+      const runId = await service.createRun(
+        context,
+        'SELECT 1',
+        longSnippetName,
+      );
+      createdRunIds.push(runId);
+
+      const dbRun = await getRunFromDb(runId);
+      expect(dbRun).not.toBeNull();
+      if (!dbRun) {
+        throw new Error('Expected run to exist in database');
+      }
+      expect(dbRun.snippet_name).toBe(longSnippetName.slice(0, 100));
+
+      const job = await shellQueryQueue.getJob(runId);
+      expect(job?.data.snippetName).toBe(longSnippetName.slice(0, 100));
     });
 
     it('should encrypt sqlText before queuing', async () => {
@@ -437,6 +535,9 @@ describe('ShellQueryService (integration)', () => {
 
       const dbRun = await getRunFromDb(runId);
       expect(dbRun).not.toBeNull();
+      if (!dbRun) {
+        throw new Error('Expected run to exist in database');
+      }
       expect(dbRun.sql_text_hash).toBeDefined();
       expect(dbRun.sql_text_hash).toHaveLength(64); // SHA-256 hex
     });
@@ -525,6 +626,59 @@ describe('ShellQueryService (integration)', () => {
       expect(status.updatedAt).toBeInstanceOf(Date);
     });
 
+    it('should set updatedAt based on run state (completedAt ?? startedAt ?? createdAt)', async () => {
+      const queuedId = await createRunInDb('queued');
+      const queuedStatus = await service.getRunStatus(
+        queuedId,
+        testTenantId,
+        testMid,
+        testUserId,
+      );
+      expect(queuedStatus.updatedAt.getTime()).toBe(
+        queuedStatus.createdAt.getTime(),
+      );
+
+      const runningId = await createRunInDb('running');
+      const runningRun = await service.getRun(
+        runningId,
+        testTenantId,
+        testMid,
+        testUserId,
+      );
+      if (!runningRun?.startedAt) {
+        throw new Error('runningRun.startedAt missing');
+      }
+      const runningStatus = await service.getRunStatus(
+        runningId,
+        testTenantId,
+        testMid,
+        testUserId,
+      );
+      expect(runningStatus.updatedAt.getTime()).toBe(
+        runningRun.startedAt.getTime(),
+      );
+
+      const readyId = await createRunInDb('ready');
+      const readyRun = await service.getRun(
+        readyId,
+        testTenantId,
+        testMid,
+        testUserId,
+      );
+      if (!readyRun?.completedAt) {
+        throw new Error('readyRun.completedAt missing');
+      }
+      const readyStatus = await service.getRunStatus(
+        readyId,
+        testTenantId,
+        testMid,
+        testUserId,
+      );
+      expect(readyStatus.updatedAt.getTime()).toBe(
+        readyRun.completedAt.getTime(),
+      );
+    });
+
     it('should decrypt errorMessage for failed runs', async () => {
       const errorMessage = 'Test error: invalid column reference';
       const encryptedError = encryptionService.encrypt(errorMessage);
@@ -571,6 +725,10 @@ describe('ShellQueryService (integration)', () => {
 
       // Verify database state
       const dbRun = await getRunFromDb(runId);
+      expect(dbRun).not.toBeNull();
+      if (!dbRun) {
+        throw new Error('Expected run to exist in database');
+      }
       expect(dbRun.status).toBe('canceled');
       expect(dbRun.completed_at).not.toBeNull();
     });
@@ -588,6 +746,10 @@ describe('ShellQueryService (integration)', () => {
       expect(result.status).toBe('canceled');
 
       const dbRun = await getRunFromDb(runId);
+      expect(dbRun).not.toBeNull();
+      if (!dbRun) {
+        throw new Error('Expected run to exist in database');
+      }
       expect(dbRun.status).toBe('canceled');
     });
 
@@ -665,6 +827,54 @@ describe('ShellQueryService (integration)', () => {
       });
     });
 
+    it('should proxy to MCE REST rowset API and normalize results', async () => {
+      let requestedKey: string | null = null;
+
+      server.use(
+        http.get(
+          `https://${TEST_TSSD}.rest.marketingcloudapis.com/data/v1/customobjectdata/key/:key/rowset`,
+          ({ params }) => {
+            requestedKey = String(params.key);
+            return HttpResponse.json({
+              items: [
+                {
+                  keys: { _CustomObjectKey: '1' },
+                  values: { Name: 'Test User', Email: 'test@test.com' },
+                },
+              ],
+              count: 1,
+              page: 1,
+              pageSize: 50,
+            });
+          },
+        ),
+      );
+
+      const snippetName = 'My Results Query';
+      const runId = await createRunInDb('ready', { snippetName });
+
+      const results = await service.getResults(
+        runId,
+        testTenantId,
+        testUserId,
+        testMid,
+        1,
+      );
+
+      expect(requestedKey).toBe(
+        `QPP_${snippetName.replace(/\s+/g, '_')}_${runId.slice(0, 8)}`,
+      );
+      expect(results.columns).toEqual(
+        expect.arrayContaining(['_CustomObjectKey', 'Name', 'Email']),
+      );
+      expect(results.rows).toEqual([
+        { _CustomObjectKey: '1', Name: 'Test User', Email: 'test@test.com' },
+      ]);
+      expect(results.totalRows).toBe(1);
+      expect(results.page).toBe(1);
+      expect(results.pageSize).toBe(50);
+    });
+
     it('should throw INVALID_STATE with error for failed run', async () => {
       const errorMessage = 'Query execution failed';
       const encryptedError = encryptionService.encrypt(errorMessage);
@@ -677,6 +887,10 @@ describe('ShellQueryService (integration)', () => {
         service.getResults(runId, testTenantId, testUserId, testMid, 1),
       ).rejects.toMatchObject({
         code: 'INVALID_STATE',
+        context: {
+          status: 'failed',
+          statusMessage: errorMessage,
+        },
       });
     });
   });

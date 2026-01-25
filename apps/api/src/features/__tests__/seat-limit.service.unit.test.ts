@@ -106,4 +106,14 @@ describe('SeatLimitService', () => {
     // Act & Assert - focus on observable behavior: no error thrown when no limit configured
     await expect(service.checkSeatLimit(tenantId)).resolves.toBeUndefined();
   });
+
+  it('allows when tenant is not found', async () => {
+    // Arrange
+    const tenantId = 'missing-tenant';
+    vi.mocked(tenantRepo.findById).mockResolvedValue(undefined);
+
+    // Act & Assert - focus on observable behavior: no error thrown for unknown tenant
+    await expect(service.checkSeatLimit(tenantId)).resolves.toBeUndefined();
+    expect(tenantRepo.countUsersByTenantId).not.toHaveBeenCalled();
+  });
 });

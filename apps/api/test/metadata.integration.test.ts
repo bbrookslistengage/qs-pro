@@ -564,20 +564,13 @@ describe('Metadata Endpoints (integration)', () => {
     });
 
     it('should handle undefined key query parameter', async () => {
-      // When key is undefined, the service still calls SOAP with undefined key
-      // The behavior depends on how the SOAP endpoint handles undefined filter
       const response = await authenticatedAgent
         .get('/metadata/fields')
         .set('x-csrf-token', csrfToken);
 
-      // The endpoint should still respond (either with empty array or error)
-      // Accept 200 with empty array or 500 if implementation requires key
-      if (response.status === 200) {
-        expect(Array.isArray(response.body)).toBe(true);
-      } else {
-        // Server error is also acceptable if implementation requires key
-        expect([500, 502]).toContain(response.status);
-      }
+      expect(response.status).toBe(400);
+      expect(response.body.type).toBe('urn:qpp:error:http-400');
+      expect(String(response.body.detail)).toContain('key is required');
     });
 
     it('should require authentication', async () => {

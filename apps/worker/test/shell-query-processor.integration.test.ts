@@ -30,7 +30,7 @@ import {
   validateWorkerEnv,
 } from '@qpp/backend-shared';
 import { resetFactories } from '@qpp/test-utils';
-import { DelayedError, Job, Queue } from 'bullmq';
+import { DelayedError, Job, Queue, UnrecoverableError } from 'bullmq';
 import { createHash, randomUUID } from 'node:crypto';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
@@ -43,6 +43,7 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from 'vitest';
 
 import { ShellQueryProcessor } from '../src/shell-query/shell-query.processor';
@@ -60,6 +61,13 @@ const TEST_SF_USER_ID = `sf-user-proc-${TEST_RUN_SUFFIX}`;
 
 // Track MCE requests for verification
 const mceRequests: Array<{ type: string; action?: string; body?: string }> = [];
+let asyncActivityStatusOverride:
+  | {
+      status: string;
+      completedDate?: string;
+      errorMsg?: string;
+    }
+  | null = null;
 
 // Stub auth provider
 function createStubAuthProvider(): MceAuthProvider {
@@ -89,9 +97,9 @@ function createQueueStub(): Partial<Queue> {
 // Stub metrics
 function createMetricsStub() {
   return {
-    inc: () => {},
-    dec: () => {},
-    observe: () => {},
+    inc: vi.fn(),
+    dec: vi.fn(),
+    observe: vi.fn(),
   };
 }
 
@@ -264,6 +272,28 @@ const server = setupServer(
 
       // AsyncActivityStatus Retrieve (poll status)
       if (body.includes('<ObjectType>AsyncActivityStatus</ObjectType>')) {
+        const status = asyncActivityStatusOverride?.status ?? 'Complete';
+        const completedDate = asyncActivityStatusOverride
+          ? asyncActivityStatusOverride.completedDate
+          : new Date().toISOString();
+        const errorMsg = asyncActivityStatusOverride?.errorMsg;
+
+        const completedDateXml =
+          typeof completedDate === 'string' && completedDate.trim()
+            ? `<Property>
+                    <Name>CompletedDate</Name>
+                    <Value>${completedDate}</Value>
+                  </Property>`
+            : '';
+
+        const errorMsgXml =
+          typeof errorMsg === 'string' && errorMsg.trim()
+            ? `<Property>
+                    <Name>ErrorMsg</Name>
+                    <Value>${errorMsg}</Value>
+                  </Property>`
+            : '';
+
         return HttpResponse.xml(`<?xml version="1.0" encoding="utf-8"?>
         <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
           <soap:Body>
@@ -274,12 +304,10 @@ const server = setupServer(
                 <Properties>
                   <Property>
                     <Name>Status</Name>
-                    <Value>Complete</Value>
+                    <Value>${status}</Value>
                   </Property>
-                  <Property>
-                    <Name>CompletedDate</Name>
-                    <Value>${new Date().toISOString()}</Value>
-                  </Property>
+                  ${completedDateXml}
+                  ${errorMsgXml}
                 </Properties>
               </Results>
             </RetrieveResponseMsg>
@@ -301,10 +329,10 @@ const server = setupServer(
 
   // REST: Query validation
   http.post(
-    `https://${TEST_TSSD}.rest.marketingcloudapis.com/data/v1/customobjectdata/validate`,
+    `https://${TEST_TSSD}.rest.marketingcloudapis.com/automation/v1/queries/actions/validate/`,
     () => {
       mceRequests.push({ type: 'REST', action: 'validate' });
-      return HttpResponse.json({ valid: true });
+      return HttpResponse.json({ queryValid: true });
     },
   ),
 
@@ -414,6 +442,7 @@ describe('ShellQueryProcessor (integration)', () => {
   let encryptionService: EncryptionService;
   let queueStub: ReturnType<typeof createQueueStub>;
   let redisStub: ReturnType<typeof createRedisClientStub>;
+  let metricsActiveJobsStub: ReturnType<typeof createMetricsStub>;
 
   // Track created entities for cleanup
   const createdRunIds: string[] = [];
@@ -424,6 +453,7 @@ describe('ShellQueryProcessor (integration)', () => {
     queueStub = createQueueStub();
     redisStub = createRedisClientStub();
     const metricsStub = createMetricsStub();
+    metricsActiveJobsStub = createMetricsStub();
 
     module = await Test.createTestingModule({
       imports: [
@@ -454,7 +484,7 @@ describe('ShellQueryProcessor (integration)', () => {
         { provide: 'METRICS_JOBS_TOTAL', useValue: metricsStub },
         { provide: 'METRICS_DURATION', useValue: metricsStub },
         { provide: 'METRICS_FAILURES_TOTAL', useValue: metricsStub },
-        { provide: 'METRICS_ACTIVE_JOBS', useValue: metricsStub },
+        { provide: 'METRICS_ACTIVE_JOBS', useValue: metricsActiveJobsStub },
         { provide: getQueueToken('shell-query'), useValue: queueStub },
       ],
     })
@@ -550,9 +580,12 @@ describe('ShellQueryProcessor (integration)', () => {
     resetFactories();
     server.resetHandlers();
     mceRequests.length = 0;
+    asyncActivityStatusOverride = null;
     redisStub.__publishedEvents.length = 0;
     redisStub.__storedKeys.clear();
     (queueStub as unknown as { __addedJobs: Array<unknown> }).__addedJobs.length = 0;
+    metricsActiveJobsStub.inc.mockClear();
+    metricsActiveJobsStub.dec.mockClear();
   });
 
   afterEach(async () => {
@@ -706,6 +739,72 @@ describe('ShellQueryProcessor (integration)', () => {
 
       // Verify SSE event published
       expect(redisStub.__publishedEvents.some(e => e.channel.includes(runId))).toBe(true);
+    });
+
+    it('throws UnrecoverableError when sqlText cannot be decrypted', async () => {
+      const runId = await createTestRun('SELECT 1');
+
+      const job = createMockExecuteJob({
+        runId,
+        tenantId: TEST_TENANT_ID,
+        userId: TEST_USER_ID,
+        mid: TEST_MID,
+        eid: TEST_EID,
+        sqlText: 'not-a-valid-ciphertext',
+      });
+
+      const promise = processor.process(job as Job);
+      await expect(promise).rejects.toThrow(UnrecoverableError);
+      await expect(promise).rejects.toThrow('Failed to decrypt sqlText');
+    });
+
+    it('wraps terminal errors in UnrecoverableError', async () => {
+      const runId = await createTestRun('SELECT Name FROM TestDE');
+      const encryptedSql = encryptionService.encrypt('SELECT Name FROM TestDE') ?? '';
+
+      server.use(
+        http.post(
+          `https://${TEST_TSSD}.rest.marketingcloudapis.com/automation/v1/queries/actions/validate/`,
+          () => {
+            return HttpResponse.json(
+              { queryValid: false, errorMessage: 'Validation failed' },
+              { status: 200 },
+            );
+          },
+        ),
+      );
+
+      const job = createMockExecuteJob({
+        runId,
+        tenantId: TEST_TENANT_ID,
+        userId: TEST_USER_ID,
+        mid: TEST_MID,
+        eid: TEST_EID,
+        sqlText: encryptedSql,
+      });
+
+      await expect(processor.process(job as Job)).rejects.toThrow(
+        UnrecoverableError,
+      );
+    });
+
+    it('increments and decrements active jobs metric', async () => {
+      const runId = await createTestRun('SELECT Name FROM TestDE');
+      const encryptedSql = encryptionService.encrypt('SELECT Name FROM TestDE') ?? '';
+
+      const job = createMockExecuteJob({
+        runId,
+        tenantId: TEST_TENANT_ID,
+        userId: TEST_USER_ID,
+        mid: TEST_MID,
+        eid: TEST_EID,
+        sqlText: encryptedSql,
+      });
+
+      await processor.process(job as Job);
+
+      expect(metricsActiveJobsStub.inc).toHaveBeenCalledTimes(1);
+      expect(metricsActiveJobsStub.dec).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -867,6 +966,122 @@ describe('ShellQueryProcessor (integration)', () => {
       const dbRun = await getRunFromDb(runId);
       expect(dbRun.status).toBe('failed');
     });
+
+    it('fast-path completes when row probe detects rows', async () => {
+      const runId = await createTestRun('SELECT 1');
+      await updateRunForPoll(runId);
+
+      asyncActivityStatusOverride = { status: 'Processing' };
+
+      const pollStartedAt = new Date(Date.now() - 7000).toISOString();
+      const job = createMockPollJob({
+        runId,
+        tenantId: TEST_TENANT_ID,
+        userId: TEST_USER_ID,
+        mid: TEST_MID,
+        pollStartedAt,
+        queryDefinitionId: 'qd-row-probe',
+      });
+
+      const result = await processor.process(job as Job);
+
+      expect(result).toEqual({ status: 'completed', runId });
+
+      const dbRun = await getRunFromDb(runId);
+      expect(dbRun.status).toBe('ready');
+      expect(mceRequests.some((r) => r.type === 'REST' && r.action === 'rowset')).toBe(
+        true,
+      );
+
+      expect(metricsActiveJobsStub.inc).toHaveBeenCalledTimes(1);
+      expect(metricsActiveJobsStub.dec).toHaveBeenCalledTimes(1);
+    });
+
+    it('uses REST isRunning check and persists queryDefinitionId via SOAP fallback when REST returns 400', async () => {
+      const runId = await createTestRun('SELECT 1');
+      await updateRunForPoll(runId);
+
+      asyncActivityStatusOverride = {
+        status: 'Processing',
+        completedDate: new Date().toISOString(),
+      };
+
+      // Force REST 400 so the worker falls back to SOAP retrieval by customerKey.
+      server.use(
+        http.get(
+          `https://${TEST_TSSD}.rest.marketingcloudapis.com/automation/v1/queries/:id/status`,
+          () => {
+            mceRequests.push({ type: 'REST', action: 'isRunning' });
+            return HttpResponse.json({ message: 'Bad Request' }, { status: 400 });
+          },
+        ),
+      );
+
+      const pollStartedAt = new Date(Date.now() - 7000).toISOString();
+      const job = createMockPollJob({
+        runId,
+        tenantId: TEST_TENANT_ID,
+        userId: TEST_USER_ID,
+        mid: TEST_MID,
+        pollStartedAt,
+        queryDefinitionId: '',
+        targetDeName: '',
+      });
+
+      const result = await processor.process(job as Job);
+      expect(result).toMatchObject({ status: 'polling', runId });
+
+      const dbRun = await getRunFromDb(runId);
+      expect(dbRun.queryDefinitionId).toBe('qd-retrieved-object-id');
+      expect(
+        mceRequests.some(
+          (r) =>
+            r.type === 'SOAP' &&
+            (r.body ?? '').includes('<ObjectType>QueryDefinition</ObjectType>'),
+        ),
+      ).toBe(true);
+    });
+
+    it('requires multiple not-running confirmations before marking ready', async () => {
+      const runId = await createTestRun('SELECT 1');
+      await updateRunForPoll(runId);
+
+      asyncActivityStatusOverride = {
+        status: 'Processing',
+        completedDate: new Date().toISOString(),
+      };
+
+      const pollStartedAt = new Date(Date.now() - 7000).toISOString();
+      const job = createMockPollJob({
+        runId,
+        tenantId: TEST_TENANT_ID,
+        userId: TEST_USER_ID,
+        mid: TEST_MID,
+        pollStartedAt,
+        targetDeName: '',
+      });
+
+      // Make updateData persist state between polls.
+      job.updateData = async (updated) => {
+        job.data = updated;
+      };
+
+      const first = await processor.process(job as Job);
+      expect(first).toEqual({ status: 'polling', runId, pollCount: 1 });
+
+      // Simulate passage of time (min gap) without waiting.
+      job.data = {
+        ...(job.data as object),
+        notRunningDetectedAt: new Date(Date.now() - 16000).toISOString(),
+        notRunningConfirmations: 1,
+      };
+
+      const second = await processor.process(job as Job);
+      expect(second).toEqual({ status: 'completed', runId });
+
+      const dbRun = await getRunFromDb(runId);
+      expect(dbRun.status).toBe('ready');
+    });
   });
 
   describe('onFailed event handler', () => {
@@ -900,6 +1115,24 @@ describe('ShellQueryProcessor (integration)', () => {
       // Verify SSE event published
       const failedEvent = redisStub.__publishedEvents.find(e => e.channel.includes(runId));
       expect(failedEvent).toBeDefined();
+
+      const decrypted = failedEvent?.message
+        ? (encryptionService.decrypt(failedEvent.message) ?? null)
+        : null;
+      expect(decrypted).not.toBeNull();
+      expect(JSON.parse(decrypted ?? '{}')).toMatchObject({
+        status: 'failed',
+        runId,
+      });
+
+      expect(
+        mceRequests.some(
+          (r) =>
+            r.type === 'SOAP' &&
+            (r.action ?? '').includes('Delete') &&
+            (r.body ?? '').includes('QueryDefinition'),
+        ),
+      ).toBe(true);
     });
 
     it('should no-op on intermediate failures that will retry', async () => {
@@ -921,11 +1154,26 @@ describe('ShellQueryProcessor (integration)', () => {
 
       const error = new Error('Transient failure');
 
+      const warnSpy = vi.spyOn(
+        (
+          processor as unknown as {
+            logger: { warn: (...args: unknown[]) => void };
+          }
+        ).logger,
+        'warn',
+      );
+
       await processor.onFailed(job as Job, error);
 
       // Verify database state NOT updated
       const dbRun = await getRunFromDb(runId);
       expect(dbRun.status).toBe('queued');
+
+      expect(warnSpy).toHaveBeenCalled();
+      expect(redisStub.__publishedEvents).toHaveLength(0);
+      expect(mceRequests).toHaveLength(0);
+
+      warnSpy.mockRestore();
     });
   });
 

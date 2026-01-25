@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { MetadataFetcher } from "./query-analyzer";
-import { inferSchema, inferColumnTypeFromMetadata } from "./schema-inferrer";
+import { inferColumnTypeFromMetadata, inferSchema } from "./schema-inferrer";
 
 /**
  * Creates a stub MetadataFetcher with the provided table metadata.
@@ -382,8 +382,7 @@ describe("SchemaInferrer", () => {
       });
 
       it("should handle CAST to DATE type", async () => {
-        const sql =
-          "SELECT CAST(CreatedStr AS DATE) AS Created FROM Data";
+        const sql = "SELECT CAST(CreatedStr AS DATE) AS Created FROM Data";
         const metadataFn = createMetadataStub({});
 
         const schema = await inferSchema(sql, metadataFn);
@@ -488,8 +487,7 @@ describe("SchemaInferrer", () => {
       });
 
       it("should infer Number for multiplication", async () => {
-        const sql =
-          "SELECT Quantity * UnitPrice AS LineTotal FROM OrderItems";
+        const sql = "SELECT Quantity * UnitPrice AS LineTotal FROM OrderItems";
         const metadataFn = createMetadataStub({
           OrderItems: [
             { Name: "Quantity", FieldType: "Number" },
@@ -835,8 +833,7 @@ describe("SchemaInferrer", () => {
 
     describe("ISNULL and COALESCE handling", () => {
       it("should handle ISNULL returning Text", async () => {
-        const sql =
-          "SELECT ISNULL(MiddleName, '') AS MiddleName FROM Contacts";
+        const sql = "SELECT ISNULL(MiddleName, '') AS MiddleName FROM Contacts";
         const metadataFn = createMetadataStub({});
 
         const schema = await inferSchema(sql, metadataFn);

@@ -124,6 +124,18 @@ describe("RlsContextService", () => {
 
       expect(capturedReservedSql).toBe(mockReservedSql);
     });
+
+    it("should reset config and release connection when callback throws", async () => {
+      await expect(
+        service.runWithTenantContext("t1", "m1", async () => {
+          throw new Error("boom");
+        }),
+      ).rejects.toThrow("boom");
+
+      expect(mockReservedSql.resetCalls).toContain("app.tenant_id");
+      expect(mockReservedSql.resetCalls).toContain("app.mid");
+      expect(mockReservedSql.release).toHaveBeenCalled();
+    });
   });
 
   describe("runWithUserContext", () => {

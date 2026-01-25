@@ -22,21 +22,21 @@
  * Tests assert that our specific test tenant's QDs are processed correctly.
  * We use folder IDs in SOAP requests to identify which tenant made the call.
  */
-import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { BullModule } from '@nestjs/bullmq';
-import { ScheduleModule } from '@nestjs/schedule';
+import { BullModule } from "@nestjs/bullmq";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { ScheduleModule } from "@nestjs/schedule";
+import { Test, TestingModule } from "@nestjs/testing";
 import {
   DatabaseModule,
+  LoggerModule,
   MCE_AUTH_PROVIDER,
   MceAuthProvider,
   MceModule,
-  LoggerModule,
   validateWorkerEnv,
-} from '@qpp/backend-shared';
-import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
-import type { Sql } from 'postgres';
+} from "@qpp/backend-shared";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
+import type { Sql } from "postgres";
 import {
   afterAll,
   afterEach,
@@ -45,19 +45,19 @@ import {
   describe,
   expect,
   it,
-} from 'vitest';
+} from "vitest";
 
-import { ShellQuerySweeper } from '../shell-query.sweeper';
+import { ShellQuerySweeper } from "../shell-query.sweeper";
 
 // Use unique, high folder IDs to avoid collision with existing data
-const TEST_TSSD = 'sweeper-test-tssd';
+const TEST_TSSD = "sweeper-test-tssd";
 const TEST_TENANT_ID_1 = crypto.randomUUID();
 const TEST_TENANT_ID_2 = crypto.randomUUID();
 const TEST_USER_ID_1 = crypto.randomUUID();
 const TEST_USER_ID_2 = crypto.randomUUID();
-const TEST_MID_1 = 'mid-sweeper-test-1';
-const TEST_MID_2 = 'mid-sweeper-test-2';
-const TEST_EID = 'eid-sweeper-test';
+const TEST_MID_1 = "mid-sweeper-test-1";
+const TEST_MID_2 = "mid-sweeper-test-2";
+const TEST_EID = "eid-sweeper-test";
 const TEST_FOLDER_ID_1 = 999001; // Unique folder IDs
 const TEST_FOLDER_ID_2 = 999002;
 
@@ -68,7 +68,7 @@ const server = setupServer();
 function createStubAuthProvider(): MceAuthProvider {
   return {
     refreshToken: async () => {
-      return { accessToken: 'test-access-token', tssd: TEST_TSSD };
+      return { accessToken: "test-access-token", tssd: TEST_TSSD };
     },
     invalidateToken: async () => {
       // No-op for tests
@@ -96,7 +96,7 @@ function buildRetrieveResponse(
         <CreatedDate>${qd.createdDate.toISOString()}</CreatedDate>
       </Results>`,
     )
-    .join('');
+    .join("");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
@@ -111,7 +111,7 @@ function buildRetrieveResponse(
 }
 
 // Helper to generate SOAP DeleteResponse
-function buildDeleteResponse(statusCode = 'OK'): string {
+function buildDeleteResponse(statusCode = "OK"): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
   <soap:Body>
@@ -165,13 +165,17 @@ function extractFolderIdFromRequest(body: string): number | null {
 }
 
 // Helper to detect SOAP request type (handles namespace prefixes)
-function detectRequestType(body: string): 'Retrieve' | 'Delete' | 'Other' {
-  if (body.includes('RetrieveRequest')) return 'Retrieve';
-  if (body.includes('DeleteRequest')) return 'Delete';
-  return 'Other';
+function detectRequestType(body: string): "Retrieve" | "Delete" | "Other" {
+  if (body.includes("RetrieveRequest")) {
+    return "Retrieve";
+  }
+  if (body.includes("DeleteRequest")) {
+    return "Delete";
+  }
+  return "Other";
 }
 
-describe('ShellQuerySweeper (integration)', () => {
+describe("ShellQuerySweeper (integration)", () => {
   let module: TestingModule;
   let sweeper: ShellQuerySweeper;
   let sqlClient: Sql;
@@ -205,7 +209,10 @@ describe('ShellQuerySweeper (integration)', () => {
   /**
    * Helper to delete credentials with proper RLS context.
    */
-  async function deleteCredentials(tenantId: string, mid: string): Promise<void> {
+  async function deleteCredentials(
+    tenantId: string,
+    mid: string,
+  ): Promise<void> {
     const reserved = await sqlClient.reserve();
     try {
       await reserved`SELECT set_config('app.tenant_id', ${tenantId}, false)`;
@@ -219,14 +226,14 @@ describe('ShellQuerySweeper (integration)', () => {
   }
 
   beforeAll(async () => {
-    server.listen({ onUnhandledRequest: 'bypass' });
+    server.listen({ onUnhandledRequest: "bypass" });
 
     module = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({
           isGlobal: true,
           validate: validateWorkerEnv,
-          envFilePath: '../../.env',
+          envFilePath: "../../.env",
         }),
         LoggerModule,
         BullModule.forRootAsync({
@@ -234,8 +241,8 @@ describe('ShellQuerySweeper (integration)', () => {
           useFactory: async (configService: ConfigService) => ({
             connection: {
               url: configService.get<string>(
-                'REDIS_URL',
-                'redis://localhost:6379',
+                "REDIS_URL",
+                "redis://localhost:6379",
               ),
             },
           }),
@@ -252,14 +259,14 @@ describe('ShellQuerySweeper (integration)', () => {
       .compile();
 
     sweeper = module.get(ShellQuerySweeper);
-    sqlClient = module.get<Sql>('SQL_CLIENT');
+    sqlClient = module.get<Sql>("SQL_CLIENT");
 
     // Create test tenants
     await sqlClient`
       INSERT INTO tenants (id, eid, tssd)
       VALUES
         (${TEST_TENANT_ID_1}::uuid, ${TEST_EID}, ${TEST_TSSD}),
-        (${TEST_TENANT_ID_2}::uuid, ${TEST_EID + '-2'}, ${TEST_TSSD})
+        (${TEST_TENANT_ID_2}::uuid, ${`${TEST_EID}-2`}, ${TEST_TSSD})
       ON CONFLICT (id) DO NOTHING
     `;
 
@@ -316,8 +323,8 @@ describe('ShellQuerySweeper (integration)', () => {
     server.resetHandlers();
   });
 
-  describe('handleSweep happy path', () => {
-    it('should delete QueryDefinitions older than 24 hours and retain newer ones', async () => {
+  describe("handleSweep happy path", () => {
+    it("should delete QueryDefinitions older than 24 hours and retain newer ones", async () => {
       // Seed tenant_settings with qppFolderId
       await sqlClient`
         INSERT INTO tenant_settings (tenant_id, mid, qpp_folder_id)
@@ -325,7 +332,13 @@ describe('ShellQuerySweeper (integration)', () => {
       `;
 
       // Seed credentials for the tenant (using helper for RLS)
-      await insertCredentials(TEST_TENANT_ID_1, TEST_USER_ID_1, TEST_MID_1, 'enc-access', 'enc-refresh');
+      await insertCredentials(
+        TEST_TENANT_ID_1,
+        TEST_USER_ID_1,
+        TEST_MID_1,
+        "enc-access",
+        "enc-refresh",
+      );
 
       // Track MSW requests for our test folder
       const deleteRequests: string[] = [];
@@ -343,27 +356,27 @@ describe('ShellQuerySweeper (integration)', () => {
             const folderId = extractFolderIdFromRequest(body);
             const requestType = detectRequestType(body);
 
-            if (requestType === 'Retrieve') {
+            if (requestType === "Retrieve") {
               // Check if this is our test folder
               if (folderId === TEST_FOLDER_ID_1) {
                 ourFolderRetrieved = true;
                 return HttpResponse.xml(
                   buildRetrieveResponse([
                     {
-                      objectId: 'qd-old-1',
-                      customerKey: 'QPP_Query_old1',
+                      objectId: "qd-old-1",
+                      customerKey: "QPP_Query_old1",
                       createdDate: oldCreatedDate,
                       categoryId: TEST_FOLDER_ID_1,
                     },
                     {
-                      objectId: 'qd-old-2',
-                      customerKey: 'QPP_Query_old2',
+                      objectId: "qd-old-2",
+                      customerKey: "QPP_Query_old2",
                       createdDate: oldCreatedDate,
                       categoryId: TEST_FOLDER_ID_1,
                     },
                     {
-                      objectId: 'qd-new-1',
-                      customerKey: 'QPP_Query_new1',
+                      objectId: "qd-new-1",
+                      customerKey: "QPP_Query_new1",
                       createdDate: newCreatedDate,
                       categoryId: TEST_FOLDER_ID_1,
                     },
@@ -374,7 +387,7 @@ describe('ShellQuerySweeper (integration)', () => {
               return HttpResponse.xml(buildEmptyRetrieveResponse());
             }
 
-            if (requestType === 'Delete') {
+            if (requestType === "Delete") {
               deleteRequests.push(body);
               return HttpResponse.xml(buildDeleteResponse());
             }
@@ -391,8 +404,12 @@ describe('ShellQuerySweeper (integration)', () => {
       expect(ourFolderRetrieved).toBe(true);
 
       // Verify QDs were deleted (check that our object IDs are in delete requests)
-      const hasOld1Delete = deleteRequests.some((req) => req.includes('qd-old-1'));
-      const hasOld2Delete = deleteRequests.some((req) => req.includes('qd-old-2'));
+      const hasOld1Delete = deleteRequests.some((req) =>
+        req.includes("qd-old-1"),
+      );
+      const hasOld2Delete = deleteRequests.some((req) =>
+        req.includes("qd-old-2"),
+      );
 
       // Old QDs should be deleted
       expect(hasOld1Delete).toBe(true);
@@ -404,7 +421,7 @@ describe('ShellQuerySweeper (integration)', () => {
       expect(deleteRequests.length).toBeGreaterThan(0);
     });
 
-    it('should process multiple tenants with qppFolderId', async () => {
+    it("should process multiple tenants with qppFolderId", async () => {
       // Seed tenant_settings for both tenants with different folder IDs
       await sqlClient`
         INSERT INTO tenant_settings (tenant_id, mid, qpp_folder_id)
@@ -414,8 +431,20 @@ describe('ShellQuerySweeper (integration)', () => {
       `;
 
       // Seed credentials for both tenants (using helper for RLS)
-      await insertCredentials(TEST_TENANT_ID_1, TEST_USER_ID_1, TEST_MID_1, 'enc-access-1', 'enc-refresh-1');
-      await insertCredentials(TEST_TENANT_ID_2, TEST_USER_ID_2, TEST_MID_2, 'enc-access-2', 'enc-refresh-2');
+      await insertCredentials(
+        TEST_TENANT_ID_1,
+        TEST_USER_ID_1,
+        TEST_MID_1,
+        "enc-access-1",
+        "enc-refresh-1",
+      );
+      await insertCredentials(
+        TEST_TENANT_ID_2,
+        TEST_USER_ID_2,
+        TEST_MID_2,
+        "enc-access-2",
+        "enc-refresh-2",
+      );
 
       // Track which folders were retrieved
       const retrievedFolders: number[] = [];
@@ -431,8 +460,11 @@ describe('ShellQuerySweeper (integration)', () => {
             const folderId = extractFolderIdFromRequest(body);
             const requestType = detectRequestType(body);
 
-            if (requestType === 'Retrieve') {
-              if (folderId === TEST_FOLDER_ID_1 || folderId === TEST_FOLDER_ID_2) {
+            if (requestType === "Retrieve") {
+              if (
+                folderId === TEST_FOLDER_ID_1 ||
+                folderId === TEST_FOLDER_ID_2
+              ) {
                 retrievedFolders.push(folderId);
                 return HttpResponse.xml(
                   buildRetrieveResponse([
@@ -448,7 +480,7 @@ describe('ShellQuerySweeper (integration)', () => {
               return HttpResponse.xml(buildEmptyRetrieveResponse());
             }
 
-            if (requestType === 'Delete') {
+            if (requestType === "Delete") {
               deleteRequests.push(body);
               return HttpResponse.xml(buildDeleteResponse());
             }
@@ -465,19 +497,33 @@ describe('ShellQuerySweeper (integration)', () => {
       expect(retrievedFolders).toContain(TEST_FOLDER_ID_2);
 
       // Both QDs should have been deleted
-      expect(deleteRequests.some((req) => req.includes(`qd-folder-${TEST_FOLDER_ID_1}`))).toBe(true);
-      expect(deleteRequests.some((req) => req.includes(`qd-folder-${TEST_FOLDER_ID_2}`))).toBe(true);
+      expect(
+        deleteRequests.some((req) =>
+          req.includes(`qd-folder-${TEST_FOLDER_ID_1}`),
+        ),
+      ).toBe(true);
+      expect(
+        deleteRequests.some((req) =>
+          req.includes(`qd-folder-${TEST_FOLDER_ID_2}`),
+        ),
+      ).toBe(true);
     });
   });
 
-  describe('handleSweep error handling', () => {
-    it('should continue on individual deletion failure', async () => {
+  describe("handleSweep error handling", () => {
+    it("should continue on individual deletion failure", async () => {
       // Seed tenant_settings and credentials
       await sqlClient`
         INSERT INTO tenant_settings (tenant_id, mid, qpp_folder_id)
         VALUES (${TEST_TENANT_ID_1}::uuid, ${TEST_MID_1}, ${TEST_FOLDER_ID_1})
       `;
-      await insertCredentials(TEST_TENANT_ID_1, TEST_USER_ID_1, TEST_MID_1, 'enc-access', 'enc-refresh');
+      await insertCredentials(
+        TEST_TENANT_ID_1,
+        TEST_USER_ID_1,
+        TEST_MID_1,
+        "enc-access",
+        "enc-refresh",
+      );
 
       const deleteAttempts: string[] = [];
       const oldCreatedDate = new Date(Date.now() - 25 * 60 * 60 * 1000);
@@ -490,19 +536,19 @@ describe('ShellQuerySweeper (integration)', () => {
             const folderId = extractFolderIdFromRequest(body);
             const requestType = detectRequestType(body);
 
-            if (requestType === 'Retrieve') {
+            if (requestType === "Retrieve") {
               if (folderId === TEST_FOLDER_ID_1) {
                 return HttpResponse.xml(
                   buildRetrieveResponse([
                     {
-                      objectId: 'qd-fail',
-                      customerKey: 'QPP_Query_fail',
+                      objectId: "qd-fail",
+                      customerKey: "QPP_Query_fail",
                       createdDate: oldCreatedDate,
                       categoryId: TEST_FOLDER_ID_1,
                     },
                     {
-                      objectId: 'qd-success',
-                      customerKey: 'QPP_Query_success',
+                      objectId: "qd-success",
+                      customerKey: "QPP_Query_success",
                       createdDate: oldCreatedDate,
                       categoryId: TEST_FOLDER_ID_1,
                     },
@@ -512,13 +558,13 @@ describe('ShellQuerySweeper (integration)', () => {
               return HttpResponse.xml(buildEmptyRetrieveResponse());
             }
 
-            if (requestType === 'Delete') {
+            if (requestType === "Delete") {
               deleteAttempts.push(body);
               // First delete for our folder fails, second succeeds
-              if (body.includes('qd-fail')) {
-                return HttpResponse.xml(buildDeleteResponse('Error'));
+              if (body.includes("qd-fail")) {
+                return HttpResponse.xml(buildDeleteResponse("Error"));
               }
-              return HttpResponse.xml(buildDeleteResponse('OK'));
+              return HttpResponse.xml(buildDeleteResponse("OK"));
             }
 
             return HttpResponse.xml(buildEmptyRetrieveResponse());
@@ -530,13 +576,15 @@ describe('ShellQuerySweeper (integration)', () => {
       await expect(sweeper.handleSweep()).resolves.not.toThrow();
 
       // Both deletes should have been attempted for our folder
-      const failAttempt = deleteAttempts.some((req) => req.includes('qd-fail'));
-      const successAttempt = deleteAttempts.some((req) => req.includes('qd-success'));
+      const failAttempt = deleteAttempts.some((req) => req.includes("qd-fail"));
+      const successAttempt = deleteAttempts.some((req) =>
+        req.includes("qd-success"),
+      );
       expect(failAttempt).toBe(true);
       expect(successAttempt).toBe(true);
     });
 
-    it('should skip tenant without valid credentials', async () => {
+    it("should skip tenant without valid credentials", async () => {
       // Seed tenant_settings with qppFolderId but NO credentials
       await sqlClient`
         INSERT INTO tenant_settings (tenant_id, mid, qpp_folder_id)
@@ -566,7 +614,7 @@ describe('ShellQuerySweeper (integration)', () => {
       expect(ourFolderCalled).toBe(false);
     });
 
-    it('should continue to next tenant when Retrieve fails for one tenant', async () => {
+    it("should continue to next tenant when Retrieve fails for one tenant", async () => {
       // Seed both tenants
       await sqlClient`
         INSERT INTO tenant_settings (tenant_id, mid, qpp_folder_id)
@@ -574,8 +622,20 @@ describe('ShellQuerySweeper (integration)', () => {
           (${TEST_TENANT_ID_1}::uuid, ${TEST_MID_1}, ${TEST_FOLDER_ID_1}),
           (${TEST_TENANT_ID_2}::uuid, ${TEST_MID_2}, ${TEST_FOLDER_ID_2})
       `;
-      await insertCredentials(TEST_TENANT_ID_1, TEST_USER_ID_1, TEST_MID_1, 'enc-access-1', 'enc-refresh-1');
-      await insertCredentials(TEST_TENANT_ID_2, TEST_USER_ID_2, TEST_MID_2, 'enc-access-2', 'enc-refresh-2');
+      await insertCredentials(
+        TEST_TENANT_ID_1,
+        TEST_USER_ID_1,
+        TEST_MID_1,
+        "enc-access-1",
+        "enc-refresh-1",
+      );
+      await insertCredentials(
+        TEST_TENANT_ID_2,
+        TEST_USER_ID_2,
+        TEST_MID_2,
+        "enc-access-2",
+        "enc-refresh-2",
+      );
 
       const retrievedFolders: number[] = [];
       const deleteRequests: string[] = [];
@@ -589,12 +649,15 @@ describe('ShellQuerySweeper (integration)', () => {
             const folderId = extractFolderIdFromRequest(body);
             const requestType = detectRequestType(body);
 
-            if (requestType === 'Retrieve') {
+            if (requestType === "Retrieve") {
               if (folderId === TEST_FOLDER_ID_1) {
                 retrievedFolders.push(folderId);
                 // First tenant Retrieve fails
                 return HttpResponse.xml(
-                  buildSoapFaultResponse('soap:Server', 'Internal server error'),
+                  buildSoapFaultResponse(
+                    "soap:Server",
+                    "Internal server error",
+                  ),
                 );
               }
               if (folderId === TEST_FOLDER_ID_2) {
@@ -603,8 +666,8 @@ describe('ShellQuerySweeper (integration)', () => {
                 return HttpResponse.xml(
                   buildRetrieveResponse([
                     {
-                      objectId: 'qd-tenant2',
-                      customerKey: 'QPP_Query_tenant2',
+                      objectId: "qd-tenant2",
+                      customerKey: "QPP_Query_tenant2",
                       createdDate: oldCreatedDate,
                       categoryId: TEST_FOLDER_ID_2,
                     },
@@ -614,7 +677,7 @@ describe('ShellQuerySweeper (integration)', () => {
               return HttpResponse.xml(buildEmptyRetrieveResponse());
             }
 
-            if (requestType === 'Delete') {
+            if (requestType === "Delete") {
               deleteRequests.push(body);
               return HttpResponse.xml(buildDeleteResponse());
             }
@@ -632,29 +695,43 @@ describe('ShellQuerySweeper (integration)', () => {
       expect(retrievedFolders).toContain(TEST_FOLDER_ID_2);
 
       // Second tenant's QD should have been deleted
-      expect(deleteRequests.some((req) => req.includes('qd-tenant2'))).toBe(true);
+      expect(deleteRequests.some((req) => req.includes("qd-tenant2"))).toBe(
+        true,
+      );
     });
 
-    it('should skip tenants without qppFolderId', async () => {
+    it("should skip tenants without qppFolderId", async () => {
       // Seed tenant_settings WITHOUT qppFolderId
       await sqlClient`
         INSERT INTO tenant_settings (tenant_id, mid, qpp_folder_id)
         VALUES (${TEST_TENANT_ID_1}::uuid, ${TEST_MID_1}, NULL)
       `;
-      await insertCredentials(TEST_TENANT_ID_1, TEST_USER_ID_1, TEST_MID_1, 'enc-access', 'enc-refresh');
+      await insertCredentials(
+        TEST_TENANT_ID_1,
+        TEST_USER_ID_1,
+        TEST_MID_1,
+        "enc-access",
+        "enc-refresh",
+      );
 
       // With NULL qppFolderId, the tenant is NOT selected by the query,
       // so no SOAP calls happen for it. The sweep should complete without error.
       await expect(sweeper.handleSweep()).resolves.not.toThrow();
     });
 
-    it('should handle empty QueryDefinition list gracefully', async () => {
+    it("should handle empty QueryDefinition list gracefully", async () => {
       // Seed tenant_settings and credentials
       await sqlClient`
         INSERT INTO tenant_settings (tenant_id, mid, qpp_folder_id)
         VALUES (${TEST_TENANT_ID_1}::uuid, ${TEST_MID_1}, ${TEST_FOLDER_ID_1})
       `;
-      await insertCredentials(TEST_TENANT_ID_1, TEST_USER_ID_1, TEST_MID_1, 'enc-access', 'enc-refresh');
+      await insertCredentials(
+        TEST_TENANT_ID_1,
+        TEST_USER_ID_1,
+        TEST_MID_1,
+        "enc-access",
+        "enc-refresh",
+      );
 
       let ourFolderRetrieved = false;
 
@@ -666,7 +743,7 @@ describe('ShellQuerySweeper (integration)', () => {
             const folderId = extractFolderIdFromRequest(body);
             const requestType = detectRequestType(body);
 
-            if (requestType === 'Retrieve') {
+            if (requestType === "Retrieve") {
               if (folderId === TEST_FOLDER_ID_1) {
                 ourFolderRetrieved = true;
                 // Return empty list for our folder
@@ -675,7 +752,7 @@ describe('ShellQuerySweeper (integration)', () => {
               return HttpResponse.xml(buildEmptyRetrieveResponse());
             }
 
-            if (requestType === 'Delete') {
+            if (requestType === "Delete") {
               return HttpResponse.xml(buildDeleteResponse());
             }
 

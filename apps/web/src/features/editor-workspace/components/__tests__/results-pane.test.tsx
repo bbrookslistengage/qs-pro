@@ -259,4 +259,336 @@ describe("ResultsPane UI Component Tests", () => {
       }
     });
   });
+
+  describe("Data grid display", () => {
+    it("renders column headers from result columns", () => {
+      const result = createMockResult({
+        status: "success",
+        executionStatus: "ready",
+        columns: ["ID", "Name", "Email"],
+        rows: [{ ID: 1, Name: "John", Email: "john@test.com" }],
+        totalRows: 1,
+      });
+
+      render(<ResultsPane result={result} />);
+
+      expect(
+        screen.getByRole("columnheader", { name: "ID" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("columnheader", { name: "Name" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("columnheader", { name: "Email" }),
+      ).toBeInTheDocument();
+    });
+
+    it("renders row data matching column order", () => {
+      const result = createMockResult({
+        status: "success",
+        executionStatus: "ready",
+        columns: ["ID", "Name"],
+        rows: [
+          { ID: 1, Name: "Alice" },
+          { ID: 2, Name: "Bob" },
+        ],
+        totalRows: 2,
+      });
+
+      render(<ResultsPane result={result} />);
+
+      expect(screen.getByRole("cell", { name: "1" })).toBeInTheDocument();
+      expect(screen.getByRole("cell", { name: "Alice" })).toBeInTheDocument();
+      expect(screen.getByRole("cell", { name: "2" })).toBeInTheDocument();
+      expect(screen.getByRole("cell", { name: "Bob" })).toBeInTheDocument();
+    });
+
+    it("shows empty state message when idle", () => {
+      const result = createMockResult({
+        status: "idle",
+        executionStatus: "idle",
+        columns: [],
+        rows: [],
+      });
+
+      render(<ResultsPane result={result} />);
+
+      // Text appears in both status bar and empty table cell
+      const messages = screen.getAllByText("Run a query to see results.");
+      expect(messages).toHaveLength(2);
+    });
+
+    it("shows no data message when query returns empty results", () => {
+      const result = createMockResult({
+        status: "success",
+        executionStatus: "ready",
+        columns: ["ID", "Name"],
+        rows: [],
+        totalRows: 0,
+      });
+
+      render(<ResultsPane result={result} />);
+
+      expect(
+        screen.getByText("No data returned for this query."),
+      ).toBeInTheDocument();
+    });
+
+    it("falls back to Results header when columns array is empty", () => {
+      const result = createMockResult({
+        status: "idle",
+        executionStatus: "idle",
+        columns: [],
+        rows: [],
+      });
+
+      render(<ResultsPane result={result} />);
+
+      expect(
+        screen.getByRole("columnheader", { name: "Results" }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe("Pagination controls", () => {
+    it("displays correct row range for current page", () => {
+      const result = createMockResult({
+        status: "success",
+        executionStatus: "ready",
+        columns: ["ID"],
+        rows: [{ ID: 1 }],
+        totalRows: 150,
+        currentPage: 1,
+        pageSize: 50,
+      });
+
+      render(<ResultsPane result={result} />);
+
+      expect(screen.getByText(/Showing 1 - 50/i)).toBeInTheDocument();
+    });
+
+    it("displays correct range for middle page", () => {
+      const result = createMockResult({
+        status: "success",
+        executionStatus: "ready",
+        columns: ["ID"],
+        rows: [{ ID: 51 }],
+        totalRows: 150,
+        currentPage: 2,
+        pageSize: 50,
+      });
+
+      render(<ResultsPane result={result} />);
+
+      expect(screen.getByText(/Showing 51 - 100/i)).toBeInTheDocument();
+    });
+
+    it("displays correct range for last partial page", () => {
+      const result = createMockResult({
+        status: "success",
+        executionStatus: "ready",
+        columns: ["ID"],
+        rows: [{ ID: 101 }],
+        totalRows: 125,
+        currentPage: 3,
+        pageSize: 50,
+      });
+
+      render(<ResultsPane result={result} />);
+
+      expect(screen.getByText(/Showing 101 - 125/i)).toBeInTheDocument();
+    });
+
+    it("calls onPageChange with page number when page button clicked", () => {
+      const onPageChange = vi.fn();
+      const result = createMockResult({
+        status: "success",
+        executionStatus: "ready",
+        columns: ["ID"],
+        rows: [{ ID: 1 }],
+        totalRows: 150,
+        currentPage: 1,
+        pageSize: 50,
+      });
+
+      render(<ResultsPane result={result} onPageChange={onPageChange} />);
+
+      const page2Button = screen.getByRole("button", { name: "2" });
+      fireEvent.click(page2Button);
+
+      expect(onPageChange).toHaveBeenCalledWith(2);
+    });
+
+    it("highlights current page button", () => {
+      const result = createMockResult({
+        status: "success",
+        executionStatus: "ready",
+        columns: ["ID"],
+        rows: [{ ID: 51 }],
+        totalRows: 150,
+        currentPage: 2,
+        pageSize: 50,
+      });
+
+      render(<ResultsPane result={result} />);
+
+      const page2Button = screen.getByRole("button", { name: "2" });
+      expect(page2Button).toHaveClass("bg-primary");
+    });
+
+    it("disables previous buttons on first page", () => {
+      const result = createMockResult({
+        status: "success",
+        executionStatus: "ready",
+        columns: ["ID"],
+        rows: [{ ID: 1 }],
+        totalRows: 150,
+        currentPage: 1,
+        pageSize: 50,
+      });
+
+      render(<ResultsPane result={result} />);
+
+      // The pagination container has 4 navigation buttons and page number buttons
+      const allButtons = screen.getAllByRole("button");
+      const paginationButtons = allButtons.filter(
+        (btn) => btn.closest(".flex.items-center.gap-1") !== null,
+      );
+
+      // First two pagination buttons (first page, previous page) should be disabled
+      expect(paginationButtons[0]).toBeDisabled();
+      expect(paginationButtons[1]).toBeDisabled();
+    });
+
+    it("disables next buttons on last page", () => {
+      const result = createMockResult({
+        status: "success",
+        executionStatus: "ready",
+        columns: ["ID"],
+        rows: [{ ID: 101 }],
+        totalRows: 150,
+        currentPage: 3,
+        pageSize: 50,
+      });
+
+      render(<ResultsPane result={result} />);
+
+      const allButtons = screen.getAllByRole("button");
+      const paginationButtons = allButtons.filter(
+        (btn) => btn.closest(".flex.items-center.gap-1") !== null,
+      );
+
+      // Last two pagination buttons should be disabled - use at() for safe array access
+      const lastButton = paginationButtons.at(-1);
+      const secondLastButton = paginationButtons.at(-2);
+      expect(lastButton).toBeDefined();
+      expect(secondLastButton).toBeDefined();
+      expect(lastButton).toBeDisabled();
+      expect(secondLastButton).toBeDisabled();
+    });
+
+    it("shows ellipsis when more than 5 pages", () => {
+      const result = createMockResult({
+        status: "success",
+        executionStatus: "ready",
+        columns: ["ID"],
+        rows: [{ ID: 1 }],
+        totalRows: 500,
+        currentPage: 1,
+        pageSize: 50,
+      });
+
+      render(<ResultsPane result={result} />);
+
+      expect(screen.getByText("...")).toBeInTheDocument();
+    });
+
+    it("shows 0 - 0 range when no results", () => {
+      const result = createMockResult({
+        status: "success",
+        executionStatus: "ready",
+        columns: ["ID"],
+        rows: [],
+        totalRows: 0,
+        currentPage: 1,
+        pageSize: 50,
+      });
+
+      render(<ResultsPane result={result} />);
+
+      expect(screen.getByText(/Showing 0 - 0/i)).toBeInTheDocument();
+    });
+  });
+
+  describe("View in Contact Builder button", () => {
+    it("is enabled when results have rows", () => {
+      const onViewInContactBuilder = vi.fn();
+      const result = createMockResult({
+        status: "success",
+        executionStatus: "ready",
+        columns: ["ID"],
+        rows: [{ ID: 1 }],
+        totalRows: 1,
+      });
+
+      render(
+        <ResultsPane
+          result={result}
+          onViewInContactBuilder={onViewInContactBuilder}
+        />,
+      );
+
+      const button = screen.getByRole("button", {
+        name: /View in Contact Builder/i,
+      });
+      expect(button).not.toBeDisabled();
+    });
+
+    it("is disabled when results have no rows", () => {
+      const onViewInContactBuilder = vi.fn();
+      const result = createMockResult({
+        status: "success",
+        executionStatus: "ready",
+        columns: ["ID"],
+        rows: [],
+        totalRows: 0,
+      });
+
+      render(
+        <ResultsPane
+          result={result}
+          onViewInContactBuilder={onViewInContactBuilder}
+        />,
+      );
+
+      const button = screen.getByRole("button", {
+        name: /View in Contact Builder/i,
+      });
+      expect(button).toBeDisabled();
+    });
+
+    it("calls onViewInContactBuilder when clicked", () => {
+      const onViewInContactBuilder = vi.fn();
+      const result = createMockResult({
+        status: "success",
+        executionStatus: "ready",
+        columns: ["ID"],
+        rows: [{ ID: 1 }],
+        totalRows: 1,
+      });
+
+      render(
+        <ResultsPane
+          result={result}
+          onViewInContactBuilder={onViewInContactBuilder}
+        />,
+      );
+
+      fireEvent.click(
+        screen.getByRole("button", { name: /View in Contact Builder/i }),
+      );
+
+      expect(onViewInContactBuilder).toHaveBeenCalledTimes(1);
+    });
+  });
 });

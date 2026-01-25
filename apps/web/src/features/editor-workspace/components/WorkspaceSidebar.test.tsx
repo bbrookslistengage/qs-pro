@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import type { ReactNode } from "react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WorkspaceSidebar } from "@/features/editor-workspace/components/WorkspaceSidebar";
 import {
@@ -255,5 +255,204 @@ describe("WorkspaceSidebar", () => {
     expect(
       screen.queryByRole("option", { name: /filter users/i }),
     ).not.toBeInTheDocument();
+  });
+
+  describe("Selection callbacks", () => {
+    it("calls onSelectDE when data extension is clicked", async () => {
+      const user = userEvent.setup();
+      const onSelectDE = vi.fn();
+
+      server.use(
+        http.get("/api/metadata/fields", () => {
+          return HttpResponse.json([]);
+        }),
+      );
+
+      const folders: Folder[] = [
+        {
+          id: "root",
+          name: "Root Folder",
+          parentId: null,
+          type: "data-extension",
+        },
+      ];
+      const dataExtensions: DataExtension[] = [
+        {
+          id: "de-1",
+          name: "Customers",
+          customerKey: "DE_Customers",
+          folderId: "root",
+          description: "",
+          fields: [],
+        },
+      ];
+
+      const queryClient = createQueryClient();
+      render(
+        <WorkspaceSidebar
+          tenantId="tenant-1"
+          folders={folders}
+          savedQueries={[]}
+          dataExtensions={dataExtensions}
+          isCollapsed={false}
+          onToggle={() => undefined}
+          onSelectDE={onSelectDE}
+        />,
+        { wrapper: createWrapper(queryClient) },
+      );
+
+      // Expand root folder
+      await user.click(screen.getByRole("button", { name: /root folder/i }));
+
+      // Click on data extension
+      await user.click(screen.getByRole("button", { name: /customers/i }));
+
+      expect(onSelectDE).toHaveBeenCalledWith("de-1");
+    });
+
+    it("calls onSelectQuery when query is clicked in queries tab", async () => {
+      const user = userEvent.setup();
+      const onSelectQuery = vi.fn();
+
+      const folders: Folder[] = [
+        {
+          id: "lib-folder",
+          name: "Sales",
+          parentId: null,
+          type: "library",
+        },
+      ];
+      const queries: SavedQuery[] = [
+        {
+          id: "q1",
+          name: "Customer Report",
+          folderId: "lib-folder",
+          content: "SELECT * FROM [Customers]",
+          updatedAt: "2024-01-01",
+        },
+      ];
+
+      const queryClient = createQueryClient();
+      render(
+        <WorkspaceSidebar
+          tenantId="tenant-1"
+          folders={folders}
+          savedQueries={queries}
+          dataExtensions={[]}
+          isCollapsed={false}
+          onToggle={() => undefined}
+          onSelectQuery={onSelectQuery}
+        />,
+        { wrapper: createWrapper(queryClient) },
+      );
+
+      // Switch to queries tab
+      await user.click(screen.getByRole("button", { name: /^Queries$/i }));
+
+      // Click on query
+      await user.click(
+        screen.getByRole("button", { name: /customer report/i }),
+      );
+
+      expect(onSelectQuery).toHaveBeenCalledWith("q1");
+    });
+  });
+
+  describe("Collapsed state", () => {
+    it("renders collapsed sidebar without search input", () => {
+      const queryClient = createQueryClient();
+      render(
+        <WorkspaceSidebar
+          tenantId="tenant-1"
+          folders={[]}
+          savedQueries={[]}
+          dataExtensions={[]}
+          isCollapsed={true}
+          onToggle={() => undefined}
+        />,
+        { wrapper: createWrapper(queryClient) },
+      );
+
+      // Collapsed sidebar should not show search input
+      expect(screen.queryByPlaceholderText(/search/i)).not.toBeInTheDocument();
+    });
+
+    it("calls onToggle when expand button clicked in collapsed state", async () => {
+      const user = userEvent.setup();
+      const onToggle = vi.fn();
+
+      const queryClient = createQueryClient();
+      render(
+        <WorkspaceSidebar
+          tenantId="tenant-1"
+          folders={[]}
+          savedQueries={[]}
+          dataExtensions={[]}
+          isCollapsed={true}
+          onToggle={onToggle}
+        />,
+        { wrapper: createWrapper(queryClient) },
+      );
+
+      // Find and click the expand button (first button in collapsed sidebar)
+      const buttons = screen.getAllByRole("button");
+      await user.click(buttons[0]);
+
+      expect(onToggle).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("Keyboard navigation", () => {
+    it("navigates search results with arrow keys and Enter", async () => {
+      const user = userEvent.setup();
+      const onSelectDE = vi.fn();
+
+      const folders: Folder[] = [
+        { id: "1", name: "Folder A", parentId: null, type: "data-extension" },
+      ];
+      const dataExtensions: DataExtension[] = [
+        {
+          id: "de1",
+          name: "Alpha",
+          customerKey: "K1",
+          folderId: "1",
+          description: "",
+          fields: [],
+        },
+        {
+          id: "de2",
+          name: "Beta",
+          customerKey: "K2",
+          folderId: "1",
+          description: "",
+          fields: [],
+        },
+      ];
+
+      const queryClient = createQueryClient();
+      render(
+        <WorkspaceSidebar
+          tenantId="tenant-1"
+          folders={folders}
+          savedQueries={[]}
+          dataExtensions={dataExtensions}
+          isCollapsed={false}
+          onToggle={() => undefined}
+          onSelectDE={onSelectDE}
+        />,
+        { wrapper: createWrapper(queryClient) },
+      );
+
+      const searchInput = screen.getByPlaceholderText(/search/i);
+      await user.type(searchInput, "a");
+
+      // Arrow down to first result
+      await user.keyboard("{ArrowDown}");
+
+      // Enter to select
+      await user.keyboard("{Enter}");
+
+      expect(onSelectDE).toHaveBeenCalledWith("de1");
+    });
   });
 });

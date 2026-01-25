@@ -8,6 +8,8 @@ import { EncryptionService } from "./encryption.service";
 // Valid 64-char hex key (256 bits for AES-256)
 const VALID_KEY =
   "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const VALID_KEY_2 =
+  "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
 
 describe("EncryptionService", () => {
   let service: EncryptionService;
@@ -80,6 +82,48 @@ describe("EncryptionService", () => {
         });
       }
     });
+
+    it("uses the first key in ENCRYPTION_KEYS for encryption", () => {
+      // Arrange: configure rotated keys (new first, old second)
+      vi.mocked(configService.get).mockImplementation((key: string) => {
+        if (key === "ENCRYPTION_KEYS") {
+          return `${VALID_KEY_2},${VALID_KEY}`;
+        }
+        if (key === "ENCRYPTION_KEY") {
+          return undefined;
+        }
+        return undefined;
+      });
+
+      const plaintext = "primary-key-encryption";
+      const ciphertext = service.encrypt(plaintext) as string;
+
+      // Assert: ciphertext is NOT decryptable with only the old key
+      vi.mocked(configService.get).mockImplementation((key: string) => {
+        if (key === "ENCRYPTION_KEYS") {
+          return VALID_KEY;
+        }
+        if (key === "ENCRYPTION_KEY") {
+          return undefined;
+        }
+        return undefined;
+      });
+
+      expect(() => service.decrypt(ciphertext)).toThrow();
+
+      // Assert: ciphertext IS decryptable with the primary (new) key
+      vi.mocked(configService.get).mockImplementation((key: string) => {
+        if (key === "ENCRYPTION_KEYS") {
+          return VALID_KEY_2;
+        }
+        if (key === "ENCRYPTION_KEY") {
+          return undefined;
+        }
+        return undefined;
+      });
+
+      expect(service.decrypt(ciphertext)).toBe(plaintext);
+    });
   });
 
   describe("decrypt", () => {
@@ -132,6 +176,38 @@ describe("EncryptionService", () => {
         // eslint-disable-next-line vitest/no-conditional-expect -- verifying error properties after catching
         expect((error as AppError).code).toBe(ErrorCode.CONFIG_ERROR);
       }
+    });
+
+    it("supports key rotation by trying multiple keys on decrypt", () => {
+      // Arrange: encrypt using the old key
+      vi.mocked(configService.get).mockImplementation((key: string) => {
+        if (key === "ENCRYPTION_KEYS") {
+          return undefined;
+        }
+        if (key === "ENCRYPTION_KEY") {
+          return VALID_KEY;
+        }
+        return undefined;
+      });
+
+      const plaintext = "rotate-me";
+      const ciphertext = service.encrypt(plaintext) as string;
+
+      // Act: decrypt with rotated keys, primary first (new,old)
+      vi.mocked(configService.get).mockImplementation((key: string) => {
+        if (key === "ENCRYPTION_KEYS") {
+          return `${VALID_KEY_2},${VALID_KEY}`;
+        }
+        if (key === "ENCRYPTION_KEY") {
+          return undefined;
+        }
+        return undefined;
+      });
+
+      const decrypted = service.decrypt(ciphertext);
+
+      // Assert
+      expect(decrypted).toBe(plaintext);
     });
   });
 });

@@ -199,12 +199,20 @@ describe("MceBridgeService retry logic (integration)", () => {
       );
 
       // Execute the request - should throw without retry
-      await expect(
-        mceBridgeService.request(TEST_TENANT_ID, TEST_USER_ID, TEST_MID, {
+      const promise = mceBridgeService.request(
+        TEST_TENANT_ID,
+        TEST_USER_ID,
+        TEST_MID,
+        {
           method: "GET",
           url: "/data/v1/async/status",
-        }),
-      ).rejects.toThrow(AppError);
+        },
+      );
+
+      await expect(promise).rejects.toThrow(AppError);
+      await expect(promise).rejects.toMatchObject({
+        code: ErrorCode.MCE_BAD_REQUEST,
+      });
 
       // Verify NO retry happened
       expect(restCallCount).toBe(1);
@@ -233,12 +241,20 @@ describe("MceBridgeService retry logic (integration)", () => {
       );
 
       // Execute the request - should throw without retry
-      await expect(
-        mceBridgeService.request(TEST_TENANT_ID, TEST_USER_ID, TEST_MID, {
+      const promise = mceBridgeService.request(
+        TEST_TENANT_ID,
+        TEST_USER_ID,
+        TEST_MID,
+        {
           method: "GET",
           url: "/data/v1/async/status",
-        }),
-      ).rejects.toThrow(AppError);
+        },
+      );
+
+      await expect(promise).rejects.toThrow(AppError);
+      await expect(promise).rejects.toMatchObject({
+        code: ErrorCode.MCE_SERVER_ERROR,
+      });
 
       // Verify NO retry happened
       expect(restCallCount).toBe(1);

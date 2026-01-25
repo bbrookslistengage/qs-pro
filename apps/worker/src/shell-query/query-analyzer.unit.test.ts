@@ -105,8 +105,34 @@ describe("Query Analyzer", () => {
       const result = await expandSelectStar(sql, mockMetadataFn);
 
       // Assert
-      expect(result).toContain("CustomerID");
+      expect(result).toMatch(/\[?c\]?\.\[?CustomerID\]?/);
       expect(result).toContain("FirstName");
+      expect(result).not.toContain("*");
+    });
+
+    it("fails when multiple tables and unqualified * is used", async () => {
+      const sql =
+        "SELECT * FROM Customers c INNER JOIN Orders o ON c.ID = o.CustomerID";
+
+      await expect(expandSelectStar(sql, mockMetadataFn)).rejects.toThrow(
+        AppError,
+      );
+      await expect(expandSelectStar(sql, mockMetadataFn)).rejects.toMatchObject(
+        {
+          code: ErrorCode.SELECT_STAR_EXPANSION_FAILED,
+        },
+      );
+    });
+
+    it("expands SELECT * FROM ENT._Sent using hardcoded Data View schema", async () => {
+      const sql = "SELECT * FROM ENT._Sent";
+
+      const result = await expandSelectStar(sql, mockMetadataFn);
+
+      expect(result).toContain("AccountID");
+      expect(result).toContain("JobID");
+      expect(result).toContain("SubscriberKey");
+      expect(result).toContain("EventDate");
       expect(result).not.toContain("*");
     });
 
@@ -302,6 +328,14 @@ describe("Query Analyzer", () => {
       expect(result).toContain("Customers");
       expect(result).toContain("Orders");
     });
+
+    it("extracts table names from subqueries", () => {
+      const result = extractTableNames(
+        "SELECT * FROM (SELECT * FROM Customers) c INNER JOIN Orders o ON c.ID = o.CustomerID",
+      );
+      expect(result).toContain("Customers");
+      expect(result).toContain("Orders");
+    });
   });
 
   describe("buildTableAliasMap", () => {
@@ -316,6 +350,11 @@ describe("Query Analyzer", () => {
       );
       expect(result.get("c")).toBe("Customers");
       expect(result.get("o")).toBe("Orders");
+    });
+
+    it("maps table name to itself (case-insensitive)", () => {
+      const result = buildTableAliasMap("SELECT * FROM Customers");
+      expect(result.get("customers")).toBe("Customers");
     });
   });
 });

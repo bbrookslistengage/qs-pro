@@ -138,6 +138,60 @@ describe("MetadataService", () => {
         ]),
       );
     });
+
+    it("stops pagination after 50 pages", async () => {
+      // Arrange
+      mockCache.get.mockResolvedValue(null);
+      let page = 0;
+
+      mockBridge.soapRequest.mockImplementation(async () => {
+        page += 1;
+        return {
+          Body: {
+            RetrieveResponseMsg: {
+              OverallStatus: "MoreDataAvailable",
+              RequestID: `req-${page}`,
+              Results: [{ ID: String(page), Name: `Folder${page}` }],
+            },
+          },
+        };
+      });
+
+      // Act
+      const result = await service.getFolders("t1", "u1", "mid1", undefined);
+
+      // Assert - observable behavior: returns data from first 50 pages only
+      expect(result).toHaveLength(50);
+      expect(page).toBe(50);
+    });
+
+    it("deduplicates folders by ID across local and shared results", async () => {
+      // Arrange
+      mockCache.get.mockResolvedValue(null);
+      mockBridge.soapRequest
+        .mockResolvedValueOnce({
+          Body: {
+            RetrieveResponseMsg: {
+              OverallStatus: "OK",
+              Results: [{ ID: "1", Name: "LocalFolder" }],
+            },
+          },
+        })
+        .mockResolvedValueOnce({
+          Body: {
+            RetrieveResponseMsg: {
+              OverallStatus: "OK",
+              Results: [{ ID: "1", Name: "SharedFolder" }],
+            },
+          },
+        });
+
+      // Act
+      const result = await service.getFolders("t1", "u1", "mid1", "eid1");
+
+      // Assert - observable behavior: only one folder with ID=1 returned
+      expect(result).toEqual([{ ID: "1", Name: "LocalFolder" }]);
+    });
   });
 
   describe("getDataExtensions", () => {

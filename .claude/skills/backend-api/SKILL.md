@@ -7,6 +7,8 @@ description: Design and implement RESTful API endpoints following REST principle
 
 - When creating new API endpoints or routes
 - When modifying existing HTTP route handlers
+- When deciding between `AppError` and `HttpException` for errors
+- When implementing error responses (use RFC 9457 Problem Details format)
 - When working with RESTful resource design and URL structures
 - When implementing pagination, filtering, sorting, or search query parameters
 - When setting up or modifying API versioning strategies
@@ -15,11 +17,10 @@ description: Design and implement RESTful API endpoints following REST principle
 - When editing files in routes/, controllers/, api/, or endpoints/ directories
 - When working with files like routes.ts, router.ts, controller.ts, or handler.ts
 - When designing nested resource URLs or parent-child relationships in APIs
-- When standardizing HTTP method usage across the application
 
 # Backend API
 
-This Skill provides Claude Code with specific guidance on how to adhere to coding standards as they relate to how it should handle backend API.
+This skill provides guidance on RESTful API design and error response formats.
 
 ## Instructions
 

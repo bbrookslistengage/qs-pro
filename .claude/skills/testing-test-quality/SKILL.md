@@ -12,6 +12,10 @@ description: This skill should be used when writing tests, creating test files, 
 - Deciding what/how to mock
 - Evaluating test quality during audits
 - Working with `.test.ts`, `.spec.ts`, `__tests__/`, `tests/`, or `spec/` files
+- Testing `AppError` scenarios (assert on `ErrorCode`, not just message)
+- Testing error policies (`isTerminal()`, `isUnrecoverable()`)
+- Verifying RFC 9457 error response format in integration tests
+- Testing error propagation through layers
 
 # Test Quality Standards
 
@@ -188,3 +192,4 @@ expect(result).toBe(expected);
 
 For detailed audit categories, priority levels, and mock counting rules, consult:
 - **`references/audit-guide.md`** — Issue codes, severity levels, priority assignment algorithm
+- **[test-writing.md](../../../agent-os/standards/testing/test-writing.md)** — Error testing patterns (`AppError`, `ErrorCode`, RFC 9457)

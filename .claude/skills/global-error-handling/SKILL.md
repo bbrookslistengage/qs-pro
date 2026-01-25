@@ -5,24 +5,20 @@ description: Implement robust error handling with user-friendly messages, specif
 
 ## When to use this skill
 
-- When adding try-catch blocks or error handling logic
-- When creating custom error classes or exception types
-- When handling API errors and HTTP error responses
-- When writing user-friendly error messages
-- When implementing fail-fast validation with clear error messages
-- When designing centralized error handling at API boundaries
+- When throwing errors in backend code (use `AppError` with `ErrorCode`)
+- When wrapping unknown errors (use `toAppError()`)
+- When deciding if an error should be retried (use `isTerminal()`, `isUnrecoverable()`)
+- When adding context to errors for debugging
+- When creating validation errors with violations
+- When editing service files, repository files, or worker processors
+- When implementing error handling in async/await or Promise chains
 - When implementing graceful degradation for non-critical failures
 - When adding retry logic with exponential backoff
 - When cleaning up resources in finally blocks
-- When handling errors in async/await or Promise chains
-- When implementing error boundaries in React applications
-- When logging errors for debugging and monitoring
-- When deciding what error details to expose to users vs. hide
-- When editing controller files, service files, or API handlers
 
 # Global Error Handling
 
-This Skill provides Claude Code with specific guidance on how to adhere to coding standards as they relate to how it should handle global error handling.
+This skill provides guidance on the project's centralized error handling architecture.
 
 ## Instructions
 

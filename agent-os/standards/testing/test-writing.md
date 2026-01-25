@@ -112,3 +112,83 @@ describe('MyService', () => {
 | Unit test | `*.unit.test.ts` | `auth.service.unit.test.ts` |
 | Integration test | `*.integration.test.ts` | `shell-query-producer.integration.test.ts` |
 | E2E test | `*.e2e.test.ts` | `auth.e2e.test.ts` |
+
+## Testing Error Scenarios
+
+### Testing AppError
+
+Test domain errors by asserting on `ErrorCode`, not just HTTP status:
+
+```typescript
+import { AppError, ErrorCode } from '@qpp/backend-shared';
+
+it('throws SEAT_LIMIT_EXCEEDED when tenant is full', async () => {
+  mockDb.setSelectResult([{ count: 10 }]); // At limit
+
+  await expect(service.createUser(dto)).rejects.toThrow(AppError);
+  await expect(service.createUser(dto)).rejects.toMatchObject({
+    code: ErrorCode.SEAT_LIMIT_EXCEEDED,
+  });
+});
+
+// ❌ BAD: Only checking message (brittle)
+await expect(service.createUser(dto)).rejects.toThrow('limit');
+
+// ✅ GOOD: Check error code
+await expect(service.createUser(dto)).rejects.toMatchObject({
+  code: ErrorCode.SEAT_LIMIT_EXCEEDED,
+});
+```
+
+### Testing Error Policies
+
+Test retry behavior using `isTerminal` and `isUnrecoverable`:
+
+```typescript
+import { AppError, ErrorCode, isTerminal, isUnrecoverable } from '@qpp/backend-shared';
+
+it('treats validation errors as terminal', () => {
+  const error = new AppError(ErrorCode.MCE_VALIDATION_FAILED);
+  expect(isTerminal(error)).toBe(true);
+});
+
+it('treats auth errors as unrecoverable', () => {
+  const error = new AppError(ErrorCode.MCE_AUTH_EXPIRED);
+  expect(isUnrecoverable(error)).toBe(true);
+});
+```
+
+### Testing RFC 9457 Responses (Integration)
+
+Verify error responses match Problem Details format:
+
+```typescript
+it('returns RFC 9457 format for validation errors', async () => {
+  const response = await request(app)
+    .post('/api/queries/execute')
+    .send({ sql: 'DELETE FROM Users' })
+    .expect(400);
+
+  expect(response.body).toMatchObject({
+    type: 'urn:qpp:error:mce-validation-failed',
+    title: 'Query Validation Failed',
+    status: 400,
+    violations: expect.arrayContaining(['DELETE statement not allowed']),
+  });
+  expect(response.headers['content-type']).toContain('application/problem+json');
+});
+```
+
+### Testing Error Propagation
+
+Verify errors flow correctly through layers:
+
+```typescript
+it('propagates DatabaseError from repository', async () => {
+  mockDb.setSelectError(new Error('connection lost'));
+
+  await expect(service.findUser('123')).rejects.toMatchObject({
+    code: ErrorCode.DATABASE_ERROR,
+  });
+});
+```

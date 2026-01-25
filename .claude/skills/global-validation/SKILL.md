@@ -6,22 +6,20 @@ description: Implement comprehensive input validation with server-side security,
 ## When to use this skill
 
 - When validating user input from forms or API requests
+- When creating validation error messages (use `ValidationViolations` constants)
+- When throwing validation errors (use `AppError` with `MCE_VALIDATION_FAILED`)
 - When implementing server-side validation for security
 - When adding client-side validation for immediate user feedback
-- When writing validation schemas with Zod, Yup, Joi, or similar libraries
+- When writing validation schemas with Zod or class-validator
 - When sanitizing input to prevent SQL injection, XSS, or command injection
 - When validating data types, formats, ranges, and required fields
-- When implementing business rule validation (e.g., sufficient balance, valid dates)
-- When providing clear, field-specific error messages to users
-- When using allowlists instead of blocklists for validation
-- When validating at system boundaries (user input, external APIs)
+- When implementing SQL query validation (prohibited statements)
 - When editing form handlers, API endpoint handlers, or input processing code
 - When implementing consistent validation across web forms, APIs, and background jobs
-- When deciding where validation should occur in the application architecture
 
 # Global Validation
 
-This Skill provides Claude Code with specific guidance on how to adhere to coding standards as they relate to how it should handle global validation.
+This skill provides guidance on validation patterns and pre-approved error messages.
 
 ## Instructions
 

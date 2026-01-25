@@ -654,10 +654,10 @@ describe('Query Execution Flow (e2e)', () => {
     );
 
     // Wait for worker to be ready
-    await new Promise((resolve) => {
-      workerInstance?.on('ready', resolve);
+    await new Promise<void>((resolve) => {
+      workerInstance?.on('ready', () => resolve());
       // Fallback timeout if 'ready' event doesn't fire
-      setTimeout(resolve, 1000);
+      setTimeout(() => resolve(), 1000);
     });
 
     // Helper function to publish SSE events

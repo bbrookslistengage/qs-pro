@@ -171,6 +171,41 @@ describe('Auth Remaining Gaps (integration)', () => {
       rls: true,
     });
 
+    // Test-only routes to read and seed session state (for legacy edge cases).
+    // Must be registered before Fastify is ready.
+    const fastify = app.getHttpAdapter().getInstance();
+    type SecureSession = {
+      get(key: string): unknown;
+      set(key: string, value: unknown): void;
+      delete(): void;
+    };
+    type RequestWithSession = { session?: SecureSession; query?: unknown };
+
+    fastify.get('/__test/session', (req: unknown, reply: unknown) => {
+      const request = req as RequestWithSession;
+      const response = reply as { send: (body: unknown) => void };
+
+      response.send({
+        userId: request.session?.get('userId'),
+        tenantId: request.session?.get('tenantId'),
+        mid: request.session?.get('mid'),
+        csrfToken: request.session?.get('csrfToken'),
+      });
+    });
+
+    fastify.get('/__test/session/set', (req: unknown, reply: unknown) => {
+      const request = req as RequestWithSession;
+      const response = reply as { send: (body: unknown) => void };
+
+      const query = (request.query ?? {}) as Record<string, unknown>;
+
+      request.session?.set('userId', query.userId);
+      request.session?.set('tenantId', query.tenantId);
+      request.session?.set('mid', query.mid);
+
+      response.send({ ok: true });
+    });
+
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
 
@@ -408,35 +443,27 @@ describe('Auth Remaining Gaps (integration)', () => {
     });
 
     it('should clear legacy session missing MID and redirect to OAuth', async () => {
-      // This is tricky to test because we need to create a partial session.
-      // The approach: login, manually verify MID exists, then observe behavior.
-      // Since we can't directly manipulate session, we test the controller logic indirectly.
-
-      const uniqueEid = `legacy-session-eid-${Date.now()}`;
-      const uniqueSfUserId = `legacy-session-user-${Date.now()}`;
-      const uniqueMid = `legacy-session-mid-${Date.now()}`;
-
-      createdTenantEids.push(uniqueEid);
-      createdUserSfIds.push(uniqueSfUserId);
-
-      const jwt = await createValidJwt({
-        user_id: uniqueSfUserId,
-        enterprise_id: uniqueEid,
-        member_id: uniqueMid,
-      });
-
       const testAgent = superagent(app.getHttpServer());
 
-      // Create a valid session
-      await testAgent.post('/auth/login').send({ jwt }).expect(302);
+      // Seed a legacy/partial session: userId + tenantId exist, but mid is missing.
+      await testAgent
+        .get('/__test/session/set')
+        .query({ userId: 'legacy-user', tenantId: 'legacy-tenant' })
+        .expect(200);
 
-      // Verify session is valid
-      const meResponse = await testAgent.get('/auth/me').expect(200);
-      expect(meResponse.body.user.sfUserId).toBe(uniqueSfUserId);
+      const before = await testAgent.get('/__test/session').expect(200);
+      expect(before.body.userId).toBe('legacy-user');
+      expect(before.body.tenantId).toBe('legacy-tenant');
+      expect(before.body.mid).toBeUndefined();
 
-      // The test verifies existing logic: valid session with MID works.
-      // The legacy session (missing MID) would redirect to OAuth, but we can't
-      // easily create that state. The controller code handles it in lines 179-186.
+      // A legacy/partial session should be cleared so we don't loop on /auth/me.
+      const loginResponse = await testAgent.get('/auth/login').expect(302);
+      expect(loginResponse.headers.location).toContain('/v2/authorize');
+
+      const after = await testAgent.get('/__test/session').expect(200);
+      expect(after.body.userId).toBeUndefined();
+      expect(after.body.tenantId).toBeUndefined();
+      expect(after.body.mid).toBeUndefined();
     });
 
     it('should bypass TSSD requirement when MCE embed (sec-fetch-dest: iframe)', async () => {
@@ -513,9 +540,14 @@ describe('Auth Remaining Gaps (integration)', () => {
         .query({ tssd: TEST_TSSD })
         .expect(302);
 
-      const state = new URL(loginResponse.headers.location).searchParams.get(
-        'state',
-      );
+      const redirectUrl = loginResponse.headers.location;
+      if (!redirectUrl) {
+        throw new Error('OAuth login redirect missing location header');
+      }
+      const state = new URL(redirectUrl).searchParams.get('state');
+      if (!state) {
+        throw new Error('OAuth login redirect missing state param');
+      }
 
       await testAgent
         .get('/auth/callback')
@@ -576,6 +608,31 @@ describe('Auth Remaining Gaps (integration)', () => {
 
       expect(meResponse.body.reason).toBe('reauth_required');
     });
+
+    it('should delete session and return 401 when user or tenant not found', async () => {
+      // Seed a session with IDs that will not exist in the database.
+      await testAgent
+        .get('/__test/session/set')
+        .query({
+          userId: 'non-existent-user',
+          tenantId: 'non-existent-tenant',
+          mid: 'non-existent-mid',
+        })
+        .expect(200);
+
+      const before = await testAgent.get('/__test/session').expect(200);
+      expect(before.body.userId).toBe('non-existent-user');
+      expect(before.body.tenantId).toBe('non-existent-tenant');
+      expect(before.body.mid).toBe('non-existent-mid');
+
+      const meResponse = await testAgent.get('/auth/me').expect(401);
+      expect(meResponse.body.type).toBe('urn:qpp:error:http-401');
+
+      const after = await testAgent.get('/__test/session').expect(200);
+      expect(after.body.userId).toBeUndefined();
+      expect(after.body.tenantId).toBeUndefined();
+      expect(after.body.mid).toBeUndefined();
+    });
   });
 
   describe('GET /auth/refresh', () => {
@@ -609,9 +666,14 @@ describe('Auth Remaining Gaps (integration)', () => {
         .query({ tssd: TEST_TSSD })
         .expect(302);
 
-      const state = new URL(loginResponse.headers.location).searchParams.get(
-        'state',
-      );
+      const redirectUrl = loginResponse.headers.location;
+      if (!redirectUrl) {
+        throw new Error('OAuth login redirect missing location header');
+      }
+      const state = new URL(redirectUrl).searchParams.get('state');
+      if (!state) {
+        throw new Error('OAuth login redirect missing state param');
+      }
 
       await testAgent
         .get('/auth/callback')
@@ -660,9 +722,14 @@ describe('Auth Remaining Gaps (integration)', () => {
         .query({ tssd: TEST_TSSD })
         .expect(302);
 
-      const state = new URL(loginResponse.headers.location).searchParams.get(
-        'state',
-      );
+      const redirectUrl = loginResponse.headers.location;
+      if (!redirectUrl) {
+        throw new Error('OAuth login redirect missing location header');
+      }
+      const state = new URL(redirectUrl).searchParams.get('state');
+      if (!state) {
+        throw new Error('OAuth login redirect missing state param');
+      }
 
       await testAgent
         .get('/auth/callback')
@@ -813,6 +880,9 @@ describe('Auth Remaining Gaps (integration)', () => {
           subscriptionTier: 'free',
         })
         .returning();
+      if (!tenant) {
+        throw new Error('Expected tenant insert to return row');
+      }
 
       // Call refreshToken with non-existent user - should throw
       await expect(

@@ -387,6 +387,119 @@ describe('AuthService (integration)', () => {
       expect(dbCreds?.refreshToken).toBeDefined();
     });
 
+    it('should fall back to embedded auth_code when token exchange fails with invalid_token', async () => {
+      const uniqueEid = `embedded-code-eid-${Date.now()}`;
+      const uniqueSfUserId = `embedded-code-user-${Date.now()}`;
+      const uniqueMid = `embedded-code-mid-${Date.now()}`;
+
+      createdTenantEids.push(uniqueEid);
+      createdUserSfIds.push(uniqueSfUserId);
+
+      const fallbackAuthCode = 'fallback-auth-code';
+      const embeddedPayload = Buffer.from(
+        JSON.stringify({ auth_code: fallbackAuthCode, eid: uniqueEid }),
+        'utf8',
+      ).toString('base64url');
+      const embeddedCode = `header.${embeddedPayload}.signature`;
+
+      // MCE returns identity, but in some environments the initial code is embedded and must be retried.
+      server.use(
+        http.get(
+          `https://${TEST_TSSD}.auth.marketingcloudapis.com/v2/userinfo`,
+          () => {
+            return HttpResponse.json({
+              sub: uniqueSfUserId,
+              enterprise_id: uniqueEid,
+              member_id: uniqueMid,
+            });
+          },
+        ),
+      );
+
+      const seenCodes: string[] = [];
+
+      server.use(
+        http.post(
+          `https://${TEST_TSSD}.auth.marketingcloudapis.com/v2/token`,
+          async ({ request }) => {
+            const bodyText = await request.text();
+            const params = new URLSearchParams(bodyText);
+            const code = params.get('code');
+            if (code) {
+              seenCodes.push(code);
+            }
+
+            if (code === embeddedCode) {
+              return HttpResponse.json(
+                { error: 'invalid_token' },
+                { status: 401 },
+              );
+            }
+
+            if (code === fallbackAuthCode) {
+              return HttpResponse.json({
+                access_token: 'embedded-test-access-token',
+                refresh_token: 'embedded-test-refresh-token',
+                expires_in: 3600,
+                rest_instance_url: 'https://test-rest.com',
+                soap_instance_url: `https://${TEST_TSSD}.soap.marketingcloudapis.com`,
+                scope: 'read write',
+                token_type: 'Bearer',
+              });
+            }
+
+            return HttpResponse.json(
+              { error: 'unexpected_code', received: code },
+              { status: 400 },
+            );
+          },
+        ),
+      );
+
+      const result = await authService.handleCallback(TEST_TSSD, embeddedCode);
+
+      expect(result.user.sfUserId).toBe(uniqueSfUserId);
+      expect(result.tenant.eid).toBe(uniqueEid);
+      expect(result.mid).toBe(uniqueMid);
+      expect(seenCodes).toEqual([embeddedCode, fallbackAuthCode]);
+    });
+
+    it('should derive identity from alternate userinfo response shapes', async () => {
+      const uniqueEid = `nested-userinfo-eid-${Date.now()}`;
+      const uniqueSfUserId = `nested-userinfo-user-${Date.now()}`;
+      const uniqueMid = `nested-userinfo-mid-${Date.now()}`;
+
+      createdTenantEids.push(uniqueEid);
+      createdUserSfIds.push(uniqueSfUserId);
+
+      server.use(
+        http.get(
+          `https://${TEST_TSSD}.auth.marketingcloudapis.com/v2/userinfo`,
+          () => {
+            return HttpResponse.json({
+              user: {
+                sub: uniqueSfUserId,
+                member_id: uniqueMid,
+                email: 'nested@example.com',
+                full_name: 'Nested User',
+              },
+              organization: {
+                enterprise_id: uniqueEid,
+              },
+            });
+          },
+        ),
+      );
+
+      const result = await authService.handleCallback(TEST_TSSD, 'nested-code');
+
+      expect(result.user.sfUserId).toBe(uniqueSfUserId);
+      expect(result.user.email).toBe('nested@example.com');
+      expect(result.user.name).toBe('Nested User');
+      expect(result.tenant.eid).toBe(uniqueEid);
+      expect(result.mid).toBe(uniqueMid);
+    });
+
     it('should detect identity mismatch when sfUserId differs', async () => {
       const uniqueEid = `mismatch-eid-${Date.now()}`;
       const uniqueSfUserId = `mismatch-user-${Date.now()}`;

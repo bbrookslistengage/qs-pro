@@ -3,7 +3,6 @@
  *
  * Tests remaining behaviors not covered elsewhere:
  * - POST /runs body validation (400 responses)
- * - snippetName max length validation
  * - tableMetadata constraint validation
  * - getResults error states with detailed messages
  *
@@ -142,9 +141,9 @@ describe('Shell Query Remaining API Gaps (integration)', () => {
       expect(res.statusCode).not.toBe(400);
     });
 
-    it('returns 400 when snippetName exceeds 100 characters', async () => {
+    it('returns 400 when snippetName exceeds 1000 characters', async () => {
       // Arrange
-      const longSnippetName = 'a'.repeat(101);
+      const longSnippetName = 'a'.repeat(1001);
 
       // Act
       const res = await app.inject({
@@ -161,9 +160,9 @@ describe('Shell Query Remaining API Gaps (integration)', () => {
       expect(res.json().type).toBe('urn:qpp:error:http-400');
     });
 
-    it('accepts snippetName at exactly 100 characters', async () => {
+    it('accepts snippetName at exactly 1000 characters', async () => {
       // Arrange
-      const maxSnippetName = 'a'.repeat(100);
+      const maxSnippetName = 'a'.repeat(1000);
 
       // Act
       const res = await app.inject({
@@ -437,6 +436,21 @@ describe('Shell Query Remaining API Gaps (integration)', () => {
       expect(res.statusCode).toBe(201);
       expect(res.json().runId).toBe('new-run-id');
       expect(res.json().status).toBe('queued');
+    });
+
+    it('returns 500 when tenant is not found', async () => {
+      mockTenantRepo.findById.mockResolvedValueOnce(null);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/runs',
+        payload: {
+          sqlText: 'SELECT 1',
+        },
+      });
+
+      expect(res.statusCode).toBe(500);
+      expect(res.json().type).toBe('urn:qpp:error:http-500');
     });
 
     it('passes validated data to service', async () => {

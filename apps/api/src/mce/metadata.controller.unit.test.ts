@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { MetadataService } from '@qpp/backend-shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -147,6 +148,18 @@ describe('MetadataController', () => {
 
       // Assert
       expect(result).toEqual([]);
+    });
+
+    it('throws 400 when key is missing or empty', async () => {
+      const user = { userId: 'u1', tenantId: 't1', mid: 'mid1' };
+
+      await expect(controller.getFields(user, '' as never)).rejects.toThrow(
+        BadRequestException,
+      );
+
+      await expect(
+        controller.getFields(user, undefined as unknown as string),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

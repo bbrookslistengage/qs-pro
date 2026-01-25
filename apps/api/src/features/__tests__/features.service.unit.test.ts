@@ -217,4 +217,21 @@ describe('FeaturesService', () => {
       deployToAutomation: true,
     });
   });
+
+  it('throws INTERNAL_ERROR when tenant subscriptionTier is missing', async () => {
+    const tenantId = 'tenant-missing-tier';
+
+    vi.mocked(tenantRepo.findById).mockResolvedValue({
+      id: tenantId,
+      eid: 'eid-missing-tier',
+      tssd: 'test-tssd',
+      subscriptionTier: '' as never,
+      seatLimit: null,
+      installedAt: new Date(),
+    });
+
+    await expect(service.getTenantFeatures(tenantId)).rejects.toMatchObject({
+      code: 'INTERNAL_ERROR',
+    });
+  });
 });

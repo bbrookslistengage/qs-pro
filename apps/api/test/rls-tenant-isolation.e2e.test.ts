@@ -499,8 +499,12 @@ describe('RLS Tenant Isolation (e2e)', () => {
         await reserved`SELECT * FROM shell_query_runs WHERE id = ${runIdG}::uuid`;
 
       expect(result.length).toBe(1);
-      expect(result[0].id).toBe(runIdG);
-      expect(result[0].tenant_id).toBe(tenantGId);
+      const [row] = result;
+      if (!row) {
+        throw new Error('Expected query to return one shell_query_run');
+      }
+      expect(row.id).toBe(runIdG);
+      expect(row.tenant_id).toBe(tenantGId);
     } finally {
       await reserved`RESET app.tenant_id`;
       await reserved`RESET app.mid`;

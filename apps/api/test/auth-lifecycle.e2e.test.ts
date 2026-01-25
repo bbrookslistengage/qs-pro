@@ -128,9 +128,14 @@ describe('Auth Lifecycle (e2e)', () => {
         .expect(302);
 
       const redirectUrl = loginResponse.headers.location;
+      if (!redirectUrl) {
+        throw new Error('OAuth login redirect missing location header');
+      }
       expect(redirectUrl).toContain('authorize');
       const state = new URL(redirectUrl).searchParams.get('state');
-      expect(state).toBeDefined();
+      if (!state) {
+        throw new Error('OAuth login redirect missing state param');
+      }
 
       // Step 2: OAuth callback (MSW handles token exchange)
       const callbackResponse = await testAgent
@@ -175,8 +180,13 @@ describe('Auth Lifecycle (e2e)', () => {
         .expect(302);
 
       const redirectUrl = loginResponse.headers.location;
+      if (!redirectUrl) {
+        throw new Error('OAuth login redirect missing location header');
+      }
       const state = new URL(redirectUrl).searchParams.get('state');
-      expect(state).toBeDefined();
+      if (!state) {
+        throw new Error('OAuth login redirect missing state param');
+      }
 
       // Step 2: Override MSW to return DIFFERENT user from userinfo
       // The callback provides sf_user_id='attacker-user-id'
@@ -209,9 +219,14 @@ describe('Auth Lifecycle (e2e)', () => {
         .query({ tssd: TEST_TSSD })
         .expect(302);
 
-      const state = new URL(loginResponse.headers.location).searchParams.get(
-        'state',
-      );
+      const redirectUrl = loginResponse.headers.location;
+      if (!redirectUrl) {
+        throw new Error('OAuth login redirect missing location header');
+      }
+      const state = new URL(redirectUrl).searchParams.get('state');
+      if (!state) {
+        throw new Error('OAuth login redirect missing state param');
+      }
 
       const callbackResponse = await testAgent
         .get('/auth/callback')
@@ -237,9 +252,14 @@ describe('Auth Lifecycle (e2e)', () => {
         .query({ tssd: TEST_TSSD })
         .expect(302);
 
-      const state = new URL(loginResponse.headers.location).searchParams.get(
-        'state',
-      );
+      const redirectUrl = loginResponse.headers.location;
+      if (!redirectUrl) {
+        throw new Error('OAuth login redirect missing location header');
+      }
+      const state = new URL(redirectUrl).searchParams.get('state');
+      if (!state) {
+        throw new Error('OAuth login redirect missing state param');
+      }
 
       const callbackResponse = await testAgent
         .get('/auth/callback')
@@ -268,9 +288,14 @@ describe('Auth Lifecycle (e2e)', () => {
         .query({ tssd: TEST_TSSD })
         .expect(302);
 
-      const state = new URL(loginResponse.headers.location).searchParams.get(
-        'state',
-      );
+      const redirectUrl = loginResponse.headers.location;
+      if (!redirectUrl) {
+        throw new Error('OAuth login redirect missing location header');
+      }
+      const state = new URL(redirectUrl).searchParams.get('state');
+      if (!state) {
+        throw new Error('OAuth login redirect missing state param');
+      }
 
       // Step 2: Override MSW to return 500 for token endpoint
       server.use(
@@ -313,9 +338,14 @@ describe('Auth Lifecycle (e2e)', () => {
         .query({ tssd: TEST_TSSD })
         .expect(302);
 
-      const state = new URL(loginResponse.headers.location).searchParams.get(
-        'state',
-      );
+      const redirectUrl = loginResponse.headers.location;
+      if (!redirectUrl) {
+        throw new Error('OAuth login redirect missing location header');
+      }
+      const state = new URL(redirectUrl).searchParams.get('state');
+      if (!state) {
+        throw new Error('OAuth login redirect missing state param');
+      }
 
       // Step 2: Override MSW - token succeeds, userinfo fails
       server.use(

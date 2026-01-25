@@ -142,6 +142,9 @@ describe('Features Remaining Gaps (integration)', () => {
           subscriptionTier: 'free',
         })
         .returning();
+      if (!tenant) {
+        throw new Error('Expected tenant insert to return row');
+      }
 
       // Insert invalid override with RLS context set
       // We need to set app.tenant_id in a transaction before the insert to satisfy RLS
@@ -180,6 +183,9 @@ describe('Features Remaining Gaps (integration)', () => {
           subscriptionTier: 'free',
         })
         .returning();
+      if (!tenant) {
+        throw new Error('Expected tenant insert to return row');
+      }
 
       // Insert valid override with RLS context set
       await client.begin(async (tx) => {

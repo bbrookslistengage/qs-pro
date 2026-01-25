@@ -72,11 +72,7 @@ export class AuthController {
 
   @Post('login')
   @Redirect()
-  async loginPost(
-    @Body() body: LoginPostBody,
-    @Req() req: SessionRequest,
-    @Res({ passthrough: true }) res: FastifyReply,
-  ) {
+  async loginPost(@Body() body: LoginPostBody, @Req() req: SessionRequest) {
     const jwt = this.extractJwt(body);
 
     if (!jwt) {
@@ -103,9 +99,7 @@ export class AuthController {
       const requestedJson = accept.includes('application/json');
 
       if (requestedJson) {
-        // Override redirect behavior for JSON responses
-        res.status(200).send({ ok: true });
-        return;
+        return { ok: true };
       }
 
       return { url: '/', statusCode: 302 };

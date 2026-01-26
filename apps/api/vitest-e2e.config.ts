@@ -8,7 +8,7 @@ export default defineConfig({
     root: './',
     environment: 'node',
     setupFiles: ['./test/vitest-e2e.setup.ts'],
-    hookTimeout: 30000, // 30s for beforeAll (app initialization)
+    hookTimeout: 60000, // 60s for beforeAll/afterAll (app init + cleanup)
     testTimeout: 30000, // 30s for individual tests
     server: {
       deps: {

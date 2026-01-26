@@ -146,7 +146,7 @@ describe('Auth Remaining Gaps (integration)', () => {
   }
 
   beforeAll(async () => {
-    server.listen({ onUnhandledRequest: 'bypass' });
+    server.listen({ onUnhandledRequest: 'warn' });
 
     process.env.MCE_TSSD = TEST_TSSD;
 

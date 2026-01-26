@@ -420,7 +420,7 @@ describe('Query Execution Flow (e2e)', () => {
   const createdTenantSettings: Array<{ tenantId: string; mid: string }> = [];
 
   beforeAll(async () => {
-    server.listen({ onUnhandledRequest: 'bypass' });
+    server.listen({ onUnhandledRequest: 'warn' });
 
     process.env.MCE_TSSD = 'test-tssd';
 

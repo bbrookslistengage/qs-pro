@@ -41,7 +41,7 @@ describe("RestDataService (integration)", () => {
   let service: RestDataService;
 
   beforeAll(async () => {
-    server.listen({ onUnhandledRequest: "bypass" });
+    server.listen({ onUnhandledRequest: "warn" });
 
     module = await Test.createTestingModule({
       providers: [

@@ -78,7 +78,7 @@ describe('Auth Lifecycle (e2e)', () => {
   let app: NestFastifyApplication;
 
   beforeAll(async () => {
-    server.listen({ onUnhandledRequest: 'bypass' });
+    server.listen({ onUnhandledRequest: 'warn' });
 
     process.env.MCE_TSSD = TEST_TSSD;
 

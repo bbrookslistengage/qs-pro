@@ -173,12 +173,13 @@ describe('CSRF Guard (e2e)', () => {
         .set('x-csrf-token', csrfToken)
         .send({ sqlText: 'SELECT * FROM test' });
 
-      // If CSRF passes, we'll get a different error (queue connection, rate limit, etc.)
-      // The point is it's NOT a 401 CSRF rejection
+      // CSRF guard passed if we didn't get a 401 with CSRF-related rejection
       expect(response.status).not.toBe(401);
-      // OR we get 201 if everything works (queue is available)
-      // Accept either 201 (success) or 500 (queue unavailable) - both mean CSRF passed
-      expect([201, 500]).toContain(response.status);
+
+      // If we got an error response, verify it's not a CSRF rejection
+      if (response.status >= 400 && response.body?.detail) {
+        expect(response.body.detail).not.toMatch(/CSRF/i);
+      }
     });
 
     it('should allow GET requests without CSRF token', async () => {

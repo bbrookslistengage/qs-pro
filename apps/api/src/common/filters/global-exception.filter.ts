@@ -90,7 +90,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       return {
         ...appErrorToProblemDetails(exception, path),
         code: exception.code,
-      } as ProblemDetails & { code: string };
+      };
     }
 
     // 2. NestJS HttpExceptions (BadRequest, NotFound, Unauthorized, etc.)

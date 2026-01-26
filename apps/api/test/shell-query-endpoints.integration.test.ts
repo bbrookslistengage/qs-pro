@@ -81,7 +81,7 @@ describe('Shell query endpoints (integration)', () => {
   const createdRunIds: string[] = [];
 
   beforeAll(async () => {
-    server.listen({ onUnhandledRequest: 'bypass' });
+    server.listen({ onUnhandledRequest: 'warn' });
 
     process.env.MCE_TSSD = TEST_TSSD;
 

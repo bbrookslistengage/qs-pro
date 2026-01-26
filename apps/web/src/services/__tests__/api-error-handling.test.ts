@@ -1,6 +1,6 @@
 import { http, HttpResponse } from "msw";
 import { toast } from "sonner";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAuthStore } from "@/store/auth-store";
 import { server } from "@/test/mocks/server";
@@ -27,6 +27,15 @@ describe("API client error handling", () => {
   });
 
   describe("401 Unauthorized - refresh flow", () => {
+    let retryMarkerInterceptorId: number | null = null;
+
+    afterEach(() => {
+      if (retryMarkerInterceptorId !== null) {
+        api.interceptors.request.eject(retryMarkerInterceptorId);
+        retryMarkerInterceptorId = null;
+      }
+    });
+
     it("attempts token refresh on 401 when user is authenticated", async () => {
       let refreshCalled = false;
       let retryCalled = false;
@@ -57,8 +66,8 @@ describe("API client error handling", () => {
         isAuthenticated: true,
       });
 
-      // Add retry marker to track the retried request
-      api.interceptors.request.use((config) => {
+      // Add retry marker to track the retried request (cleaned up in afterEach)
+      retryMarkerInterceptorId = api.interceptors.request.use((config) => {
         if ((config as { _retry?: boolean })._retry) {
           config.headers.set("x-retry-marker", "true");
         }

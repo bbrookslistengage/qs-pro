@@ -92,7 +92,7 @@ describe("DataFolderService (integration)", () => {
   let service: DataFolderService;
 
   beforeAll(async () => {
-    server.listen({ onUnhandledRequest: "bypass" });
+    server.listen({ onUnhandledRequest: "warn" });
 
     module = await Test.createTestingModule({
       providers: [

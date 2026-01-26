@@ -253,7 +253,7 @@ describe('Metadata Endpoints (integration)', () => {
   let csrfToken: string;
 
   beforeAll(async () => {
-    server.listen({ onUnhandledRequest: 'bypass' });
+    server.listen({ onUnhandledRequest: 'warn' });
 
     process.env.MCE_TSSD = TEST_TSSD;
 

@@ -13,6 +13,7 @@ export interface ProblemDetails {
   detail: string;
   instance: string;
   // Extension fields (typed, safe)
+  code?: string;
   violations?: string[];
   field?: string;
   retryAfter?: number;

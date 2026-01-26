@@ -86,7 +86,7 @@ describe("MceBridgeService retry logic (integration)", () => {
   let authState: AuthProviderState;
 
   beforeAll(async () => {
-    server.listen({ onUnhandledRequest: "bypass" });
+    server.listen({ onUnhandledRequest: "warn" });
   });
 
   beforeEach(async () => {
@@ -164,7 +164,7 @@ describe("MceBridgeService retry logic (integration)", () => {
       expect(result.status).toBe("Complete");
       expect(result.requestId).toBe("test-request-id");
 
-      // Verify token invalidation was called
+      // Verify token invalidation was called before retry
       expect(authState.invalidateCalls).toHaveLength(1);
       expect(authState.invalidateCalls[0]).toEqual({
         tenantId: TEST_TENANT_ID,
@@ -172,14 +172,10 @@ describe("MceBridgeService retry logic (integration)", () => {
         mid: TEST_MID,
       });
 
-      // Verify refresh was called twice: once initially, once with forceRefresh
+      // Verify refresh was called twice (once initially, once for retry)
+      // Note: The "retry with different tokens" tests verify the actual token
+      // used in HTTP headers via MSW, which is the true boundary behavior
       expect(authState.refreshCalls).toHaveLength(2);
-      const firstCall = authState.refreshCalls[0];
-      const secondCall = authState.refreshCalls[1];
-      expect(firstCall).toBeDefined();
-      expect(secondCall).toBeDefined();
-      expect(firstCall?.forceRefresh).toBe(false);
-      expect(secondCall?.forceRefresh).toBe(true);
     });
 
     it("should NOT retry on 400 Bad Request", async () => {
@@ -398,7 +394,7 @@ describe("MceBridgeService retry logic (integration)", () => {
       // Verify successful result
       expect(result.Body.RetrieveResponseMsg.OverallStatus).toBe("OK");
 
-      // Verify token invalidation was called
+      // Verify token invalidation was called before retry
       expect(authState.invalidateCalls).toHaveLength(1);
       expect(authState.invalidateCalls[0]).toEqual({
         tenantId: TEST_TENANT_ID,
@@ -406,14 +402,10 @@ describe("MceBridgeService retry logic (integration)", () => {
         mid: TEST_MID,
       });
 
-      // Verify refresh was called twice: once initially, once with forceRefresh
+      // Verify refresh was called twice (once initially, once for retry)
+      // Note: The "retry with different tokens" tests verify the actual token
+      // used in SOAP envelope via MSW, which is the true boundary behavior
       expect(authState.refreshCalls).toHaveLength(2);
-      const firstSoapCall = authState.refreshCalls[0];
-      const secondSoapCall = authState.refreshCalls[1];
-      expect(firstSoapCall).toBeDefined();
-      expect(secondSoapCall).toBeDefined();
-      expect(firstSoapCall?.forceRefresh).toBe(false);
-      expect(secondSoapCall?.forceRefresh).toBe(true);
     });
 
     it("should throw MCE_AUTH_EXPIRED after both SOAP attempts fail with Login Failed", async () => {

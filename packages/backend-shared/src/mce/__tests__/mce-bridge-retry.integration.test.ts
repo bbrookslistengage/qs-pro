@@ -1,8 +1,9 @@
 /**
  * MceBridgeService Retry Logic Integration Tests
  *
- * Tests the retry-after-token-invalidation logic for both REST and SOAP requests.
- * Uses MSW stateful handlers to simulate 401/Login Failed on first call, then succeed on retry.
+ * Tests both retry mechanisms:
+ * 1. Auth retry: 401/Login Failed triggers token refresh + immediate retry (internal logic)
+ * 2. Transient retry: 429/5xx triggers exponential backoff retry (withRetry wrapper)
  *
  * Test Strategy:
  * - Real NestJS module with actual MceBridgeService
@@ -11,13 +12,16 @@
  * - Behavioral assertions via call counts and return values
  *
  * Covered Behaviors:
- * - REST request retry after 401 Unauthorized
- * - SOAP request retry after "Login Failed" fault
+ * - REST request retry after 401 Unauthorized (auth retry)
+ * - SOAP request retry after "Login Failed" fault (auth retry)
+ * - 429 rate limit triggers transient retry (withRetry)
+ * - 5xx server errors trigger transient retry (withRetry)
  * - 400 errors do NOT trigger retry
- * - 500 errors do NOT trigger retry
- * - Token invalidation is called before retry
+ * - Timeout is forwarded to MceHttpClient
+ * - Token invalidation is called before auth retry
  */
 import { Test, TestingModule } from "@nestjs/testing";
+import axios from "axios";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import {
@@ -28,9 +32,11 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 
 import { AppError, ErrorCode } from "../../common/errors";
+import { MCE_TIMEOUTS } from "../http-timeout.config";
 import { MCE_AUTH_PROVIDER, MceAuthProvider } from "../mce-auth.provider";
 import { MceBridgeService } from "../mce-bridge.service";
 import { MceHttpClient } from "../mce-http-client";
@@ -220,7 +226,48 @@ describe("MceBridgeService retry logic (integration)", () => {
       expect(authState.refreshCalls).toHaveLength(1);
     });
 
-    it("should NOT retry on 500 Server Error", async () => {
+    it("should retry 5xx errors via withRetry and succeed on second attempt", async () => {
+      let restCallCount = 0;
+
+      server.use(
+        http.get(
+          `https://${TEST_TSSD}.rest.marketingcloudapis.com/data/v1/async/status`,
+          () => {
+            restCallCount++;
+            if (restCallCount === 1) {
+              return HttpResponse.json(
+                { message: "Internal Server Error" },
+                { status: 500 },
+              );
+            }
+            return HttpResponse.json({
+              status: "Complete",
+              requestId: "test-request-id",
+            });
+          },
+        ),
+      );
+
+      // Execute the request - withRetry should retry 5xx errors
+      const result = await mceBridgeService.request<{
+        status: string;
+        requestId: string;
+      }>(TEST_TENANT_ID, TEST_USER_ID, TEST_MID, {
+        method: "GET",
+        url: "/data/v1/async/status",
+      });
+
+      // Verify retry happened via withRetry (not auth retry)
+      expect(restCallCount).toBe(2);
+
+      // Verify successful result
+      expect(result.status).toBe("Complete");
+
+      // Verify NO auth invalidation was called (this is transient retry, not auth retry)
+      expect(authState.invalidateCalls).toHaveLength(0);
+    });
+
+    it("should fail after max retries exhausted on persistent 5xx errors", async () => {
       let restCallCount = 0;
 
       server.use(
@@ -236,7 +283,7 @@ describe("MceBridgeService retry logic (integration)", () => {
         ),
       );
 
-      // Execute the request - should throw without retry
+      // Execute the request - should exhaust retries then throw
       const promise = mceBridgeService.request(
         TEST_TENANT_ID,
         TEST_USER_ID,
@@ -252,10 +299,10 @@ describe("MceBridgeService retry logic (integration)", () => {
         code: ErrorCode.MCE_SERVER_ERROR,
       });
 
-      // Verify NO retry happened
-      expect(restCallCount).toBe(1);
+      // Verify retries happened (default maxRetries=3 means 4 total attempts)
+      expect(restCallCount).toBe(4);
 
-      // Verify NO invalidation was called
+      // Verify NO auth invalidation (transient retry, not auth retry)
       expect(authState.invalidateCalls).toHaveLength(0);
     });
 
@@ -330,6 +377,96 @@ describe("MceBridgeService retry logic (integration)", () => {
       // Verify NO retry
       expect(restCallCount).toBe(1);
       expect(authState.invalidateCalls).toHaveLength(0);
+    });
+
+    it("should retry 429 rate limit and succeed on second attempt", async () => {
+      let restCallCount = 0;
+
+      server.use(
+        http.get(
+          `https://${TEST_TSSD}.rest.marketingcloudapis.com/data/v1/async/status`,
+          () => {
+            restCallCount++;
+            if (restCallCount === 1) {
+              return HttpResponse.json(
+                { message: "Rate limited" },
+                { status: 429 },
+              );
+            }
+            return HttpResponse.json({
+              status: "Complete",
+              requestId: "test-request-id",
+            });
+          },
+        ),
+      );
+
+      const result = await mceBridgeService.request<{
+        status: string;
+        requestId: string;
+      }>(TEST_TENANT_ID, TEST_USER_ID, TEST_MID, {
+        method: "GET",
+        url: "/data/v1/async/status",
+      });
+
+      // Verify retry happened via withRetry
+      expect(restCallCount).toBe(2);
+
+      // Verify successful result
+      expect(result.status).toBe("Complete");
+
+      // Verify NO auth invalidation (rate limit is transient, not auth issue)
+      expect(authState.invalidateCalls).toHaveLength(0);
+    });
+  });
+
+  describe("timeout forwarding", () => {
+    it("should forward custom timeout to axios request", async () => {
+      let receivedTimeout: number | undefined;
+
+      // Spy on axios to capture the timeout
+      const axiosSpy = vi
+        .spyOn(axios, "request")
+        .mockImplementation(async (config) => {
+          receivedTimeout = config?.timeout;
+          return { data: { success: true } };
+        });
+
+      try {
+        await mceBridgeService.request(
+          TEST_TENANT_ID,
+          TEST_USER_ID,
+          TEST_MID,
+          { method: "GET", url: "/test" },
+          MCE_TIMEOUTS.DATA_RETRIEVAL,
+        );
+
+        expect(receivedTimeout).toBe(MCE_TIMEOUTS.DATA_RETRIEVAL);
+      } finally {
+        axiosSpy.mockRestore();
+      }
+    });
+
+    it("should use default timeout when not specified", async () => {
+      let receivedTimeout: number | undefined;
+
+      const axiosSpy = vi
+        .spyOn(axios, "request")
+        .mockImplementation(async (config) => {
+          receivedTimeout = config?.timeout;
+          return { data: { success: true } };
+        });
+
+      try {
+        await mceBridgeService.request(TEST_TENANT_ID, TEST_USER_ID, TEST_MID, {
+          method: "GET",
+          url: "/test",
+        });
+
+        expect(receivedTimeout).toBe(MCE_TIMEOUTS.DEFAULT);
+      } finally {
+        axiosSpy.mockRestore();
+      }
     });
   });
 

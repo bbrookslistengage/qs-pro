@@ -27,6 +27,8 @@ export const ErrorMessages: Record<ErrorCode, string> = {
     "Organization not found. Please contact support.",
   [ErrorCode.MCE_FORBIDDEN]:
     "Access denied. You don't have permission for this operation.",
+  [ErrorCode.MCE_RATE_LIMITED]:
+    "Marketing Cloud rate limit reached. Please wait and try again.",
   [ErrorCode.MCE_SERVER_ERROR]:
     "Marketing Cloud is temporarily unavailable. Please try again.",
 

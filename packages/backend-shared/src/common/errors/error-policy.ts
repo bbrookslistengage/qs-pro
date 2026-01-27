@@ -80,6 +80,27 @@ export function isUnrecoverable(error: unknown): boolean {
 }
 
 /**
+ * Retryable errors MAY succeed on retry (transient failures).
+ * Examples: rate limiting, server overload, network glitches.
+ *
+ * Design: Retry only specific transient codes.
+ * - MCE_RATE_LIMITED (429) → retry with Retry-After
+ * - MCE_SERVER_ERROR (5xx) → retry with backoff
+ * - All other codes → don't retry
+ */
+const RETRYABLE_CODES = new Set<ErrorCode>([
+  ErrorCode.MCE_RATE_LIMITED,
+  ErrorCode.MCE_SERVER_ERROR,
+]);
+
+export function isRetryable(error: unknown): boolean {
+  if (!(error instanceof AppError)) {
+    return false;
+  }
+  return RETRYABLE_CODES.has(error.code);
+}
+
+/**
  * Maps AppError codes to HTTP status codes.
  * Used by GlobalExceptionFilter for domain errors.
  */
@@ -102,6 +123,8 @@ export function getHttpStatus(code: ErrorCode): number {
       return 401;
     case ErrorCode.MCE_FORBIDDEN:
       return 403;
+    case ErrorCode.MCE_RATE_LIMITED:
+      return 429;
     case ErrorCode.MCE_SERVER_ERROR:
       return 502; // Bad Gateway - upstream server error
 
@@ -144,6 +167,7 @@ export function getErrorTitle(code: ErrorCode): string {
     [ErrorCode.MCE_CREDENTIALS_MISSING]: "MCE Credentials Missing",
     [ErrorCode.MCE_TENANT_NOT_FOUND]: "MCE Tenant Not Found",
     [ErrorCode.MCE_FORBIDDEN]: "MCE Access Denied",
+    [ErrorCode.MCE_RATE_LIMITED]: "MCE Rate Limited",
     [ErrorCode.MCE_SERVER_ERROR]: "MCE Server Error",
     [ErrorCode.MCE_SOAP_FAILURE]: "MCE SOAP Operation Failed",
     [ErrorCode.MCE_PAGINATION_EXCEEDED]: "Pagination Limit Exceeded",

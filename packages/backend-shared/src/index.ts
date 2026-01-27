@@ -7,6 +7,7 @@ export {
   ErrorMessages,
   getErrorTitle,
   getHttpStatus,
+  isRetryable,
   isTerminal,
   isUnrecoverable,
   type ProblemDetails,
@@ -19,6 +20,7 @@ export {
 export * from "./database/database.module";
 export * from "./database/db-context";
 export * from "./database/rls-context.service";
+export { MCE_TIMEOUTS, type MceOperationType } from "./mce/http-timeout.config";
 export * from "./mce/mce.module";
 export {
   MCE_AUTH_PROVIDER,

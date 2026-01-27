@@ -171,7 +171,7 @@ export interface IFlowStrategy {
 }
 
 export const POLL_CONFIG = {
-  INITIAL_DELAY_MS: 2000,
+  INITIAL_DELAY_MS: 30000,
   MAX_DELAY_MS: 30000,
   BACKOFF_MULTIPLIER: 2,
   JITTER_RANGE: 0.4,

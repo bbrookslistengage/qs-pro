@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { AppError, MceBridgeService, MCE_TIMEOUTS } from "@qpp/backend-shared";
+import { AppError, MCE_TIMEOUTS, MceBridgeService } from "@qpp/backend-shared";
 import * as crypto from "crypto";
 
 export interface ValidationResult {

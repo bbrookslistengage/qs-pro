@@ -8,6 +8,7 @@ export { ErrorMessages } from "./error-messages";
 export {
   getErrorTitle,
   getHttpStatus,
+  isRetryable,
   isTerminal,
   isUnrecoverable,
 } from "./error-policy";

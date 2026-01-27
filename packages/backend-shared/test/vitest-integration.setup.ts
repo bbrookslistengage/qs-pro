@@ -1,3 +1,6 @@
+import * as dotenv from "dotenv";
+import path from "path";
+
 /**
  * Vitest Integration Test Setup for backend-shared
  *
@@ -8,6 +11,9 @@
  * - CI env vars are NOT clobbered (CI sets DATABASE_URL explicitly)
  * - Local development has sensible defaults (localhost services via docker-compose)
  */
+
+// Load .env from monorepo root FIRST (before setIfMissing defaults)
+dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 
 /**
  * Sets an environment variable only if it's currently missing or empty.

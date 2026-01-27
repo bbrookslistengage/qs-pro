@@ -33,4 +33,36 @@ describe("selectClauseRule", () => {
 
     expect(diagnostics).toHaveLength(0);
   });
+
+  it("allows complex expressions with operators", () => {
+    const diagnostics = selectClauseRule.check(
+      createContext("SELECT [A] + [B] AS Total FROM [Table]"),
+    );
+
+    expect(diagnostics).toHaveLength(0);
+  });
+
+  it("allows nested function calls", () => {
+    const diagnostics = selectClauseRule.check(
+      createContext("SELECT UPPER(LEFT([Name], 1)) AS Initial FROM [Table]"),
+    );
+
+    expect(diagnostics).toHaveLength(0);
+  });
+
+  it("allows multiple aliased literals", () => {
+    const diagnostics = selectClauseRule.check(
+      createContext("SELECT 'hello' AS Greeting, 42 AS Answer"),
+    );
+
+    expect(diagnostics).toHaveLength(0);
+  });
+
+  it("allows aggregate functions with aliases", () => {
+    const diagnostics = selectClauseRule.check(
+      createContext("SELECT COUNT(*) AS Total FROM [Table]"),
+    );
+
+    expect(diagnostics).toHaveLength(0);
+  });
 });

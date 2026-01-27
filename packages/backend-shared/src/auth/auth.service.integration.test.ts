@@ -557,22 +557,20 @@ describe("AuthService Integration", () => {
       const uniqueMid = "auth-integ-mid-refresh-cached";
 
       // Create tenant
-      const [tenantRow] = await db
+      const [tenant] = await db
         .insert(tenants)
         .values({ eid: uniqueEid, tssd: AUTH_TEST_TSSD })
         .returning();
-      const tenant = assertDefined(tenantRow, "Tenant insert failed");
+      assertDefined(tenant, "Tenant insert failed");
       createdTenantIds.push(tenant.id);
 
-      // Create user
-      const [userRow] = await db
+      const [user] = await db
         .insert(users)
         .values({ sfUserId: uniqueSfUserId, tenantId: tenant.id })
         .returning();
-      const user = assertDefined(userRow, "User insert failed");
+      assertDefined(user, "User insert failed");
       createdUserIds.push(user.id);
 
-      // Encrypt tokens
       const encryptedAccessToken = encryptionService.encrypt(
         "cached-access-token",
       ) as string;
@@ -630,22 +628,20 @@ describe("AuthService Integration", () => {
       const uniqueMid = "auth-integ-mid-refresh-expired";
 
       // Create tenant
-      const [tenantRow] = await db
+      const [tenant] = await db
         .insert(tenants)
         .values({ eid: uniqueEid, tssd: AUTH_TEST_TSSD })
         .returning();
-      const tenant = assertDefined(tenantRow, "Tenant insert failed");
+      assertDefined(tenant, "Tenant insert failed");
       createdTenantIds.push(tenant.id);
 
-      // Create user
-      const [userRow] = await db
+      const [user] = await db
         .insert(users)
         .values({ sfUserId: uniqueSfUserId, tenantId: tenant.id })
         .returning();
-      const user = assertDefined(userRow, "User insert failed");
+      assertDefined(user, "User insert failed");
       createdUserIds.push(user.id);
 
-      // Encrypt tokens
       const encryptedAccessToken = encryptionService.encrypt(
         "old-access-token",
       ) as string;
@@ -725,22 +721,20 @@ describe("AuthService Integration", () => {
       const uniqueMid = "auth-integ-mid-refresh-fail";
 
       // Create tenant
-      const [tenantRow] = await db
+      const [tenant] = await db
         .insert(tenants)
         .values({ eid: uniqueEid, tssd: AUTH_TEST_TSSD })
         .returning();
-      const tenant = assertDefined(tenantRow, "Tenant insert failed");
+      assertDefined(tenant, "Tenant insert failed");
       createdTenantIds.push(tenant.id);
 
-      // Create user
-      const [userRow] = await db
+      const [user] = await db
         .insert(users)
         .values({ sfUserId: uniqueSfUserId, tenantId: tenant.id })
         .returning();
-      const user = assertDefined(userRow, "User insert failed");
+      assertDefined(user, "User insert failed");
       createdUserIds.push(user.id);
 
-      // Encrypt tokens
       const encryptedAccessToken = encryptionService.encrypt(
         "revoked-access-token",
       ) as string;
@@ -796,20 +790,18 @@ describe("AuthService Integration", () => {
       const uniqueSfUserId = "auth-integ-sf-no-creds";
       const uniqueMid = "auth-integ-mid-no-creds";
 
-      // Create tenant
-      const [tenantRow] = await db
+      const [tenant] = await db
         .insert(tenants)
         .values({ eid: uniqueEid, tssd: AUTH_TEST_TSSD })
         .returning();
-      const tenant = assertDefined(tenantRow, "Tenant insert failed");
+      assertDefined(tenant, "Tenant insert failed");
       createdTenantIds.push(tenant.id);
 
-      // Create user
-      const [userRow] = await db
+      const [user] = await db
         .insert(users)
         .values({ sfUserId: uniqueSfUserId, tenantId: tenant.id })
         .returning();
-      const user = assertDefined(userRow, "User insert failed");
+      assertDefined(user, "User insert failed");
       createdUserIds.push(user.id);
 
       // Call refreshToken within RLS context without any credentials
@@ -830,23 +822,20 @@ describe("AuthService Integration", () => {
       const uniqueSfUserId = "auth-integ-sf-invalidate";
       const uniqueMid = "auth-integ-mid-invalidate";
 
-      // Create tenant
-      const [tenantRow] = await db
+      const [tenant] = await db
         .insert(tenants)
         .values({ eid: uniqueEid, tssd: AUTH_TEST_TSSD })
         .returning();
-      const tenant = assertDefined(tenantRow, "Tenant insert failed");
+      assertDefined(tenant, "Tenant insert failed");
       createdTenantIds.push(tenant.id);
 
-      // Create user
-      const [userRow] = await db
+      const [user] = await db
         .insert(users)
         .values({ sfUserId: uniqueSfUserId, tenantId: tenant.id })
         .returning();
-      const user = assertDefined(userRow, "User insert failed");
+      assertDefined(user, "User insert failed");
       createdUserIds.push(user.id);
 
-      // Encrypt tokens
       const encryptedAccessToken = encryptionService.encrypt(
         "to-invalidate-access-token",
       ) as string;
@@ -914,20 +903,18 @@ describe("AuthService Integration", () => {
       const uniqueSfUserId = "auth-integ-sf-invalidate-none";
       const uniqueMid = "auth-integ-mid-invalidate-none";
 
-      // Create tenant
-      const [tenantRow] = await db
+      const [tenant] = await db
         .insert(tenants)
         .values({ eid: uniqueEid, tssd: AUTH_TEST_TSSD })
         .returning();
-      const tenant = assertDefined(tenantRow, "Tenant insert failed");
+      assertDefined(tenant, "Tenant insert failed");
       createdTenantIds.push(tenant.id);
 
-      // Create user
-      const [userRow] = await db
+      const [user] = await db
         .insert(users)
         .values({ sfUserId: uniqueSfUserId, tenantId: tenant.id })
         .returning();
-      const user = assertDefined(userRow, "User insert failed");
+      assertDefined(user, "User insert failed");
       createdUserIds.push(user.id);
 
       // Call invalidateToken within RLS context - should not throw

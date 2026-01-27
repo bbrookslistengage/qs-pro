@@ -15,6 +15,7 @@ import {
   isTerminal,
   isUnrecoverable,
   MceBridgeService,
+  MCE_TIMEOUTS,
   RestDataService,
   RlsContextService,
   type RowsetResponse,
@@ -58,7 +59,10 @@ interface RowProbeResult {
 
 const LAST_EVENT_TTL_SECONDS = 86400;
 
-@Processor("shell-query", { concurrency: 50, lockDuration: 120000 })
+@Processor("shell-query", {
+  concurrency: parseInt(process.env.WORKER_CONCURRENCY ?? '50', 10),
+  lockDuration: 120000,
+})
 export class ShellQueryProcessor extends WorkerHost {
   private readonly logger = new Logger(ShellQueryProcessor.name);
   private testMode = process.env.NODE_ENV === "test";
@@ -219,6 +223,23 @@ export class ShellQueryProcessor extends WorkerHost {
       const cleanupMessage =
         cleanupError instanceof Error ? cleanupError.message : "Unknown error";
       this.logger.warn(`Cleanup failed for run ${runId}: ${cleanupMessage}`);
+    }
+
+    // Strip sensitive payload data (same as onCompleted)
+    try {
+      const strippedData = { ...job.data };
+      if ("sqlText" in strippedData) {
+        strippedData.sqlText = "[stripped]";
+      }
+      if ("tableMetadata" in strippedData) {
+        strippedData.tableMetadata = undefined;
+      }
+      await job.updateData(strippedData);
+    } catch (stripError) {
+      this.logger.warn(
+        { jobId: job.id, error: stripError },
+        "Failed to strip payload from failed job",
+      );
     }
   }
 
@@ -1193,6 +1214,7 @@ export class ShellQueryProcessor extends WorkerHost {
         mid,
         buildDeleteQueryDefinition(objectId),
         "Delete",
+        MCE_TIMEOUTS.METADATA,
       );
       this.logger.log(`Successfully deleted QueryDefinition for run ${runId}`);
     } catch (e: unknown) {

@@ -85,7 +85,7 @@ module.exports = tseslint.config(
     ignores: [
       "dist/",
       "node_modules/",
-      "coverage/",
+      "coverage*/",
       "eslint.config.cjs",
       "tailwind.config.js",
       "vitest.config.ts",

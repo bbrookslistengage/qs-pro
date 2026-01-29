@@ -1,39 +1,37 @@
 /**
- * Auth Remaining Gaps Integration Tests
+ * Auth Endpoints Integration Tests
  *
- * This test file covers remaining unchecked behaviors from surface-area/auth.md:
+ * Goals:
+ * - Assert observable behavior via real HTTP requests
+ * - Real NestJS app with FastifyAdapter
+ * - Real PostgreSQL database (RLS-enabled)
+ * - MSW for MCE API mocking (external boundary only)
  *
- * POST /auth/login:
- * - JSON response when Accept: application/json
- * - JWT accepted in body.token, body.access_token, body.accessToken, body.JWT
- *
- * GET /auth/login:
- * - Existing valid session redirects to /
- * - JWT in query string creates session
- * - No TSSD and not MCE embed throws 401
- * - Legacy session (missing MID) is cleared
- * - MCE embed bypasses TSSD requirement
- *
- * GET /auth/me:
- * - User or tenant not found deletes session, throws 401
- * - Token refresh fails returns 401 with reauth_required
- *
- * GET /auth/refresh:
- * - Happy path: Refreshes token, returns { ok: true }
- * - Error: Token refresh fails throws error
- *
- * AuthService.refreshToken:
- * - Valid cached token returned (not expired)
- * - Credentials not found throws MCE_CREDENTIALS_MISSING
- * - Tenant not found throws MCE_TENANT_NOT_FOUND
+ * Covered Scenarios:
+ * - POST /auth/login:
+ *   - JSON response when Accept: application/json
+ *   - JWT accepted in body.jwt, body.token, body.access_token, body.accessToken, body.JWT
+ * - GET /auth/login:
+ *   - Existing valid session redirects to /
+ *   - JWT in query string creates session
+ *   - No TSSD and not MCE embed throws 401
+ *   - Legacy session (missing MID) is cleared
+ *   - MCE embed bypasses TSSD requirement
+ * - GET /auth/me:
+ *   - User or tenant not found deletes session, returns 401
+ *   - Token refresh fails returns 401 with reauth_required
+ * - GET /auth/refresh:
+ *   - Happy path returns { ok: true }
+ *   - Refresh failure returns error
  */
 import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { Test, TestingModule } from '@nestjs/testing';
-import { AuthService, RlsContextService } from '@qpp/backend-shared';
+import { EncryptionService, RlsContextService } from '@qpp/backend-shared';
 import { ICredentialsRepository, tenants, users } from '@qpp/database';
+import { createTestIds, externalOnlyOnUnhandledRequest } from '@qpp/test-utils';
 import { eq } from 'drizzle-orm';
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as jose from 'jose';
@@ -63,17 +61,16 @@ function getRequiredEnv(key: string): string {
   return value;
 }
 
-const TEST_TSSD = 'auth-remaining-test-tssd';
-const TEST_EID = `auth-remaining-eid-${Date.now()}`;
-const TEST_SF_USER_ID = `auth-remaining-user-${Date.now()}`;
-const TEST_MID = `auth-remaining-mid-${Date.now()}`;
+const TEST_TSSD = 'auth-endpoints-test-tssd';
+const TEST_EID = `auth-endpoints-eid-${Date.now()}`;
+const TEST_SF_USER_ID = `auth-endpoints-user-${Date.now()}`;
+const TEST_MID = `auth-endpoints-mid-${Date.now()}`;
 
-// Default MSW handlers for happy path
 const defaultHandlers = [
   http.post(`https://${TEST_TSSD}.auth.marketingcloudapis.com/v2/token`, () => {
     return HttpResponse.json({
-      access_token: 'remaining-test-access-token',
-      refresh_token: 'remaining-test-refresh-token',
+      access_token: 'endpoints-test-access-token',
+      refresh_token: 'endpoints-test-refresh-token',
       expires_in: 3600,
       rest_instance_url: 'https://test-rest.com',
       soap_instance_url: `https://${TEST_TSSD}.soap.marketingcloudapis.com`,
@@ -88,8 +85,8 @@ const defaultHandlers = [
         sub: TEST_SF_USER_ID,
         enterprise_id: TEST_EID,
         member_id: TEST_MID,
-        email: 'remaining-test@example.com',
-        name: 'Remaining Test User',
+        email: 'endpoints-test@example.com',
+        name: 'Auth Endpoints Test User',
       });
     },
   ),
@@ -97,22 +94,19 @@ const defaultHandlers = [
 
 const server = setupServer(...defaultHandlers);
 
-describe('Auth Remaining Gaps (integration)', () => {
+describe('Auth endpoints (integration)', () => {
   let app: NestFastifyApplication;
   let module: TestingModule;
-  let authService: AuthService;
   let credRepo: ICredentialsRepository;
   let rlsContext: RlsContextService;
+  let encryptionService: EncryptionService;
 
-  // Direct database access for verification and cleanup
   let db: PostgresJsDatabase;
   let client: postgres.Sql;
 
-  // Track created entities for cleanup
   const createdTenantEids: string[] = [];
   const createdUserSfIds: string[] = [];
 
-  // JWT creation helpers
   const jwtSecret = getRequiredEnv('MCE_JWT_SIGNING_SECRET');
   const encodedSecret = new TextEncoder().encode(jwtSecret);
 
@@ -146,7 +140,7 @@ describe('Auth Remaining Gaps (integration)', () => {
   }
 
   beforeAll(async () => {
-    server.listen({ onUnhandledRequest: 'error' });
+    server.listen({ onUnhandledRequest: externalOnlyOnUnhandledRequest() });
 
     process.env.MCE_TSSD = TEST_TSSD;
 
@@ -209,12 +203,10 @@ describe('Auth Remaining Gaps (integration)', () => {
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
 
-    // Get services from the module
-    authService = module.get<AuthService>(AuthService);
     credRepo = module.get<ICredentialsRepository>('CREDENTIALS_REPOSITORY');
     rlsContext = module.get<RlsContextService>(RlsContextService);
+    encryptionService = module.get<EncryptionService>(EncryptionService);
 
-    // Direct database connection for verification
     client = postgres(getRequiredEnv('DATABASE_URL'));
     db = drizzle(client);
   });
@@ -231,7 +223,6 @@ describe('Auth Remaining Gaps (integration)', () => {
           .from(users)
           .where(eq(users.sfUserId, sfUserId));
         if (user) {
-          // Delete all credentials for this user (bypassing RLS with raw SQL)
           await client.unsafe('DELETE FROM credentials WHERE user_id = $1', [
             user.id,
           ]);
@@ -240,7 +231,7 @@ describe('Auth Remaining Gaps (integration)', () => {
           ]);
         }
       } catch {
-        // Ignore cleanup errors - CI will reset DB anyway
+        // ignore cleanup errors
       }
     }
 
@@ -248,7 +239,7 @@ describe('Auth Remaining Gaps (integration)', () => {
       try {
         await client.unsafe('DELETE FROM tenants WHERE eid = $1', [eid]);
       } catch {
-        // Ignore cleanup errors
+        // ignore cleanup errors
       }
     }
 
@@ -281,7 +272,6 @@ describe('Auth Remaining Gaps (integration)', () => {
         .send({ jwt })
         .expect(200);
 
-      // Verify JSON response with ok: true
       expect(response.body).toEqual({ ok: true });
     });
 
@@ -383,10 +373,8 @@ describe('Auth Remaining Gaps (integration)', () => {
 
       const testAgent = superagent(app.getHttpServer());
 
-      // First, create a valid session via POST /auth/login
       await testAgent.post('/auth/login').send({ jwt }).expect(302);
 
-      // Now call GET /auth/login - should redirect to / without OAuth flow
       const loginResponse = await testAgent
         .get('/auth/login')
         .query({ tssd: TEST_TSSD })
@@ -411,7 +399,6 @@ describe('Auth Remaining Gaps (integration)', () => {
 
       const testAgent = superagent(app.getHttpServer());
 
-      // Pass JWT in query string
       const loginResponse = await testAgent
         .get('/auth/login')
         .query({ jwt })
@@ -419,25 +406,21 @@ describe('Auth Remaining Gaps (integration)', () => {
 
       expect(loginResponse.headers.location).toBe('/');
 
-      // Verify session is valid by calling /auth/me
       const meResponse = await testAgent.get('/auth/me').expect(200);
       expect(meResponse.body.user.sfUserId).toBe(uniqueSfUserId);
     });
 
     it('should throw 401 when no TSSD and not MCE embed', async () => {
-      // Clear any configured TSSD from env for this test
       const originalTssd = process.env.MCE_TSSD;
       delete process.env.MCE_TSSD;
 
       try {
-        // Fresh agent with no session, no TSSD, not MCE embed
         const response = await superagent(app.getHttpServer())
           .get('/auth/login')
           .expect(401);
 
         expect(response.body.detail).toContain('TSSD is required');
       } finally {
-        // Restore TSSD
         process.env.MCE_TSSD = originalTssd;
       }
     });
@@ -445,7 +428,6 @@ describe('Auth Remaining Gaps (integration)', () => {
     it('should clear legacy session missing MID and redirect to OAuth', async () => {
       const testAgent = superagent(app.getHttpServer());
 
-      // Seed a legacy/partial session: userId + tenantId exist, but mid is missing.
       await testAgent
         .get('/__test/session/set')
         .query({ userId: 'legacy-user', tenantId: 'legacy-tenant' })
@@ -456,7 +438,6 @@ describe('Auth Remaining Gaps (integration)', () => {
       expect(before.body.tenantId).toBe('legacy-tenant');
       expect(before.body.mid).toBeUndefined();
 
-      // A legacy/partial session should be cleared so we don't loop on /auth/me.
       const loginResponse = await testAgent.get('/auth/login').expect(302);
       expect(loginResponse.headers.location).toContain('/v2/authorize');
 
@@ -467,18 +448,15 @@ describe('Auth Remaining Gaps (integration)', () => {
     });
 
     it('should bypass TSSD requirement when MCE embed (sec-fetch-dest: iframe)', async () => {
-      // Clear configured TSSD
       const originalTssd = process.env.MCE_TSSD;
       delete process.env.MCE_TSSD;
 
       try {
-        // Simulate MCE embed request with sec-fetch-dest header
         const response = await superagent(app.getHttpServer())
           .get('/auth/login')
           .set('sec-fetch-dest', 'iframe')
           .expect(302);
 
-        // Should redirect to / instead of throwing 401
         expect(response.headers.location).toBe('/');
       } finally {
         process.env.MCE_TSSD = originalTssd;
@@ -486,18 +464,15 @@ describe('Auth Remaining Gaps (integration)', () => {
     });
 
     it('should bypass TSSD requirement when MCE embed (referer from exacttarget.com)', async () => {
-      // Clear configured TSSD
       const originalTssd = process.env.MCE_TSSD;
       delete process.env.MCE_TSSD;
 
       try {
-        // Simulate MCE embed request with referer header
         const response = await superagent(app.getHttpServer())
           .get('/auth/login')
           .set('referer', 'https://mc.exacttarget.com/cloud')
           .expect(302);
 
-        // Should redirect to / instead of throwing 401
         expect(response.headers.location).toBe('/');
       } finally {
         process.env.MCE_TSSD = originalTssd;
@@ -520,7 +495,6 @@ describe('Auth Remaining Gaps (integration)', () => {
       createdTenantEids.push(uniqueEid);
       createdUserSfIds.push(uniqueSfUserId);
 
-      // Configure MSW for this user
       server.use(
         http.get(
           `https://${TEST_TSSD}.auth.marketingcloudapis.com/v2/userinfo`,
@@ -534,7 +508,6 @@ describe('Auth Remaining Gaps (integration)', () => {
         ),
       );
 
-      // Create valid session via OAuth callback
       const loginResponse = await testAgent
         .get('/auth/login')
         .query({ tssd: TEST_TSSD })
@@ -560,7 +533,6 @@ describe('Auth Remaining Gaps (integration)', () => {
         })
         .expect(302);
 
-      // Now configure MSW to fail on token refresh
       server.use(
         http.post(
           `https://${TEST_TSSD}.auth.marketingcloudapis.com/v2/token`,
@@ -573,7 +545,6 @@ describe('Auth Remaining Gaps (integration)', () => {
         ),
       );
 
-      // Get the tenant and user IDs to expire the token
       const [dbTenant] = await db
         .select()
         .from(tenants)
@@ -585,7 +556,13 @@ describe('Auth Remaining Gaps (integration)', () => {
         .where(eq(users.sfUserId, uniqueSfUserId));
 
       if (dbTenant && dbUser) {
-        // Expire the token so refresh is attempted
+        const encryptedAccessToken = encryptionService.encrypt('expired-token');
+        const encryptedRefreshToken =
+          encryptionService.encrypt('expired-refresh');
+        if (!encryptedAccessToken || !encryptedRefreshToken) {
+          throw new Error('Expected encrypted credentials for test');
+        }
+
         await rlsContext.runWithTenantContext(
           dbTenant.id,
           uniqueMid,
@@ -594,36 +571,37 @@ describe('Auth Remaining Gaps (integration)', () => {
               tenantId: dbTenant.id,
               userId: dbUser.id,
               mid: uniqueMid,
-              accessToken: 'expired-token',
-              refreshToken: 'expired-refresh',
-              expiresAt: new Date(0), // Expired
+              accessToken: encryptedAccessToken,
+              refreshToken: encryptedRefreshToken,
+              expiresAt: new Date(0),
               updatedAt: new Date(),
             });
           },
         );
       }
 
-      // Call /auth/me - should return 401 with reauth_required
       const meResponse = await testAgent.get('/auth/me').expect(401);
-
       expect(meResponse.body.reason).toBe('reauth_required');
     });
 
     it('should delete session and return 401 when user or tenant not found', async () => {
-      // Seed a session with IDs that will not exist in the database.
+      const { tenantId, userId, mid } = createTestIds({
+        mid: 'non-existent-mid',
+      });
+
       await testAgent
         .get('/__test/session/set')
         .query({
-          userId: 'non-existent-user',
-          tenantId: 'non-existent-tenant',
-          mid: 'non-existent-mid',
+          userId,
+          tenantId,
+          mid,
         })
         .expect(200);
 
       const before = await testAgent.get('/__test/session').expect(200);
-      expect(before.body.userId).toBe('non-existent-user');
-      expect(before.body.tenantId).toBe('non-existent-tenant');
-      expect(before.body.mid).toBe('non-existent-mid');
+      expect(before.body.userId).toBe(userId);
+      expect(before.body.tenantId).toBe(tenantId);
+      expect(before.body.mid).toBe(mid);
 
       const meResponse = await testAgent.get('/auth/me').expect(401);
       expect(meResponse.body.type).toBe('urn:qpp:error:http-401');
@@ -644,7 +622,6 @@ describe('Auth Remaining Gaps (integration)', () => {
       createdTenantEids.push(uniqueEid);
       createdUserSfIds.push(uniqueSfUserId);
 
-      // Configure MSW for this user
       server.use(
         http.get(
           `https://${TEST_TSSD}.auth.marketingcloudapis.com/v2/userinfo`,
@@ -660,7 +637,6 @@ describe('Auth Remaining Gaps (integration)', () => {
 
       const testAgent = superagent(app.getHttpServer());
 
-      // Create valid session via OAuth callback
       const loginResponse = await testAgent
         .get('/auth/login')
         .query({ tssd: TEST_TSSD })
@@ -686,9 +662,42 @@ describe('Auth Remaining Gaps (integration)', () => {
         })
         .expect(302);
 
-      // Call /auth/refresh - should succeed
-      const refreshResponse = await testAgent.get('/auth/refresh').expect(200);
+      const [dbTenant] = await db
+        .select()
+        .from(tenants)
+        .where(eq(tenants.eid, uniqueEid));
 
+      const [dbUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.sfUserId, uniqueSfUserId));
+
+      if (dbTenant && dbUser) {
+        const encryptedAccessToken = encryptionService.encrypt('expired-token');
+        const encryptedRefreshToken =
+          encryptionService.encrypt('expired-refresh');
+        if (!encryptedAccessToken || !encryptedRefreshToken) {
+          throw new Error('Expected encrypted credentials for test');
+        }
+
+        await rlsContext.runWithTenantContext(
+          dbTenant.id,
+          uniqueMid,
+          async () => {
+            await credRepo.upsert({
+              tenantId: dbTenant.id,
+              userId: dbUser.id,
+              mid: uniqueMid,
+              accessToken: encryptedAccessToken,
+              refreshToken: encryptedRefreshToken,
+              expiresAt: new Date(0),
+              updatedAt: new Date(),
+            });
+          },
+        );
+      }
+
+      const refreshResponse = await testAgent.get('/auth/refresh').expect(200);
       expect(refreshResponse.body).toEqual({ ok: true });
     });
 
@@ -700,7 +709,6 @@ describe('Auth Remaining Gaps (integration)', () => {
       createdTenantEids.push(uniqueEid);
       createdUserSfIds.push(uniqueSfUserId);
 
-      // Configure MSW for this user
       server.use(
         http.get(
           `https://${TEST_TSSD}.auth.marketingcloudapis.com/v2/userinfo`,
@@ -716,7 +724,6 @@ describe('Auth Remaining Gaps (integration)', () => {
 
       const testAgent = superagent(app.getHttpServer());
 
-      // Create valid session via OAuth callback
       const loginResponse = await testAgent
         .get('/auth/login')
         .query({ tssd: TEST_TSSD })
@@ -742,7 +749,6 @@ describe('Auth Remaining Gaps (integration)', () => {
         })
         .expect(302);
 
-      // Now configure MSW to fail on token refresh
       server.use(
         http.post(
           `https://${TEST_TSSD}.auth.marketingcloudapis.com/v2/token`,
@@ -758,7 +764,6 @@ describe('Auth Remaining Gaps (integration)', () => {
         ),
       );
 
-      // Expire the token to force refresh
       const [dbTenant] = await db
         .select()
         .from(tenants)
@@ -770,6 +775,13 @@ describe('Auth Remaining Gaps (integration)', () => {
         .where(eq(users.sfUserId, uniqueSfUserId));
 
       if (dbTenant && dbUser) {
+        const encryptedAccessToken = encryptionService.encrypt('expired-token');
+        const encryptedRefreshToken =
+          encryptionService.encrypt('expired-refresh');
+        if (!encryptedAccessToken || !encryptedRefreshToken) {
+          throw new Error('Expected encrypted credentials for test');
+        }
+
         await rlsContext.runWithTenantContext(
           dbTenant.id,
           uniqueMid,
@@ -778,8 +790,8 @@ describe('Auth Remaining Gaps (integration)', () => {
               tenantId: dbTenant.id,
               userId: dbUser.id,
               mid: uniqueMid,
-              accessToken: 'expired-token',
-              refreshToken: 'expired-refresh',
+              accessToken: encryptedAccessToken,
+              refreshToken: encryptedRefreshToken,
               expiresAt: new Date(0),
               updatedAt: new Date(),
             });
@@ -787,120 +799,8 @@ describe('Auth Remaining Gaps (integration)', () => {
         );
       }
 
-      // Call /auth/refresh - should fail
-      const refreshResponse = await testAgent.get('/auth/refresh').expect(500);
-
-      // Should indicate auth error
-      expect(refreshResponse.body.type).toContain('error');
-    });
-  });
-
-  describe('AuthService.refreshToken', () => {
-    it('should return valid cached token without calling MCE', async () => {
-      const uniqueEid = `cached-token-eid-${Date.now()}`;
-      const uniqueSfUserId = `cached-token-user-${Date.now()}`;
-      const uniqueMid = `cached-token-mid-${Date.now()}`;
-
-      createdTenantEids.push(uniqueEid);
-      createdUserSfIds.push(uniqueSfUserId);
-
-      // Configure MSW for this user
-      server.use(
-        http.get(
-          `https://${TEST_TSSD}.auth.marketingcloudapis.com/v2/userinfo`,
-          () => {
-            return HttpResponse.json({
-              sub: uniqueSfUserId,
-              enterprise_id: uniqueEid,
-              member_id: uniqueMid,
-            });
-          },
-        ),
-      );
-
-      // Create user via callback to get valid credentials
-      const result = await authService.handleCallback(
-        TEST_TSSD,
-        'test-code',
-        uniqueSfUserId,
-        uniqueEid,
-        undefined,
-        undefined,
-        uniqueMid,
-      );
-
-      // Track to fail if MSW is called for token refresh
-      let tokenEndpointCalled = false;
-      server.use(
-        http.post(
-          `https://${TEST_TSSD}.auth.marketingcloudapis.com/v2/token`,
-          () => {
-            tokenEndpointCalled = true;
-            return HttpResponse.json({
-              access_token: 'should-not-be-used',
-              refresh_token: 'should-not-be-used',
-              expires_in: 3600,
-              rest_instance_url: 'https://test-rest.com',
-              soap_instance_url: `https://${TEST_TSSD}.soap.marketingcloudapis.com`,
-              scope: 'read write',
-              token_type: 'Bearer',
-            });
-          },
-        ),
-      );
-
-      // Call refreshToken without forceRefresh - should return cached token
-      const refreshResult = await rlsContext.runWithTenantContext(
-        result.tenant.id,
-        uniqueMid,
-        () =>
-          authService.refreshToken(result.tenant.id, result.user.id, uniqueMid),
-      );
-
-      // Token endpoint should NOT have been called
-      expect(tokenEndpointCalled).toBe(false);
-
-      // Should return valid token
-      expect(refreshResult.accessToken).toBeDefined();
-      expect(refreshResult.tssd).toBe(TEST_TSSD);
-    });
-
-    it('should throw MCE_CREDENTIALS_MISSING when credentials not found', async () => {
-      // Create tenant but no credentials
-      const uniqueEid = `no-creds-eid-${Date.now()}`;
-
-      createdTenantEids.push(uniqueEid);
-
-      // Insert tenant directly
-      const [tenant] = await db
-        .insert(tenants)
-        .values({
-          eid: uniqueEid,
-          tssd: TEST_TSSD,
-          subscriptionTier: 'free',
-        })
-        .returning();
-      if (!tenant) {
-        throw new Error('Expected tenant insert to return row');
-      }
-
-      // Call refreshToken with non-existent user - should throw
-      await expect(
-        rlsContext.runWithTenantContext(tenant.id, 'fake-mid', () =>
-          authService.refreshToken(tenant.id, 'non-existent-user', 'fake-mid'),
-        ),
-      ).rejects.toThrow(/MCE_CREDENTIALS_MISSING|credentials/i);
-    });
-
-    it('should throw MCE_TENANT_NOT_FOUND when tenant not found', async () => {
-      // Call refreshToken with non-existent tenant - should throw
-      await expect(
-        authService.refreshToken(
-          'non-existent-tenant-id',
-          'non-existent-user-id',
-          'non-existent-mid',
-        ),
-      ).rejects.toThrow(/MCE_CREDENTIALS_MISSING|credentials/i);
+      const refreshResponse = await testAgent.get('/auth/refresh').expect(401);
+      expect(refreshResponse.body.type).toBe('urn:qpp:error:mce-auth-expired');
     });
   });
 });

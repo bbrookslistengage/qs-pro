@@ -9,6 +9,8 @@
 
 import { vi } from "vitest";
 
+import { withOverrides } from "./with-overrides";
+
 /** Database stub interface for test assertions */
 export interface DbStub {
   _selectResult: unknown[];
@@ -26,7 +28,7 @@ export interface DbStub {
  * Create a database stub for Drizzle ORM operations
  * Supports chainable query methods and configurable results
  */
-export function createDbStub(): DbStub {
+export function createDbStub(overrides?: Partial<DbStub>): DbStub {
   // Initialize with partial data, will be completed below
   const stub = {
     _selectResult: [] as unknown[],
@@ -74,6 +76,17 @@ export function createDbStub(): DbStub {
     stub._selectResult = result;
     stub.where.mockReturnValue(result);
   };
+
+  if (overrides) {
+    const { _selectResult, _updateResult, ...rest } = overrides;
+    if (_selectResult !== undefined) {
+      stub._selectResult = _selectResult;
+    }
+    if (_updateResult !== undefined) {
+      stub._updateResult = _updateResult;
+    }
+    return withOverrides(stub, rest);
+  }
 
   return stub;
 }

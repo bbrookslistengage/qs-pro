@@ -63,6 +63,10 @@ jobs:
           CREATE ROLE qs_migrate LOGIN PASSWORD 'migrate_pass' BYPASSRLS;
           CREATE ROLE qs_runtime LOGIN PASSWORD 'runtime_pass';
 
+          -- Harden role attributes explicitly.
+          ALTER ROLE qs_migrate BYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+          ALTER ROLE qs_runtime NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+
           GRANT CONNECT ON DATABASE qs_pro_test TO qs_migrate;
           GRANT CONNECT ON DATABASE qs_pro_test TO qs_runtime;
           GRANT CREATE ON DATABASE qs_pro_test TO qs_migrate;
@@ -82,6 +86,18 @@ jobs:
             echo "ERROR: DATABASE_URL must not use qs_migrate" >&2
             exit 1
           fi
+
+      - name: Validate database role privileges
+        run: |
+          set -euo pipefail
+
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -tAc \
+            "SELECT CASE WHEN (SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user) THEN 1 ELSE 0 END" \
+            | grep -qx '0'
+
+          psql "$DATABASE_URL_MIGRATIONS" -v ON_ERROR_STOP=1 -tAc \
+            "SELECT CASE WHEN (SELECT rolbypassrls AND NOT rolsuper FROM pg_roles WHERE rolname = current_user) THEN 1 ELSE 0 END" \
+            | grep -qx '1'
 
       - name: Build packages
         run: pnpm -r --filter "./packages/**" build

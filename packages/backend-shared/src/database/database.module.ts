@@ -3,7 +3,10 @@ import { ConfigService } from "@nestjs/config";
 import { createDatabaseFromClient, createSqlClient } from "@qpp/database";
 
 import { createDbProxy } from "./db-proxy";
-import { assertSafeRuntimeDatabaseUrl } from "./db-url.guard";
+import {
+  assertSafeRuntimeDatabaseRole,
+  assertSafeRuntimeDatabaseUrl,
+} from "./db-url.guard";
 import { RlsContextService } from "./rls-context.service";
 
 type SqlClient = ReturnType<typeof createSqlClient>;
@@ -18,7 +21,7 @@ type Database = ReturnType<typeof createDatabaseFromClient>;
     },
     {
       provide: "SQL_CLIENT",
-      useFactory: (configService: ConfigService) => {
+      useFactory: async (configService: ConfigService) => {
         const logger = new Logger("DatabaseModule");
         const dbUrl =
           configService.get<string>("DATABASE_URL") ||
@@ -28,7 +31,10 @@ type Database = ReturnType<typeof createDatabaseFromClient>;
         logger.log(
           `Connecting to database at ${dbUrl.replace(/:[^:]+@/, ":****@")}`,
         );
-        return createSqlClient(dbUrl);
+
+        const sql = createSqlClient(dbUrl);
+        await assertSafeRuntimeDatabaseRole(sql);
+        return sql;
       },
       inject: [ConfigService],
     },

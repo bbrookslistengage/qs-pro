@@ -1,3 +1,5 @@
+import type { Sql } from "postgres";
+
 const DEFAULT_MIGRATIONS_USERNAME = "qs_migrate";
 
 /**
@@ -60,6 +62,29 @@ export function assertSafeRuntimeDatabaseUrl(connectionString: string): void {
     throw new Error(
       `Refusing to start in production with DATABASE_URL user '${username}'. ` +
         `Superuser/admin roles bypass row-level security. Use a dedicated runtime role (e.g. 'qs_runtime').`,
+    );
+  }
+}
+
+export async function assertSafeRuntimeDatabaseRole(sql: Sql): Promise<void> {
+  if (process.env.NODE_ENV !== "production") {
+    return;
+  }
+
+  const rows = await sql<
+    Array<{ rolsuper: boolean | null; rolbypassrls: boolean | null }>
+  >`SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user`;
+  const row = rows[0];
+  if (!row) {
+    throw new Error(
+      "Refusing to start in production: unable to verify database role privileges for current_user.",
+    );
+  }
+
+  if (row.rolsuper || row.rolbypassrls) {
+    throw new Error(
+      "Refusing to start in production with a privileged DATABASE_URL role (SUPERUSER or BYPASSRLS). " +
+        "Use a dedicated runtime role with RLS enforced (e.g. qs_runtime) and reserve privileged roles for migrations/maintenance only.",
     );
   }
 }

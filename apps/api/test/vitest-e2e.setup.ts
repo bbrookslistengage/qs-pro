@@ -22,6 +22,12 @@ function setIfMissing(key: string, value: string): void {
   }
 }
 
+function withRedisDb(url: string, db: number): string {
+  const parsed = new URL(url);
+  parsed.pathname = `/${db}`;
+  return parsed.toString();
+}
+
 // Force test environment
 process.env.NODE_ENV = 'test';
 
@@ -57,6 +63,8 @@ setIfMissing('COOKIE_PARTITIONED', 'true');
 
 // Redis connection (used by BullMQ and ioredis clients)
 setIfMissing('REDIS_URL', 'redis://127.0.0.1:6379');
+// Use a dedicated Redis DB for tests to avoid interference from dev/background workers.
+process.env.REDIS_URL = withRedisDb(process.env.REDIS_URL, 15);
 
 // PostgreSQL connection (used by Drizzle ORM)
 // Note: CI sets this explicitly; local dev uses docker-compose default

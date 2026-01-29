@@ -19,6 +19,18 @@ export default defineConfig({
     hookTimeout: 60000, // 60s for beforeAll (app initialization with DB)
     testTimeout: 30000, // 30s for individual tests
     root: "./",
+    coverage: {
+      provider: "v8",
+      include: ["src/**"],
+      exclude: [
+        "**/*.test.ts",
+        "**/__tests__/**",
+        "**/test/**",
+        "**/node_modules/**",
+        "**/dist/**",
+      ],
+      reporter: ["text", "json", "json-summary", "html"],
+    },
   },
   plugins: [
     swc.vite({

@@ -7,7 +7,9 @@
  * - Worker version: get/set operations
  */
 
-import { vi } from "vitest";
+import { vi } from 'vitest';
+
+import { withOverrides } from './with-overrides';
 
 /** Redis stub interface for test assertions */
 export interface RedisStub {
@@ -28,8 +30,9 @@ export interface RedisStub {
  * Create a Redis stub for pub/sub and caching operations
  * Includes duplicate() for SSE subscriptions and get/set for caching
  */
-export function createRedisStub(): RedisStub {
-  return {
+export function createRedisStub(overrides?: Partial<RedisStub>): RedisStub {
+  return withOverrides(
+    {
     publish: vi.fn().mockResolvedValue(undefined),
     subscribe: vi.fn().mockResolvedValue(undefined),
     duplicate: vi.fn().mockReturnValue({
@@ -45,6 +48,8 @@ export function createRedisStub(): RedisStub {
     decr: vi.fn().mockResolvedValue(0),
     expire: vi.fn().mockResolvedValue(1),
     get: vi.fn().mockResolvedValue(null),
-    set: vi.fn().mockResolvedValue("OK"),
-  };
+    set: vi.fn().mockResolvedValue('OK'),
+    },
+    overrides,
+  );
 }

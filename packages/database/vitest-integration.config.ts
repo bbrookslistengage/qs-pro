@@ -16,5 +16,17 @@ export default defineConfig({
     include: ["src/**/*.integration.test.ts"],
     root: "./",
     setupFiles: ["./vitest.setup.ts"],
+    coverage: {
+      provider: "v8",
+      include: ["src/**"],
+      exclude: [
+        "**/*.test.ts",
+        "**/__tests__/**",
+        "**/test/**",
+        "**/node_modules/**",
+        "**/dist/**",
+      ],
+      reporter: ["text", "json", "json-summary", "html"],
+    },
   },
 });

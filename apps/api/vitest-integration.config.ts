@@ -16,9 +16,21 @@ export default defineConfig({
     environment: 'node',
     include: ['test/**/*.integration.test.ts', 'src/**/*.integration.test.ts'],
     setupFiles: ['./test/vitest-e2e.setup.ts'],
-    hookTimeout: 60000, // 60s for beforeAll (app initialization with DB)
-    testTimeout: 30000, // 30s for individual tests
+    hookTimeout: 180000, // 180s for beforeAll/afterAll (app init + cleanup with DB)
+    testTimeout: 60000, // 60s for individual tests (integration can be slow under coverage)
     root: './',
+    coverage: {
+      provider: 'v8',
+      include: ['src/**'],
+      exclude: [
+        '**/*.test.ts',
+        '**/__tests__/**',
+        '**/test/**',
+        '**/node_modules/**',
+        '**/dist/**',
+      ],
+      reporter: ['text', 'json', 'json-summary', 'html'],
+    },
   },
   plugins: [
     swc.vite({

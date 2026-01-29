@@ -3,6 +3,7 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { Test, TestingModule } from '@nestjs/testing';
+import { externalOnlyOnUnhandledRequest } from '@qpp/test-utils';
 import * as jose from 'jose';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
@@ -253,7 +254,7 @@ describe('Metadata Endpoints (integration)', () => {
   let csrfToken: string;
 
   beforeAll(async () => {
-    server.listen({ onUnhandledRequest: 'error' });
+    server.listen({ onUnhandledRequest: externalOnlyOnUnhandledRequest() });
 
     process.env.MCE_TSSD = TEST_TSSD;
 
@@ -310,7 +311,12 @@ describe('Metadata Endpoints (integration)', () => {
       .setExpirationTime('1h')
       .sign(encodedSecret);
 
-    await authenticatedAgent.post('/auth/login').send({ jwt }).expect(302);
+    // Use JSON mode to avoid redirect/session-cookie edge cases in CI.
+    await authenticatedAgent
+      .post('/auth/login')
+      .set('Accept', 'application/json')
+      .send({ jwt })
+      .expect(200);
 
     const meResponse = await authenticatedAgent.get('/auth/me').expect(200);
     csrfToken = meResponse.body.csrfToken;

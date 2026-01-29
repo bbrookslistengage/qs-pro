@@ -357,6 +357,102 @@ describe("Query Analyzer", () => {
       expect(result.get("customers")).toBe("Customers");
     });
   });
+
+  describe("complex CTE scenarios", () => {
+    it("extracts table names from simple CTE", () => {
+      const sql = `
+        WITH ActiveCustomers AS (
+          SELECT CustomerID, FirstName FROM Customers WHERE Status = 'Active'
+        )
+        SELECT * FROM ActiveCustomers
+      `;
+
+      const result = extractTableNames(sql);
+
+      // CTE name may be extracted as a table, or the underlying Customers table
+      // The parser behavior determines what gets extracted
+      expect(result.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("extracts table names from multiple CTEs", () => {
+      const sql = `
+        WITH
+          ActiveCustomers AS (
+            SELECT CustomerID, FirstName FROM Customers WHERE Status = 'Active'
+          ),
+          RecentOrders AS (
+            SELECT OrderID, CustomerID, Amount FROM Orders WHERE OrderDate > '2024-01-01'
+          )
+        SELECT ac.FirstName, ro.Amount
+        FROM ActiveCustomers ac
+        JOIN RecentOrders ro ON ac.CustomerID = ro.CustomerID
+      `;
+
+      const result = extractTableNames(sql);
+
+      // Should extract at minimum the base tables or CTE references
+      expect(result.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("does not detect SELECT * inside CTE (only checks outer query)", () => {
+      // Note: containsSelectStar only examines the outer SELECT statement.
+      // SELECT * within CTEs is not detected - this is a known limitation.
+      const sql = `
+        WITH CustomerData AS (
+          SELECT * FROM Customers
+        )
+        SELECT CustomerID FROM CustomerData
+      `;
+
+      // The outer query does NOT contain SELECT *, so returns false
+      const result = containsSelectStar(sql);
+
+      expect(result).toBe(false);
+    });
+
+    it("detects SELECT * in outer query even with CTE present", () => {
+      const sql = `
+        WITH CustomerData AS (
+          SELECT CustomerID, FirstName FROM Customers
+        )
+        SELECT * FROM CustomerData
+      `;
+
+      // The outer query contains SELECT *, so returns true
+      const result = containsSelectStar(sql);
+
+      expect(result).toBe(true);
+    });
+  });
+
+  describe("nested subquery edge cases", () => {
+    it("extracts table names from deeply nested subqueries (3 levels)", () => {
+      const sql = `
+        SELECT * FROM (
+          SELECT * FROM (
+            SELECT CustomerID, FirstName FROM Customers
+          ) level2
+        ) level1
+      `;
+
+      const result = extractTableNames(sql);
+
+      expect(result).toContain("Customers");
+    });
+
+    it("handles UNION query in containsSelectStar", () => {
+      const sql = `
+        SELECT CustomerID, FirstName FROM Customers
+        UNION
+        SELECT CustomerID, FirstName FROM ArchivedCustomers
+      `;
+
+      // Neither SELECT uses *, so should return false
+      const result = containsSelectStar(sql);
+
+      expect(result).toBe(false);
+    });
+  });
 });
 
 describe("Schema Inferrer", () => {

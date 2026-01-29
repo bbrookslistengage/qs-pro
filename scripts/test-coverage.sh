@@ -6,19 +6,31 @@
 #   ./scripts/test-coverage.sh          # Run all packages
 #   ./scripts/test-coverage.sh apps/api # Run single package
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 cd "$ROOT_DIR"
 
+# Comma-separated list of test variants to include in coverage.
+# Examples:
+#   COVERAGE_VARIANTS=unit pnpm test:coverage
+#   COVERAGE_VARIANTS=unit,integration,e2e pnpm test:coverage
+: "${COVERAGE_VARIANTS:=unit,integration}"
+
+IFS=',' read -r -a VARIANTS <<<"$COVERAGE_VARIANTS"
+
+# Ensure workspace packages are built so apps import up-to-date dist outputs.
+# (apps depend on packages/* via workspace:^ which resolve to each package's dist entrypoints.)
+pnpm -r --filter "./packages/**" build
+
 # Clean and create directories for coverage collection
 rm -rf .nyc_output coverage
 mkdir -p .nyc_output coverage
 
 # Packages to test
-if [ -n "$1" ]; then
+if [ "${1-}" != "" ]; then
   PACKAGES=("$1")
 else
   PACKAGES=(
@@ -35,25 +47,60 @@ echo "Running tests with coverage..."
 
 failures=0
 
-for pkg in "${PACKAGES[@]}"; do
-  if [ -f "$pkg/vitest.config.ts" ]; then
-    echo ""
-    echo "=== Testing $pkg ==="
+run_vitest_with_coverage() {
+  local pkg="$1"
+  local variant="$2"
+  local config_path="$3"
 
-    # Clean stale package coverage to prevent merging outdated data
-    rm -rf "$pkg/coverage"
+  local pkg_name
+  pkg_name=$(echo "$pkg" | tr '/' '-')
+  local reports_dir="coverage-$variant"
 
-    # Run vitest with coverage in each package directory
-    # Track failures but continue to collect coverage from all packages
-    (cd "$pkg" && npx vitest run --coverage) || failures=1
+  echo ""
+  echo "=== Testing $pkg ($variant) ==="
 
-    # Copy coverage-final.json to temp directory with unique name
-    pkg_name=$(echo "$pkg" | tr '/' '-')
-    if [ -f "$pkg/coverage/coverage-final.json" ]; then
-      cp "$pkg/coverage/coverage-final.json" ".nyc_output/$pkg_name.json"
-      echo "Collected coverage from $pkg"
-    fi
+  # Clean stale package coverage to prevent merging outdated data.
+  rm -rf "$pkg/$reports_dir"
+
+  # Run vitest with coverage in each package directory
+  # Track failures but continue to collect coverage from all packages
+  if [ -n "$config_path" ]; then
+    (cd "$pkg" && npx vitest run --config "$config_path" --coverage --coverage.reportsDirectory "$reports_dir") || failures=1
+  else
+    (cd "$pkg" && npx vitest run --config vitest.config.ts --coverage --coverage.reportsDirectory "$reports_dir") || failures=1
   fi
+
+  # Copy coverage-final.json to temp directory with unique name
+  if [ -f "$pkg/$reports_dir/coverage-final.json" ]; then
+    cp "$pkg/$reports_dir/coverage-final.json" ".nyc_output/$pkg_name.$variant.json"
+    echo "Collected coverage from $pkg ($variant)"
+  fi
+}
+
+for pkg in "${PACKAGES[@]}"; do
+  for variant in "${VARIANTS[@]}"; do
+    case "$variant" in
+    unit)
+      if [ -f "$pkg/vitest.config.ts" ]; then
+        run_vitest_with_coverage "$pkg" "unit" ""
+      fi
+      ;;
+    integration)
+      if [ -f "$pkg/vitest-integration.config.ts" ]; then
+        run_vitest_with_coverage "$pkg" "integration" "vitest-integration.config.ts"
+      fi
+      ;;
+    e2e)
+      if [ -f "$pkg/vitest-e2e.config.ts" ]; then
+        run_vitest_with_coverage "$pkg" "e2e" "vitest-e2e.config.ts"
+      fi
+      ;;
+    *)
+      echo "Unknown COVERAGE_VARIANTS entry: '$variant'"
+      failures=1
+      ;;
+    esac
+  done
 done
 
 echo ""

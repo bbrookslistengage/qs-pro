@@ -253,9 +253,9 @@ describe("SchemaInferrer", () => {
         );
       });
 
-      it("should handle CASE with numeric THEN values (defaults to Text)", async () => {
-        // Note: CASE expression type inference examines the first THEN result.
-        // When the parser doesn't provide detailed type info, it defaults to Text.
+      it("should default CASE numeric THEN values to Text (parser limitation)", async () => {
+        // Note: The SQL parser may not surface numeric THEN results in a way our
+        // inferencer can classify, so it falls back to Text(254).
         const sql = `
           SELECT CASE
             WHEN Tier = 'Gold' THEN 100
@@ -271,13 +271,13 @@ describe("SchemaInferrer", () => {
         expect(schema).toContainEqual(
           expect.objectContaining({
             Name: "Points",
+            FieldType: "Text",
+            MaxLength: 254,
           }),
         );
       });
 
-      it("should handle CASE with column reference in THEN (defaults to Text without metadata)", async () => {
-        // CASE type inference tries to resolve column types from metadata.
-        // Without a valid table in the aliasMap, it defaults to Text.
+      it("should default CASE column THEN values to Text (parser limitation)", async () => {
         const sql = `
           SELECT CASE
             WHEN Status = 'Active' THEN CreatedDate
@@ -294,6 +294,8 @@ describe("SchemaInferrer", () => {
         expect(schema).toContainEqual(
           expect.objectContaining({
             Name: "ActiveDate",
+            FieldType: "Text",
+            MaxLength: 254,
           }),
         );
       });
@@ -350,12 +352,12 @@ describe("SchemaInferrer", () => {
           expect.objectContaining({
             Name: "ShortDesc",
             FieldType: "Text",
+            MaxLength: expect.any(Number),
           }),
         );
       });
 
-      it("should handle CAST (returns Text as default)", async () => {
-        // When parser doesn't provide recognized dataType, defaults to Text
+      it("should default CAST to INT to Text (parser limitation)", async () => {
         const sql = "SELECT CAST(Value AS INT) AS IntValue FROM Data";
         const metadataFn = createMetadataStub({});
 
@@ -364,11 +366,13 @@ describe("SchemaInferrer", () => {
         expect(schema).toContainEqual(
           expect.objectContaining({
             Name: "IntValue",
+            FieldType: "Text",
+            MaxLength: 254,
           }),
         );
       });
 
-      it("should return column with alias name", async () => {
+      it("should default CAST to BIGINT to Text (parser limitation)", async () => {
         const sql = "SELECT CAST(Value AS BIGINT) AS BigValue FROM Data";
         const metadataFn = createMetadataStub({});
 
@@ -377,6 +381,8 @@ describe("SchemaInferrer", () => {
         expect(schema).toContainEqual(
           expect.objectContaining({
             Name: "BigValue",
+            FieldType: "Text",
+            MaxLength: 254,
           }),
         );
       });
@@ -390,6 +396,8 @@ describe("SchemaInferrer", () => {
         expect(schema).toContainEqual(
           expect.objectContaining({
             Name: "Created",
+            FieldType: "Text",
+            MaxLength: 254,
           }),
         );
       });
@@ -404,6 +412,8 @@ describe("SchemaInferrer", () => {
         expect(schema).toContainEqual(
           expect.objectContaining({
             Name: "Timestamp",
+            FieldType: "Text",
+            MaxLength: 254,
           }),
         );
       });
@@ -418,6 +428,8 @@ describe("SchemaInferrer", () => {
         expect(schema).toContainEqual(
           expect.objectContaining({
             Name: "DecAmount",
+            FieldType: "Text",
+            MaxLength: 254,
           }),
         );
       });
@@ -431,6 +443,8 @@ describe("SchemaInferrer", () => {
         expect(schema).toContainEqual(
           expect.objectContaining({
             Name: "Flag",
+            FieldType: "Text",
+            MaxLength: 254,
           }),
         );
       });
@@ -627,8 +641,6 @@ describe("SchemaInferrer", () => {
       });
 
       it("should return MIN with alias name", async () => {
-        // MIN/MAX attempt to preserve the argument's type from metadata.
-        // Without proper table alias mapping, defaults to Text.
         const sql = "SELECT MIN(CreatedDate) AS FirstCreated FROM Records";
         const metadataFn = createMetadataStub({
           Records: [{ Name: "CreatedDate", FieldType: "Date" }],
@@ -639,6 +651,8 @@ describe("SchemaInferrer", () => {
         expect(schema).toContainEqual(
           expect.objectContaining({
             Name: "FirstCreated",
+            FieldType: "Text",
+            MaxLength: 254,
           }),
         );
       });
@@ -654,6 +668,8 @@ describe("SchemaInferrer", () => {
         expect(schema).toContainEqual(
           expect.objectContaining({
             Name: "HighScore",
+            FieldType: "Text",
+            MaxLength: 254,
           }),
         );
       });
@@ -1045,6 +1061,149 @@ describe("SchemaInferrer", () => {
       });
     });
 
+    describe("NULL column handling edge cases", () => {
+      it("should infer Text(254) for NULL literal", async () => {
+        const sql = "SELECT NULL AS NullColumn FROM Contacts";
+        const metadataFn = createMetadataStub({});
+
+        const schema = await inferSchema(sql, metadataFn);
+
+        expect(schema).toContainEqual({
+          Name: "NullColumn",
+          FieldType: "Text",
+          MaxLength: 254,
+        });
+      });
+
+      it("should infer Text for CASE with NULL in ELSE branch", async () => {
+        const sql = `
+          SELECT CASE
+            WHEN Status = 'Active' THEN 'Yes'
+            ELSE NULL
+          END AS MaybeActive
+          FROM Contacts
+        `;
+        const metadataFn = createMetadataStub({});
+
+        const schema = await inferSchema(sql, metadataFn);
+
+        expect(schema).toContainEqual(
+          expect.objectContaining({
+            Name: "MaybeActive",
+            FieldType: "Text",
+          }),
+        );
+      });
+
+      it("should infer Text for NULL concatenated in expression", async () => {
+        const sql = "SELECT 'prefix' + NULL AS ConcatWithNull FROM Contacts";
+        const metadataFn = createMetadataStub({});
+
+        const schema = await inferSchema(sql, metadataFn);
+
+        expect(schema).toContainEqual(
+          expect.objectContaining({
+            Name: "ConcatWithNull",
+            FieldType: "Text",
+          }),
+        );
+      });
+    });
+
+    describe("precision and scale edge cases", () => {
+      it("should infer Number for floating point literal (parser limitation)", async () => {
+        // Note: The SQL parser does not preserve decimal distinction for literals.
+        // While the code checks Number.isInteger(), the parser's parsed value
+        // may not retain decimal precision, resulting in Number type.
+        const sql = "SELECT 3.14159 AS PiValue FROM Contacts";
+        const metadataFn = createMetadataStub({});
+
+        const schema = await inferSchema(sql, metadataFn);
+
+        expect(schema).toContainEqual({
+          Name: "PiValue",
+          FieldType: "Number",
+        });
+      });
+
+      it("should infer Number for large integer literal", async () => {
+        const sql = "SELECT 9999999999 AS LargeNumber FROM Contacts";
+        const metadataFn = createMetadataStub({});
+
+        const schema = await inferSchema(sql, metadataFn);
+
+        expect(schema).toContainEqual({
+          Name: "LargeNumber",
+          FieldType: "Number",
+        });
+      });
+
+      it("should apply default Scale(2) and Precision(18) for AVG results", async () => {
+        // AVG always returns Decimal with default precision/scale
+        const sql = "SELECT AVG(Price) AS AvgPrice FROM Products";
+        const metadataFn = createMetadataStub({});
+
+        const schema = await inferSchema(sql, metadataFn);
+
+        expect(schema).toContainEqual({
+          Name: "AvgPrice",
+          FieldType: "Decimal",
+          Scale: 2,
+          Precision: 18,
+        });
+      });
+    });
+
+    describe("complex data type scenarios", () => {
+      it("should preserve Phone type from metadata", async () => {
+        const sql = "SELECT PhoneNumber FROM Contacts";
+        const metadataFn = createMetadataStub({
+          Contacts: [{ Name: "PhoneNumber", FieldType: "Phone" }],
+        });
+
+        const schema = await inferSchema(sql, metadataFn);
+
+        expect(schema).toContainEqual({
+          Name: "PhoneNumber",
+          FieldType: "Phone",
+        });
+      });
+
+      it("should default to Text(254) for unknown metadata field types", async () => {
+        const sql = "SELECT CustomField FROM CustomDE";
+        const metadataFn = createMetadataStub({
+          CustomDE: [{ Name: "CustomField", FieldType: "UnknownType" }],
+        });
+
+        const schema = await inferSchema(sql, metadataFn);
+
+        expect(schema).toContainEqual({
+          Name: "CustomField",
+          FieldType: "Text",
+          MaxLength: 254,
+        });
+      });
+
+      it("should infer Text for binary expression with two Text operands", async () => {
+        const sql = "SELECT FirstName + LastName AS FullName FROM Contacts";
+        const metadataFn = createMetadataStub({
+          Contacts: [
+            { Name: "FirstName", FieldType: "Text", MaxLength: 50 },
+            { Name: "LastName", FieldType: "Text", MaxLength: 50 },
+          ],
+        });
+
+        const schema = await inferSchema(sql, metadataFn);
+
+        expect(schema).toContainEqual(
+          expect.objectContaining({
+            Name: "FullName",
+            FieldType: "Text",
+          }),
+        );
+      });
+    });
+
     describe("edge cases", () => {
       it("should handle multiple columns in single query", async () => {
         const sql = `
@@ -1153,6 +1312,13 @@ describe("SchemaInferrer", () => {
       expect(result.FieldType).toBe("Decimal");
     });
 
+    it("should map DOUBLE to Decimal", () => {
+      const result = inferColumnTypeFromMetadata("DOUBLE");
+      expect(result.FieldType).toBe("Decimal");
+      expect(result.Scale).toBe(2);
+      expect(result.Precision).toBe(18);
+    });
+
     it("should map DATE to Date", () => {
       const result = inferColumnTypeFromMetadata("DATE");
       expect(result.FieldType).toBe("Date");
@@ -1202,6 +1368,17 @@ describe("SchemaInferrer", () => {
     it("should handle lowercase input", () => {
       const result = inferColumnTypeFromMetadata("number");
       expect(result.FieldType).toBe("Number");
+    });
+
+    it("should handle mixed case input", () => {
+      expect(inferColumnTypeFromMetadata("Number").FieldType).toBe("Number");
+      expect(inferColumnTypeFromMetadata("DeCiMaL").FieldType).toBe("Decimal");
+      expect(inferColumnTypeFromMetadata("DateTime").FieldType).toBe("Date");
+      expect(inferColumnTypeFromMetadata("Boolean").FieldType).toBe("Boolean");
+      expect(inferColumnTypeFromMetadata("emailAddress").FieldType).toBe(
+        "EmailAddress",
+      );
+      expect(inferColumnTypeFromMetadata("Phone").FieldType).toBe("Phone");
     });
 
     it("should handle empty string input", () => {

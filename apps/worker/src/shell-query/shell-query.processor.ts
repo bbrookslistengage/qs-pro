@@ -14,8 +14,8 @@ import {
   type IsRunningResponse,
   isTerminal,
   isUnrecoverable,
-  MceBridgeService,
   MCE_TIMEOUTS,
+  MceBridgeService,
   RestDataService,
   RlsContextService,
   type RowsetResponse,
@@ -60,7 +60,7 @@ interface RowProbeResult {
 const LAST_EVENT_TTL_SECONDS = 86400;
 
 @Processor("shell-query", {
-  concurrency: parseInt(process.env.WORKER_CONCURRENCY ?? '50', 10),
+  concurrency: parseInt(process.env.WORKER_CONCURRENCY ?? "50", 10),
   lockDuration: 120000,
 })
 export class ShellQueryProcessor extends WorkerHost {
@@ -1169,7 +1169,11 @@ export class ShellQueryProcessor extends WorkerHost {
           .where(
             and(
               eq(shellQueryRuns.id, runId),
-              notInArray(shellQueryRuns.status, ['canceled', 'failed', 'ready']),
+              notInArray(shellQueryRuns.status, [
+                "canceled",
+                "failed",
+                "ready",
+              ]),
             ),
           );
       },

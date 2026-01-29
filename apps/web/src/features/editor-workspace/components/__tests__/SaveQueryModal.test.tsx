@@ -10,8 +10,18 @@ function createMockFolders(): Folder[] {
   return [
     { id: "lib-1", name: "My Queries", parentId: null, type: "library" },
     { id: "lib-2", name: "Shared Queries", parentId: null, type: "library" },
-    { id: "de-1", name: "Data Extensions", parentId: null, type: "data-extension" },
-    { id: "de-2", name: "Contact Data", parentId: null, type: "data-extension" },
+    {
+      id: "de-1",
+      name: "Data Extensions",
+      parentId: null,
+      type: "data-extension",
+    },
+    {
+      id: "de-2",
+      name: "Contact Data",
+      parentId: null,
+      type: "data-extension",
+    },
   ];
 }
 
@@ -28,7 +38,9 @@ describe("SaveQueryModal", () => {
     render(<SaveQueryModal {...defaultProps} initialName="" />);
 
     // Assert
-    const saveButton = screen.getByRole("button", { name: /save to workspace/i });
+    const saveButton = screen.getByRole("button", {
+      name: /save to workspace/i,
+    });
     expect(saveButton).toBeDisabled();
   });
 
@@ -42,7 +54,9 @@ describe("SaveQueryModal", () => {
     await user.type(nameInput, "   ");
 
     // Assert
-    const saveButton = screen.getByRole("button", { name: /save to workspace/i });
+    const saveButton = screen.getByRole("button", {
+      name: /save to workspace/i,
+    });
     expect(saveButton).toBeDisabled();
   });
 
@@ -55,30 +69,34 @@ describe("SaveQueryModal", () => {
     const options = folderSelect.querySelectorAll("option");
 
     expect(options).toHaveLength(2);
-    expect(screen.getByRole("option", { name: "My Queries" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Shared Queries" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Data Extensions" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Contact Data" })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "My Queries" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Shared Queries" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "Data Extensions" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "Contact Data" }),
+    ).not.toBeInTheDocument();
   });
 
   it("SaveQueryModal_OnSave_CallsWithTrimmedNameAndFolderId", async () => {
     // Arrange
     const user = userEvent.setup();
     const onSave = vi.fn();
-    render(
-      <SaveQueryModal
-        {...defaultProps}
-        onSave={onSave}
-        initialName=""
-      />,
-    );
+    render(<SaveQueryModal {...defaultProps} onSave={onSave} initialName="" />);
     const nameInput = screen.getByLabelText(/query name/i);
     const folderSelect = screen.getByLabelText(/target folder/i);
 
     // Act
     await user.type(nameInput, "  My Test Query  ");
     await user.selectOptions(folderSelect, "lib-2");
-    await user.click(screen.getByRole("button", { name: /save to workspace/i }));
+    await user.click(
+      screen.getByRole("button", { name: /save to workspace/i }),
+    );
 
     // Assert
     expect(onSave).toHaveBeenCalledTimes(1);

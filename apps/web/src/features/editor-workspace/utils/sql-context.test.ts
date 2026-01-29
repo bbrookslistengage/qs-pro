@@ -1,9 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import {
-  extractTableReferences,
-  getSqlCursorContext,
-} from "./sql-context";
+import { extractTableReferences, getSqlCursorContext } from "./sql-context";
 
 describe("getSqlCursorContext - characterization tests", () => {
   // 1. Test that lastKeyword is "on" after ON keyword
@@ -175,7 +172,8 @@ describe("getSqlCursorContext - CTE context", () => {
 
   test("handles_nested_CTEs", () => {
     // Multiple CTEs in sequence
-    const sql = "WITH cte1 AS (SELECT 1 AS One), cte2 AS (SELECT 2 AS Two) SELECT * FROM ";
+    const sql =
+      "WITH cte1 AS (SELECT 1 AS One), cte2 AS (SELECT 2 AS Two) SELECT * FROM ";
     const context = getSqlCursorContext(sql, sql.length);
 
     // After the CTE definitions, at depth 0
@@ -187,7 +185,8 @@ describe("getSqlCursorContext - CTE context", () => {
 describe("getSqlCursorContext - Nested query scope", () => {
   test("maintains_separate_scope_for_subqueries", () => {
     // Cursor inside a subquery should have its own scope
-    const sql = "SELECT * FROM [Outer] WHERE ID IN (SELECT ID FROM [Inner] WHERE ";
+    const sql =
+      "SELECT * FROM [Outer] WHERE ID IN (SELECT ID FROM [Inner] WHERE ";
     const context = getSqlCursorContext(sql, sql.length);
 
     // Cursor is inside the subquery (depth 1)
@@ -199,7 +198,8 @@ describe("getSqlCursorContext - Nested query scope", () => {
 
   test("inherits_parent_scope_in_correlated_subqueries", () => {
     // In a correlated subquery, parent tables may be referenced
-    const sql = "SELECT * FROM [Parent] p WHERE EXISTS (SELECT 1 FROM [Child] c WHERE c.ParentID = p.";
+    const sql =
+      "SELECT * FROM [Parent] p WHERE EXISTS (SELECT 1 FROM [Child] c WHERE c.ParentID = p.";
     const cursorIndex = sql.length;
     const context = getSqlCursorContext(sql, cursorIndex);
 
@@ -211,7 +211,8 @@ describe("getSqlCursorContext - Nested query scope", () => {
 
   test("handles_multiple_nesting_levels", () => {
     // Deeply nested subqueries
-    const sql = "SELECT * FROM [A] WHERE ID IN (SELECT ID FROM [B] WHERE Val IN (SELECT Val FROM [C] WHERE ";
+    const sql =
+      "SELECT * FROM [A] WHERE ID IN (SELECT ID FROM [B] WHERE Val IN (SELECT Val FROM [C] WHERE ";
     const context = getSqlCursorContext(sql, sql.length);
 
     // Cursor is at depth 2 (two levels of nesting)
@@ -221,7 +222,8 @@ describe("getSqlCursorContext - Nested query scope", () => {
 
   test("resets_scope_on_query_boundary", () => {
     // After closing a subquery, scope should reset to outer level
-    const sql = "SELECT * FROM [Outer] WHERE ID IN (SELECT ID FROM [Inner]) AND Name = ";
+    const sql =
+      "SELECT * FROM [Outer] WHERE ID IN (SELECT ID FROM [Inner]) AND Name = ";
     const context = getSqlCursorContext(sql, sql.length);
 
     // Cursor is back at depth 0 after the subquery closes

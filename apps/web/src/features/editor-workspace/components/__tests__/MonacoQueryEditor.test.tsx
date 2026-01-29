@@ -155,8 +155,20 @@ const createMockDataExtensions = (): DataExtension[] => [
     description: "Customer data",
     fields: [
       { name: "Email", type: "Email", isPrimaryKey: true, isNullable: false },
-      { name: "FirstName", type: "Text", isPrimaryKey: false, isNullable: true, length: 50 },
-      { name: "LastName", type: "Text", isPrimaryKey: false, isNullable: true, length: 50 },
+      {
+        name: "FirstName",
+        type: "Text",
+        isPrimaryKey: false,
+        isNullable: true,
+        length: 50,
+      },
+      {
+        name: "LastName",
+        type: "Text",
+        isPrimaryKey: false,
+        isNullable: true,
+        length: 50,
+      },
     ],
   },
   {
@@ -166,9 +178,24 @@ const createMockDataExtensions = (): DataExtension[] => [
     folderId: "folder-1",
     description: "Order data",
     fields: [
-      { name: "OrderId", type: "Number", isPrimaryKey: true, isNullable: false },
-      { name: "CustomerEmail", type: "Email", isPrimaryKey: false, isNullable: false },
-      { name: "OrderDate", type: "Date", isPrimaryKey: false, isNullable: false },
+      {
+        name: "OrderId",
+        type: "Number",
+        isPrimaryKey: true,
+        isNullable: false,
+      },
+      {
+        name: "CustomerEmail",
+        type: "Email",
+        isPrimaryKey: false,
+        isNullable: false,
+      },
+      {
+        name: "OrderDate",
+        type: "Date",
+        isPrimaryKey: false,
+        isNullable: false,
+      },
     ],
   },
   {
@@ -179,16 +206,38 @@ const createMockDataExtensions = (): DataExtension[] => [
     description: "Contact preferences",
     fields: [
       { name: "Email", type: "Email", isPrimaryKey: true, isNullable: false },
-      { name: "OptIn", type: "Boolean", isPrimaryKey: false, isNullable: false },
+      {
+        name: "OptIn",
+        type: "Boolean",
+        isPrimaryKey: false,
+        isNullable: false,
+      },
     ],
   },
 ];
 
 const createMockFields = (): DataExtensionField[] => [
   { name: "Email", type: "Email", isPrimaryKey: true, isNullable: false },
-  { name: "FirstName", type: "Text", isPrimaryKey: false, isNullable: true, length: 50 },
-  { name: "LastName", type: "Text", isPrimaryKey: false, isNullable: true, length: 50 },
-  { name: "Phone Number", type: "Phone", isPrimaryKey: false, isNullable: true },
+  {
+    name: "FirstName",
+    type: "Text",
+    isPrimaryKey: false,
+    isNullable: true,
+    length: 50,
+  },
+  {
+    name: "LastName",
+    type: "Text",
+    isPrimaryKey: false,
+    isNullable: true,
+    length: 50,
+  },
+  {
+    name: "Phone Number",
+    type: "Phone",
+    isPrimaryKey: false,
+    isNullable: true,
+  },
 ];
 
 describe("MonacoQueryEditor", () => {
@@ -284,15 +333,17 @@ describe("MonacoQueryEditor", () => {
           .calls[0];
       expect(providerCall).toBeDefined();
 
-      const [, providerConfig] = providerCall as [
+      type CompletionProviderConfig = {
+        provideCompletionItems: (
+          model: unknown,
+          position: { lineNumber: number; column: number },
+          context: { triggerKind: number; triggerCharacter?: string },
+        ) => Promise<{ suggestions: Array<{ label: string }> }>;
+      };
+
+      const [, providerConfig] = providerCall as unknown as [
         string,
-        {
-          provideCompletionItems: (
-            model: unknown,
-            position: { lineNumber: number; column: number },
-            context: { triggerKind: number; triggerCharacter?: string },
-          ) => Promise<{ suggestions: Array<{ label: string }> }>;
-        },
+        CompletionProviderConfig,
       ];
 
       // Create model mock for FROM clause context
@@ -639,14 +690,11 @@ describe("MonacoQueryEditor", () => {
       );
 
       // Assert - Orders should appear before non-matching items
-      const ordersIndex = result.suggestions.findIndex((s) =>
+      const ordersSuggestion = result.suggestions.find((s) =>
         s.label.includes("Orders"),
       );
-      // If Orders is found, it should have a low sortText (appears first)
-      if (ordersIndex !== -1) {
-        const ordersSuggestion = result.suggestions[ordersIndex];
-        expect(ordersSuggestion?.sortText?.startsWith("0")).toBe(true);
-      }
+      expect(ordersSuggestion).toBeDefined();
+      expect(ordersSuggestion?.sortText?.startsWith("0")).toBe(true);
     });
   });
 
@@ -678,15 +726,13 @@ describe("MonacoQueryEditor", () => {
 
       // Assert
       expect(mockMonacoInstance.editor.setModelMarkers).toHaveBeenCalled();
-      const [, source, markers] =
-        mockMonacoInstance.editor.setModelMarkers.mock.calls[0] as [
-          unknown,
-          string,
-          Array<{ severity: number }>,
-        ];
+      const [, source, markers] = mockMonacoInstance.editor.setModelMarkers.mock
+        .calls[0] as [unknown, string, Array<{ severity: number }>];
       expect(source).toBe("sql-lint");
       expect(markers.length).toBeGreaterThan(0);
-      expect(markers[0]?.severity).toBe(mockMonacoInstance.MarkerSeverity.Error);
+      expect(markers[0]?.severity).toBe(
+        mockMonacoInstance.MarkerSeverity.Error,
+      );
     });
 
     it("clears markers when errors resolved", async () => {
@@ -786,10 +832,9 @@ describe("MonacoQueryEditor", () => {
       const queryClient = createQueryClient();
 
       // Mock document for theme detection
-      const originalClassList = document.documentElement.classList;
-      vi.spyOn(document.documentElement.classList, "contains").mockReturnValue(
-        false,
-      );
+      const classListContainsSpy = vi
+        .spyOn(document.documentElement.classList, "contains")
+        .mockReturnValue(false);
 
       // Act
       render(
@@ -808,7 +853,7 @@ describe("MonacoQueryEditor", () => {
       expect(mockMonacoInstance.editor.defineTheme).toHaveBeenCalled();
 
       // Restore
-      vi.spyOn(document.documentElement.classList, "contains").mockRestore();
+      classListContainsSpy.mockRestore();
     });
 
     it("applies dark theme when system preference is dark", async () => {
@@ -817,9 +862,9 @@ describe("MonacoQueryEditor", () => {
       const queryClient = createQueryClient();
 
       // Mock document for theme detection
-      vi.spyOn(document.documentElement.classList, "contains").mockReturnValue(
-        true,
-      );
+      const classListContainsSpy = vi
+        .spyOn(document.documentElement.classList, "contains")
+        .mockReturnValue(true);
 
       // Act
       render(
@@ -838,7 +883,7 @@ describe("MonacoQueryEditor", () => {
       expect(mockMonacoInstance.editor.defineTheme).toHaveBeenCalled();
 
       // Restore
-      vi.spyOn(document.documentElement.classList, "contains").mockRestore();
+      classListContainsSpy.mockRestore();
     });
   });
 
@@ -922,18 +967,15 @@ describe("MonacoQueryEditor", () => {
         />,
       );
 
-      // Before debounce completes
-      const midDecorationCalls =
-        mockEditorInstance.deltaDecorations.mock.calls.length;
-
       // Advance timers past debounce delay (150ms)
       await act(async () => {
         vi.advanceTimersByTime(200);
       });
 
-      // Assert - Decorations should be debounced
-      // The actual behavior depends on implementation, but we verify the mechanism exists
-      expect(mockEditorInstance.deltaDecorations).toBeDefined();
+      // Assert - Decorations are updated after debounce delay
+      expect(
+        mockEditorInstance.deltaDecorations.mock.calls.length,
+      ).toBeGreaterThan(initialDecorationCalls);
 
       vi.useRealTimers();
     });

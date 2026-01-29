@@ -8,7 +8,9 @@ describe("PremiumBadge", () => {
   describe("popover visibility", () => {
     it("shows popover when badge is clicked", async () => {
       const user = userEvent.setup();
-      render(<PremiumBadge title="Test Feature" description="Test description" />);
+      render(
+        <PremiumBadge title="Test Feature" description="Test description" />,
+      );
 
       const badge = screen.getByRole("button", { name: /pro feature/i });
       await user.click(badge);
@@ -18,7 +20,9 @@ describe("PremiumBadge", () => {
 
     it("hides popover when badge is clicked again", async () => {
       const user = userEvent.setup();
-      render(<PremiumBadge title="Test Feature" description="Test description" />);
+      render(
+        <PremiumBadge title="Test Feature" description="Test description" />,
+      );
 
       const badge = screen.getByRole("button", { name: /pro feature/i });
       await user.click(badge);
@@ -83,7 +87,9 @@ describe("PremiumBadge", () => {
 
     it("does not render CTA button when onCtaClick is not provided", async () => {
       const user = userEvent.setup();
-      render(<PremiumBadge title="Test Feature" description="Test description" />);
+      render(
+        <PremiumBadge title="Test Feature" description="Test description" />,
+      );
 
       await user.click(screen.getByRole("button", { name: /pro feature/i }));
 

@@ -4,6 +4,8 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { QueryExecutionStatus } from "@/features/editor-workspace/hooks/use-query-execution";
+import type { RunResultsResponse } from "@/features/editor-workspace/hooks/use-run-results";
 import type {
   DataExtension,
   ExecutionResult,
@@ -56,9 +58,9 @@ vi.mock("../ResultsPane", () => ({
     onCancel?: () => void;
   }) => (
     <div data-testid="mock-results-pane" data-status={result.status}>
-      {result.errorMessage && (
+      {result.errorMessage ? (
         <span data-testid="error-message">{result.errorMessage}</span>
-      )}
+      ) : null}
       {result.status === "running" && (
         <button onClick={onCancel} data-testid="cancel-button">
           Cancel
@@ -190,14 +192,33 @@ vi.mock("@/components/FeatureGate", () => ({
 }));
 
 // Mock hooks
-const mockExecute = vi.fn();
-const mockCancel = vi.fn();
-const mockSetPage = vi.fn();
+type MockQueryResults = {
+  data: RunResultsResponse | null;
+  isLoading: boolean;
+  error: Error | null;
+  refetch: () => Promise<unknown>;
+};
 
-const defaultMockQueryExecution = {
+type MockQueryExecution = {
+  execute: (sqlText: string, snippetName?: string) => Promise<void>;
+  cancel: () => Promise<void>;
+  status: QueryExecutionStatus;
+  isRunning: boolean;
+  runId: string | null;
+  errorMessage: string | null;
+  results: MockQueryResults;
+  currentPage: number;
+  setPage: (page: number) => void;
+};
+
+const mockExecute = vi.fn<MockQueryExecution["execute"]>().mockResolvedValue();
+const mockCancel = vi.fn<MockQueryExecution["cancel"]>().mockResolvedValue();
+const mockSetPage = vi.fn<MockQueryExecution["setPage"]>();
+
+const defaultMockQueryExecution: MockQueryExecution = {
   execute: mockExecute,
   cancel: mockCancel,
-  status: "idle" as const,
+  status: "idle",
   isRunning: false,
   runId: null,
   errorMessage: null,
@@ -205,21 +226,26 @@ const defaultMockQueryExecution = {
     data: null,
     isLoading: false,
     error: null,
-    refetch: vi.fn(),
+    refetch: vi.fn<MockQueryResults["refetch"]>().mockResolvedValue(undefined),
   },
   currentPage: 1,
   setPage: mockSetPage,
 };
 
-let mockQueryExecutionReturn = { ...defaultMockQueryExecution };
+let mockQueryExecutionReturn: MockQueryExecution = {
+  ...defaultMockQueryExecution,
+};
 
 vi.mock("@/features/editor-workspace/hooks/use-query-execution", () => ({
   useQueryExecution: () => mockQueryExecutionReturn,
 }));
 
-vi.mock("@/features/editor-workspace/utils/sql-lint/use-sql-diagnostics", () => ({
-  useSqlDiagnostics: () => [],
-}));
+vi.mock(
+  "@/features/editor-workspace/utils/sql-lint/use-sql-diagnostics",
+  () => ({
+    useSqlDiagnostics: () => [],
+  }),
+);
 
 // Helper functions
 function createDefaultProps(): Parameters<typeof EditorWorkspace>[0] {
@@ -308,13 +334,14 @@ describe("EditorWorkspace", () => {
 
       // Find the "New Tab" button - it's in the tab rail with specific styling
       const tabRailButtons = screen.getAllByRole("button");
-      const newTabButton = tabRailButtons.find((btn) =>
-        btn.classList.contains("text-primary") &&
-        btn.classList.contains("hover:bg-primary/10")
+      const newTabButton = tabRailButtons.find(
+        (btn) =>
+          btn.classList.contains("text-primary") &&
+          btn.classList.contains("hover:bg-primary/10"),
       );
 
-      expect(newTabButton).toBeTruthy();
-      await user.click(newTabButton!);
+      expect(newTabButton).not.toBeUndefined();
+      await user.click(newTabButton as HTMLElement);
 
       // onNewTab callback should be called
       await waitFor(() => {
@@ -338,9 +365,9 @@ describe("EditorWorkspace", () => {
       expect(tabGroups.length).toBe(2);
 
       // Find close button on second tab and click it
-      const closeButton = getCloseButtonInGroup(tabGroups[1]!);
-      expect(closeButton).toBeTruthy();
-      await user.click(closeButton!);
+      const closeButton = getCloseButtonInGroup(tabGroups[1] as HTMLElement);
+      expect(closeButton).not.toBeNull();
+      await user.click(closeButton as HTMLElement);
 
       await waitFor(() => {
         expect(onTabClose).toHaveBeenCalledWith("tab-2");
@@ -363,18 +390,26 @@ describe("EditorWorkspace", () => {
       expect(tabGroups.length).toBe(2);
 
       // Find the main button (not close button) in second tab group
-      const tab2Buttons = within(tabGroups[1]!).getAllByRole("button");
-      const tab2Button = tab2Buttons.find((btn) => !btn.classList.contains("opacity-0"));
+      const tab2Buttons = within(tabGroups[1] as HTMLElement).getAllByRole(
+        "button",
+      );
+      const tab2Button = tab2Buttons.find(
+        (btn) => !btn.classList.contains("opacity-0"),
+      );
 
-      expect(tab2Button).toBeTruthy();
+      expect(tab2Button).not.toBeUndefined();
 
       // First tab should be active initially
-      const tab1Buttons = within(tabGroups[0]!).getAllByRole("button");
-      const tab1Button = tab1Buttons.find((btn) => !btn.classList.contains("opacity-0"));
+      const tab1Buttons = within(tabGroups[0] as HTMLElement).getAllByRole(
+        "button",
+      );
+      const tab1Button = tab1Buttons.find(
+        (btn) => !btn.classList.contains("opacity-0"),
+      );
       expect(tab1Button).toHaveClass("bg-primary");
 
       // Click on second tab
-      await user.click(tab2Button!);
+      await user.click(tab2Button as HTMLElement);
 
       // Second tab should now be active
       await waitFor(() => {
@@ -398,15 +433,19 @@ describe("EditorWorkspace", () => {
 
       // Get tab group and close button
       const tabGroups = getTabGroups();
-      const closeButton = getCloseButtonInGroup(tabGroups[0]!);
+      const closeButton = getCloseButtonInGroup(tabGroups[0] as HTMLElement);
 
-      expect(closeButton).toBeTruthy();
-      await user.click(closeButton!);
+      expect(closeButton).not.toBeNull();
+      await user.click(closeButton as HTMLElement);
 
       // Confirmation dialog should appear
       await waitFor(() => {
-        expect(screen.getByTestId("mock-confirmation-dialog")).toBeInTheDocument();
-        expect(screen.getByTestId("confirmation-title")).toHaveTextContent(/unsaved changes/i);
+        expect(
+          screen.getByTestId("mock-confirmation-dialog"),
+        ).toBeInTheDocument();
+        expect(screen.getByTestId("confirmation-title")).toHaveTextContent(
+          /unsaved changes/i,
+        );
       });
     });
 
@@ -427,13 +466,16 @@ describe("EditorWorkspace", () => {
 
       // Get tab group and close button
       const tabGroups = getTabGroups();
-      const closeButton = getCloseButtonInGroup(tabGroups[0]!);
+      const closeButton = getCloseButtonInGroup(tabGroups[0] as HTMLElement);
 
-      await user.click(closeButton!);
+      expect(closeButton).not.toBeNull();
+      await user.click(closeButton as HTMLElement);
 
       // Wait for dialog
       await waitFor(() => {
-        expect(screen.getByTestId("mock-confirmation-dialog")).toBeInTheDocument();
+        expect(
+          screen.getByTestId("mock-confirmation-dialog"),
+        ).toBeInTheDocument();
       });
 
       // Confirm discard
@@ -461,13 +503,16 @@ describe("EditorWorkspace", () => {
 
       // Get tab group and close button
       const tabGroups = getTabGroups();
-      const closeButton = getCloseButtonInGroup(tabGroups[0]!);
+      const closeButton = getCloseButtonInGroup(tabGroups[0] as HTMLElement);
 
-      await user.click(closeButton!);
+      expect(closeButton).not.toBeNull();
+      await user.click(closeButton as HTMLElement);
 
       // Wait for dialog
       await waitFor(() => {
-        expect(screen.getByTestId("mock-confirmation-dialog")).toBeInTheDocument();
+        expect(
+          screen.getByTestId("mock-confirmation-dialog"),
+        ).toBeInTheDocument();
       });
 
       // Cancel the close
@@ -475,7 +520,9 @@ describe("EditorWorkspace", () => {
 
       // Tab should still exist, onTabClose not called
       await waitFor(() => {
-        expect(screen.queryByTestId("mock-confirmation-dialog")).not.toBeInTheDocument();
+        expect(
+          screen.queryByTestId("mock-confirmation-dialog"),
+        ).not.toBeInTheDocument();
       });
       expect(onTabClose).not.toHaveBeenCalled();
       // Verify tab group still exists
@@ -487,8 +534,12 @@ describe("EditorWorkspace", () => {
     // Helper to get toolbar buttons in the icon toolbar area
     function getToolbarIconButtons(): HTMLElement[] {
       // The toolbar icon buttons are in div.flex.items-center.gap-1
-      const toolbarSection = document.querySelector(".flex.items-center.gap-1.overflow-visible");
-      if (!toolbarSection) return [];
+      const toolbarSection = document.querySelector(
+        ".flex.items-center.gap-1.overflow-visible",
+      );
+      if (!toolbarSection) {
+        return [];
+      }
       return Array.from(toolbarSection.querySelectorAll("button"));
     }
 
@@ -502,8 +553,9 @@ describe("EditorWorkspace", () => {
       const toolbarButtons = getToolbarIconButtons();
       expect(toolbarButtons.length).toBeGreaterThan(0);
 
-      const saveButton = toolbarButtons[0];
-      await user.click(saveButton!);
+      const saveButton = toolbarButtons.at(0);
+      expect(saveButton).toBeDefined();
+      await user.click(saveButton as HTMLElement);
 
       // SaveQueryModal should open
       await waitFor(() => {
@@ -516,16 +568,23 @@ describe("EditorWorkspace", () => {
       const onSave = vi.fn();
 
       const initialTabs: QueryTab[] = [
-        { id: "tab-1", name: "Existing Query", content: "SELECT 1", isDirty: true, isNew: false },
+        {
+          id: "tab-1",
+          name: "Existing Query",
+          content: "SELECT 1",
+          isDirty: true,
+          isNew: false,
+        },
       ];
 
       renderEditorWorkspace({ initialTabs, onSave });
 
       // First button in toolbar icons is the save button
       const toolbarButtons = getToolbarIconButtons();
-      const saveButton = toolbarButtons[0];
+      const saveButton = toolbarButtons.at(0);
+      expect(saveButton).toBeDefined();
 
-      await user.click(saveButton!);
+      await user.click(saveButton as HTMLElement);
 
       // Should call onSave directly, not open modal
       await waitFor(() => {
@@ -540,8 +599,9 @@ describe("EditorWorkspace", () => {
 
       // Open save modal
       const toolbarButtons = getToolbarIconButtons();
-      const saveButton = toolbarButtons[0];
-      await user.click(saveButton!);
+      const saveButton = toolbarButtons.at(0);
+      expect(saveButton).toBeDefined();
+      await user.click(saveButton as HTMLElement);
 
       await waitFor(() => {
         expect(screen.getByTestId("mock-save-modal")).toBeInTheDocument();
@@ -564,8 +624,9 @@ describe("EditorWorkspace", () => {
 
       // Open save modal
       const toolbarButtons = getToolbarIconButtons();
-      const saveButton = toolbarButtons[0];
-      await user.click(saveButton!);
+      const saveButton = toolbarButtons.at(0);
+      expect(saveButton).toBeDefined();
+      await user.click(saveButton as HTMLElement);
 
       await waitFor(() => {
         expect(screen.getByTestId("mock-save-modal")).toBeInTheDocument();
@@ -588,10 +649,9 @@ describe("EditorWorkspace", () => {
       // DE button is the 4th button in toolbar icons (after save, format, export)
       const toolbarButtons = getToolbarIconButtons();
       // Buttons: 0=Save, 1=Format, 2=Export, 3=Create DE
-      const deButton = toolbarButtons[3];
-
-      expect(deButton).toBeTruthy();
-      await user.click(deButton!);
+      const deButton = toolbarButtons.at(3);
+      expect(deButton).toBeDefined();
+      await user.click(deButton as HTMLElement);
 
       // Modal should open
       await waitFor(() => {
@@ -604,7 +664,9 @@ describe("EditorWorkspace", () => {
       renderEditorWorkspace();
 
       // Find and click Deploy to Automation button - has specific text
-      const deployButton = screen.getByRole("button", { name: /deploy to automation/i });
+      const deployButton = screen.getByRole("button", {
+        name: /deploy to automation/i,
+      });
       await user.click(deployButton);
 
       // Modal should open
@@ -619,9 +681,9 @@ describe("EditorWorkspace", () => {
 
       // DE button is the 4th button in toolbar icons
       const toolbarButtons = getToolbarIconButtons();
-      const deButton = toolbarButtons[3];
-
-      await user.click(deButton!);
+      const deButton = toolbarButtons.at(3);
+      expect(deButton).toBeDefined();
+      await user.click(deButton as HTMLElement);
 
       await waitFor(() => {
         expect(screen.getByTestId("mock-de-modal")).toBeInTheDocument();
@@ -641,7 +703,12 @@ describe("EditorWorkspace", () => {
       const user = userEvent.setup();
 
       const initialTabs: QueryTab[] = [
-        { id: "tab-1", name: "Test Query", content: "SELECT * FROM Contacts", isDirty: false },
+        {
+          id: "tab-1",
+          name: "Test Query",
+          content: "SELECT * FROM Contacts",
+          isDirty: false,
+        },
       ];
 
       renderEditorWorkspace({ initialTabs });
@@ -652,7 +719,10 @@ describe("EditorWorkspace", () => {
 
       // execute should be called with content
       await waitFor(() => {
-        expect(mockExecute).toHaveBeenCalledWith("SELECT * FROM Contacts", "Test Query");
+        expect(mockExecute).toHaveBeenCalledWith(
+          "SELECT * FROM Contacts",
+          "Test Query",
+        );
       });
     });
 
@@ -725,7 +795,9 @@ describe("EditorWorkspace", () => {
       // Error should be visible
       const resultsPane = screen.getByTestId("mock-results-pane");
       expect(resultsPane).toHaveAttribute("data-status", "error");
-      expect(screen.getByTestId("error-message")).toHaveTextContent("Query execution failed: Invalid syntax");
+      expect(screen.getByTestId("error-message")).toHaveTextContent(
+        "Query execution failed: Invalid syntax",
+      );
     });
   });
 
@@ -768,8 +840,12 @@ describe("EditorWorkspace", () => {
   describe("dirty tracking", () => {
     // Helper to get toolbar buttons in the icon toolbar area
     function getToolbarIconButtons(): HTMLElement[] {
-      const toolbarSection = document.querySelector(".flex.items-center.gap-1.overflow-visible");
-      if (!toolbarSection) return [];
+      const toolbarSection = document.querySelector(
+        ".flex.items-center.gap-1.overflow-visible",
+      );
+      if (!toolbarSection) {
+        return [];
+      }
       return Array.from(toolbarSection.querySelectorAll("button"));
     }
 
@@ -793,7 +869,7 @@ describe("EditorWorkspace", () => {
       // Should now have dirty indicator (pulse dot)
       await waitFor(() => {
         const pulseIndicator = document.querySelector(".animate-pulse");
-        expect(pulseIndicator).toBeTruthy();
+        expect(pulseIndicator).not.toBeNull();
       });
     });
 
@@ -802,7 +878,13 @@ describe("EditorWorkspace", () => {
       const onSave = vi.fn();
 
       const initialTabs: QueryTab[] = [
-        { id: "tab-1", name: "Existing Query", content: "SELECT 1", isDirty: false, isNew: false },
+        {
+          id: "tab-1",
+          name: "Existing Query",
+          content: "SELECT 1",
+          isDirty: false,
+          isNew: false,
+        },
       ];
 
       renderEditorWorkspace({ initialTabs, onSave });
@@ -814,14 +896,15 @@ describe("EditorWorkspace", () => {
       // Should be dirty now (pulse indicator visible)
       await waitFor(() => {
         const pulseIndicator = document.querySelector(".animate-pulse");
-        expect(pulseIndicator).toBeTruthy();
+        expect(pulseIndicator).not.toBeNull();
       });
 
       // Find and click save button (first in toolbar icons)
       const toolbarButtons = getToolbarIconButtons();
-      const saveButton = toolbarButtons[0];
+      const saveButton = toolbarButtons.at(0);
+      expect(saveButton).toBeDefined();
 
-      await user.click(saveButton!);
+      await user.click(saveButton as HTMLElement);
 
       // onSave should be called
       expect(onSave).toHaveBeenCalled();

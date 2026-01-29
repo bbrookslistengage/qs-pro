@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray, or } from "drizzle-orm";
 import { drizzle, PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -8,47 +8,115 @@ import {
   DrizzleTenantRepository,
   DrizzleUserRepository,
 } from "../repositories/drizzle-repositories";
-import { credentials, tenantFeatureOverrides, tenants, users } from "../schema";
+import {
+  credentials,
+  queryHistory,
+  shellQueryRuns,
+  snippets,
+  tenantFeatureOverrides,
+  tenants,
+  tenantSettings,
+  users,
+} from "../schema";
 
-// DATABASE_URL is loaded from root .env via vitest.setup.ts
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
-  throw new Error(
-    "DATABASE_URL environment variable is required for database tests",
-  );
+  throw new Error("DATABASE_URL environment variable is required");
 }
 
-// Use unique test identifiers to avoid conflicts with other test suites
+const migrationConnectionString = process.env.DATABASE_URL_MIGRATIONS;
+if (!migrationConnectionString) {
+  throw new Error("DATABASE_URL_MIGRATIONS environment variable is required");
+}
+
 const TEST_EID = "repo-test-eid-12345";
 const TEST_SF_USER_ID = "repo-test-user-789";
+const TEST_MID = "mid-123";
 
 describe("Drizzle Repositories", () => {
   let db: PostgresJsDatabase;
   let client: postgres.Sql;
+  let cleanupClient: postgres.Sql;
+  let cleanupDb: PostgresJsDatabase;
   let tenantRepo: DrizzleTenantRepository;
   let userRepo: DrizzleUserRepository;
   let credRepo: DrizzleCredentialsRepository;
   let testTenantId: string;
   let testUserId: string;
 
+  async function cleanupRepositoryTestData(): Promise<void> {
+    const existingTenants = await cleanupDb
+      .select({ id: tenants.id })
+      .from(tenants)
+      .where(eq(tenants.eid, TEST_EID));
+    const tenantIds = existingTenants.map((t) => t.id);
+
+    const existingUsers = await cleanupDb
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.sfUserId, TEST_SF_USER_ID));
+    const userIds = existingUsers.map((u) => u.id);
+
+    const credentialConditions = [eq(credentials.mid, TEST_MID)];
+    if (tenantIds.length > 0) {
+      credentialConditions.push(inArray(credentials.tenantId, tenantIds));
+    }
+    if (userIds.length > 0) {
+      credentialConditions.push(inArray(credentials.userId, userIds));
+    }
+    await cleanupDb.delete(credentials).where(or(...credentialConditions));
+
+    if (tenantIds.length > 0) {
+      await cleanupDb
+        .delete(queryHistory)
+        .where(inArray(queryHistory.tenantId, tenantIds));
+      await cleanupDb
+        .delete(snippets)
+        .where(inArray(snippets.tenantId, tenantIds));
+      await cleanupDb
+        .delete(shellQueryRuns)
+        .where(inArray(shellQueryRuns.tenantId, tenantIds));
+      await cleanupDb
+        .delete(tenantFeatureOverrides)
+        .where(inArray(tenantFeatureOverrides.tenantId, tenantIds));
+      await cleanupDb
+        .delete(tenantSettings)
+        .where(inArray(tenantSettings.tenantId, tenantIds));
+      await cleanupDb.delete(users).where(inArray(users.tenantId, tenantIds));
+      await cleanupDb.delete(tenants).where(inArray(tenants.id, tenantIds));
+    }
+
+    if (userIds.length > 0) {
+      await cleanupDb
+        .delete(queryHistory)
+        .where(inArray(queryHistory.userId, userIds));
+      await cleanupDb.delete(snippets).where(inArray(snippets.userId, userIds));
+      await cleanupDb
+        .delete(shellQueryRuns)
+        .where(inArray(shellQueryRuns.userId, userIds));
+    }
+
+    await cleanupDb.delete(users).where(eq(users.sfUserId, TEST_SF_USER_ID));
+    await cleanupDb.delete(tenants).where(eq(tenants.eid, TEST_EID));
+  }
+
   beforeAll(async () => {
-    client = postgres(connectionString);
+    client = postgres(connectionString, { max: 1 });
     db = drizzle(client);
     tenantRepo = new DrizzleTenantRepository(db);
     userRepo = new DrizzleUserRepository(db);
     credRepo = new DrizzleCredentialsRepository(db);
+
+    cleanupClient = postgres(migrationConnectionString, { max: 1 });
+    cleanupDb = drizzle(cleanupClient);
+    await cleanupRepositoryTestData();
   });
 
   afterAll(async () => {
-    // Clean up only our test data (in correct FK order)
-    if (testUserId) {
-      await db.delete(credentials).where(eq(credentials.userId, testUserId));
-    }
-    if (testTenantId) {
-      await db.delete(users).where(eq(users.tenantId, testTenantId));
-      await db.delete(tenants).where(eq(tenants.id, testTenantId));
-    }
+    await cleanupRepositoryTestData();
+
     await client.end();
+    await cleanupClient.end();
   });
 
   it("should upsert and find a tenant by eid", async () => {
@@ -80,7 +148,7 @@ describe("Drizzle Repositories", () => {
   });
 
   it("should upsert and find credentials", async () => {
-    const mid = "mid-123";
+    const mid = TEST_MID;
     const credData = {
       tenantId: testTenantId,
       userId: testUserId,
@@ -90,7 +158,6 @@ describe("Drizzle Repositories", () => {
       expiresAt: new Date(Date.now() + 3600000),
     };
 
-    // Set RLS context for tenant/BU isolation (required by RLS policies)
     await client`SELECT set_config('app.tenant_id', ${testTenantId}, false)`;
     await client`SELECT set_config('app.mid', ${mid}, false)`;
 
@@ -106,43 +173,140 @@ describe("Drizzle Repositories", () => {
   });
 });
 
-// Unique identifiers for RLS isolation tests
 const RLS_TEST_EID_1 = "rls-test-tenant-1-eid";
 const RLS_TEST_EID_2 = "rls-test-tenant-2-eid";
 const RLS_TEST_SF_USER_1 = "rls-test-user-1";
 const RLS_TEST_SF_USER_2 = "rls-test-user-2";
 const RLS_TEST_MID_1 = "rls-mid-111";
 const RLS_TEST_MID_2 = "rls-mid-222";
+const RLS_TEST_FEATURE_KEY_1 = "rls-test-feature-1";
+const RLS_TEST_FEATURE_KEY_2 = "rls-test-feature-2";
+const RLS_TEST_EIDS = [RLS_TEST_EID_1, RLS_TEST_EID_2] as const;
+const RLS_TEST_SF_USERS = [RLS_TEST_SF_USER_1, RLS_TEST_SF_USER_2] as const;
+const RLS_TEST_MIDS = [RLS_TEST_MID_1, RLS_TEST_MID_2] as const;
+const RLS_TEST_FEATURE_KEYS = [
+  RLS_TEST_FEATURE_KEY_1,
+  RLS_TEST_FEATURE_KEY_2,
+] as const;
 
 describe("RLS Tenant Isolation", () => {
   let db: PostgresJsDatabase;
   let client: postgres.Sql;
   let credRepo: DrizzleCredentialsRepository;
 
-  // Test data references
+  let cleanupClient: postgres.Sql;
+  let cleanupDb: PostgresJsDatabase;
+
   let tenant1Id: string;
   let tenant2Id: string;
   let user1Id: string;
   let user2Id: string;
 
-  // Helper to set RLS context
   async function setRlsContext(tenantId: string, mid: string): Promise<void> {
     await client`SELECT set_config('app.tenant_id', ${tenantId}, false)`;
     await client`SELECT set_config('app.mid', ${mid}, false)`;
   }
 
-  // Helper to reset RLS context
   async function resetRlsContext(): Promise<void> {
     await client`RESET app.tenant_id`;
     await client`RESET app.mid`;
   }
 
+  async function cleanupRlsTestData(): Promise<void> {
+    const existingTenants = await cleanupDb
+      .select({ id: tenants.id })
+      .from(tenants)
+      .where(inArray(tenants.eid, [...RLS_TEST_EIDS]));
+    const tenantIds = existingTenants.map((t) => t.id);
+
+    const existingUsers = await cleanupDb
+      .select({ id: users.id })
+      .from(users)
+      .where(inArray(users.sfUserId, [...RLS_TEST_SF_USERS]));
+    const userIds = existingUsers.map((u) => u.id);
+
+    const credentialConditions = [inArray(credentials.mid, [...RLS_TEST_MIDS])];
+    if (tenantIds.length > 0) {
+      credentialConditions.push(inArray(credentials.tenantId, tenantIds));
+    }
+    if (userIds.length > 0) {
+      credentialConditions.push(inArray(credentials.userId, userIds));
+    }
+    await cleanupDb.delete(credentials).where(or(...credentialConditions));
+
+    const tenantFeatureConditions = [
+      inArray(tenantFeatureOverrides.featureKey, [...RLS_TEST_FEATURE_KEYS]),
+    ];
+    if (tenantIds.length > 0) {
+      tenantFeatureConditions.push(
+        inArray(tenantFeatureOverrides.tenantId, tenantIds),
+      );
+    }
+    await cleanupDb
+      .delete(tenantFeatureOverrides)
+      .where(or(...tenantFeatureConditions));
+
+    const tenantSettingsConditions = [
+      inArray(tenantSettings.mid, [...RLS_TEST_MIDS]),
+    ];
+    if (tenantIds.length > 0) {
+      tenantSettingsConditions.push(
+        inArray(tenantSettings.tenantId, tenantIds),
+      );
+    }
+    await cleanupDb
+      .delete(tenantSettings)
+      .where(or(...tenantSettingsConditions));
+
+    if (tenantIds.length > 0) {
+      await cleanupDb
+        .delete(queryHistory)
+        .where(inArray(queryHistory.tenantId, tenantIds));
+      await cleanupDb
+        .delete(snippets)
+        .where(inArray(snippets.tenantId, tenantIds));
+      await cleanupDb
+        .delete(shellQueryRuns)
+        .where(inArray(shellQueryRuns.tenantId, tenantIds));
+    }
+
+    if (userIds.length > 0) {
+      await cleanupDb
+        .delete(queryHistory)
+        .where(inArray(queryHistory.userId, userIds));
+      await cleanupDb.delete(snippets).where(inArray(snippets.userId, userIds));
+      await cleanupDb
+        .delete(shellQueryRuns)
+        .where(inArray(shellQueryRuns.userId, userIds));
+    }
+
+    await cleanupDb
+      .delete(users)
+      .where(inArray(users.sfUserId, [...RLS_TEST_SF_USERS]));
+    await cleanupDb
+      .delete(tenants)
+      .where(inArray(tenants.eid, [...RLS_TEST_EIDS]));
+  }
+
   beforeAll(async () => {
-    client = postgres(connectionString);
+    client = postgres(connectionString, { max: 1 });
     db = drizzle(client);
     credRepo = new DrizzleCredentialsRepository(db);
 
-    // Create two tenants (upsert to handle leftover data from failed runs)
+    cleanupClient = postgres(migrationConnectionString, { max: 1 });
+    cleanupDb = drizzle(cleanupClient);
+
+    const bypass = await cleanupClient<
+      Array<{ rolbypassrls: boolean | null }>
+    >`SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user`;
+    if (!bypass[0]?.rolbypassrls) {
+      throw new Error(
+        "DATABASE_URL_MIGRATIONS must use a role with BYPASSRLS for RLS integration tests",
+      );
+    }
+
+    await cleanupRlsTestData();
+
     const [tenant1] = await db
       .insert(tenants)
       .values({ eid: RLS_TEST_EID_1, tssd: "rls-stack-1" })
@@ -169,7 +333,6 @@ describe("RLS Tenant Isolation", () => {
     }
     tenant2Id = tenant2.id;
 
-    // Create users for each tenant (upsert to handle leftover data from failed runs)
     const [user1] = await db
       .insert(users)
       .values({
@@ -206,7 +369,6 @@ describe("RLS Tenant Isolation", () => {
     }
     user2Id = user2.id;
 
-    // Create credentials for tenant1/user1 (requires RLS context)
     await setRlsContext(tenant1Id, RLS_TEST_MID_1);
     await credRepo.upsert({
       tenantId: tenant1Id,
@@ -218,7 +380,6 @@ describe("RLS Tenant Isolation", () => {
     });
     await resetRlsContext();
 
-    // Create credentials for tenant2/user2 (requires RLS context)
     await setRlsContext(tenant2Id, RLS_TEST_MID_2);
     await credRepo.upsert({
       tenantId: tenant2Id,
@@ -230,13 +391,12 @@ describe("RLS Tenant Isolation", () => {
     });
     await resetRlsContext();
 
-    // Create feature overrides for both tenants (upsert to handle leftover data)
     await setRlsContext(tenant1Id, RLS_TEST_MID_1);
     await db
       .insert(tenantFeatureOverrides)
       .values({
         tenantId: tenant1Id,
-        featureKey: "rls-test-feature-1",
+        featureKey: RLS_TEST_FEATURE_KEY_1,
         enabled: true,
       })
       .onConflictDoUpdate({
@@ -253,7 +413,7 @@ describe("RLS Tenant Isolation", () => {
       .insert(tenantFeatureOverrides)
       .values({
         tenantId: tenant2Id,
-        featureKey: "rls-test-feature-2",
+        featureKey: RLS_TEST_FEATURE_KEY_2,
         enabled: false,
       })
       .onConflictDoUpdate({
@@ -267,43 +427,17 @@ describe("RLS Tenant Isolation", () => {
   });
 
   afterAll(async () => {
-    // Cleanup in FK order: credentials → feature_overrides → users → tenants
-    // Delete by tenantId to catch all data including leftovers from failed runs
-    if (tenant1Id) {
-      await setRlsContext(tenant1Id, RLS_TEST_MID_1);
-      await db.delete(credentials).where(eq(credentials.tenantId, tenant1Id));
-      await db
-        .delete(tenantFeatureOverrides)
-        .where(eq(tenantFeatureOverrides.tenantId, tenant1Id));
-      await resetRlsContext();
-
-      await db.delete(users).where(eq(users.tenantId, tenant1Id));
-      await db.delete(tenants).where(eq(tenants.id, tenant1Id));
-    }
-
-    if (tenant2Id) {
-      await setRlsContext(tenant2Id, RLS_TEST_MID_2);
-      await db.delete(credentials).where(eq(credentials.tenantId, tenant2Id));
-      await db
-        .delete(tenantFeatureOverrides)
-        .where(eq(tenantFeatureOverrides.tenantId, tenant2Id));
-      await resetRlsContext();
-
-      await db.delete(users).where(eq(users.tenantId, tenant2Id));
-      await db.delete(tenants).where(eq(tenants.id, tenant2Id));
-    }
+    await cleanupRlsTestData();
 
     await client.end();
+    await cleanupClient.end();
   });
 
   it("should enforce tenant isolation via RLS for credentials", async () => {
-    // Set RLS context to tenant1
     await setRlsContext(tenant1Id, RLS_TEST_MID_1);
 
-    // Query credentials using raw SQL to test RLS (bypasses repository WHERE clauses)
     const results = await client`SELECT * FROM credentials`;
 
-    // Should only see tenant1's credentials due to RLS
     expect(results).toHaveLength(1);
     const row = results[0] as { tenant_id: string; access_token: string };
     expect(row.tenant_id).toBe(tenant1Id);
@@ -313,28 +447,22 @@ describe("RLS Tenant Isolation", () => {
   });
 
   it("should prevent cross-tenant data access for credentials", async () => {
-    // Set RLS context to tenant1
     await setRlsContext(tenant1Id, RLS_TEST_MID_1);
 
-    // Try to find tenant2's credentials using the repository
     const result = await credRepo.findByUserTenantMid(
       user2Id,
       tenant2Id,
       RLS_TEST_MID_2,
     );
 
-    // Should return undefined due to RLS blocking access
     expect(result).toBeUndefined();
 
     await resetRlsContext();
   });
 
   it("should prevent inserting credentials with mismatched tenant context", async () => {
-    // Set RLS context to tenant1
     await setRlsContext(tenant1Id, RLS_TEST_MID_1);
 
-    // Attempt to insert credentials for tenant2 while tenant1 context is set
-    // This should fail because RLS WITH CHECK blocks it
     await expect(
       credRepo.upsert({
         tenantId: tenant2Id,
@@ -350,13 +478,10 @@ describe("RLS Tenant Isolation", () => {
   });
 
   it("should enforce tenant isolation for tenant_feature_overrides", async () => {
-    // Set RLS context to tenant1
     await setRlsContext(tenant1Id, RLS_TEST_MID_1);
 
-    // Query feature overrides using raw SQL to test RLS
     const results = await client`SELECT * FROM tenant_feature_overrides`;
 
-    // Should only see tenant1's feature overrides due to RLS
     expect(results).toHaveLength(1);
     const row = results[0] as {
       tenant_id: string;
@@ -371,10 +496,8 @@ describe("RLS Tenant Isolation", () => {
   });
 
   it("should return empty results when querying with wrong tenant context", async () => {
-    // Set RLS context to tenant1 but with tenant2's MID
     await setRlsContext(tenant1Id, RLS_TEST_MID_2);
 
-    // Query credentials - should be empty because MID doesn't match
     const credResults = await client`SELECT * FROM credentials`;
     expect(credResults).toHaveLength(0);
 
@@ -382,7 +505,6 @@ describe("RLS Tenant Isolation", () => {
   });
 
   it("should allow querying own tenant data after context switch", async () => {
-    // First verify tenant1's data
     await setRlsContext(tenant1Id, RLS_TEST_MID_1);
     const tenant1Creds = await client`SELECT * FROM credentials`;
     expect(tenant1Creds).toHaveLength(1);
@@ -390,7 +512,6 @@ describe("RLS Tenant Isolation", () => {
     expect(row1.access_token).toBe("tenant1-access-token");
     await resetRlsContext();
 
-    // Now switch to tenant2 and verify its data
     await setRlsContext(tenant2Id, RLS_TEST_MID_2);
     const tenant2Creds = await client`SELECT * FROM credentials`;
     expect(tenant2Creds).toHaveLength(1);

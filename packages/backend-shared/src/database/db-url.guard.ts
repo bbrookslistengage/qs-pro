@@ -1,3 +1,5 @@
+import type { Sql } from "postgres";
+
 const DEFAULT_MIGRATIONS_USERNAME = "qs_migrate";
 
 /**
@@ -60,6 +62,60 @@ export function assertSafeRuntimeDatabaseUrl(connectionString: string): void {
     throw new Error(
       `Refusing to start in production with DATABASE_URL user '${username}'. ` +
         `Superuser/admin roles bypass row-level security. Use a dedicated runtime role (e.g. 'qs_runtime').`,
+    );
+  }
+}
+
+/**
+ * Verifies the runtime database role cannot bypass row-level security.
+ *
+ * Checks SUPERUSER and BYPASSRLS only—these directly defeat RLS. Other flags
+ * like CREATEROLE/CREATEDB are privilege escalation vectors but don't bypass
+ * RLS directly; CI validates the complete role configuration.
+ */
+export async function assertSafeRuntimeDatabaseRole(sql: Sql): Promise<void> {
+  if (process.env.NODE_ENV !== "production") {
+    return;
+  }
+
+  const rows = await sql<
+    Array<{ rolsuper: boolean | null; rolbypassrls: boolean | null }>
+  >`SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user`;
+  const row = rows[0];
+  if (!row) {
+    throw new Error(
+      "Refusing to start in production: unable to verify database role privileges for current_user.",
+    );
+  }
+
+  if (row.rolsuper || row.rolbypassrls) {
+    throw new Error(
+      "Refusing to start in production with a privileged DATABASE_URL role (SUPERUSER or BYPASSRLS). " +
+        "Use a dedicated runtime role with RLS enforced (e.g. qs_runtime) and reserve privileged roles for migrations/maintenance only.",
+    );
+  }
+
+  const privilegedMembership = await sql<Array<{ rolname: string }>>`
+    WITH RECURSIVE role_path AS (
+      SELECT oid, rolname, rolsuper, rolbypassrls
+      FROM pg_roles
+      WHERE rolname = current_user
+      UNION
+      SELECT r.oid, r.rolname, r.rolsuper, r.rolbypassrls
+      FROM pg_roles r
+      JOIN pg_auth_members am ON r.oid = am.roleid
+      JOIN role_path rp ON am.member = rp.oid
+    )
+    SELECT rolname FROM role_path
+    WHERE (rolsuper OR rolbypassrls) AND rolname != current_user
+    LIMIT 1
+  `;
+
+  const inheritedPrivilegedRole = privilegedMembership[0];
+  if (inheritedPrivilegedRole) {
+    throw new Error(
+      `Refusing to start in production: runtime role is a member of privileged role '${inheritedPrivilegedRole.rolname}' (SUPERUSER or BYPASSRLS). ` +
+        "Revoke this membership to prevent privilege escalation via SET ROLE.",
     );
   }
 }

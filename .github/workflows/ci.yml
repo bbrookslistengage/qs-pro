@@ -63,6 +63,10 @@ jobs:
           CREATE ROLE qs_migrate LOGIN PASSWORD 'migrate_pass' BYPASSRLS;
           CREATE ROLE qs_runtime LOGIN PASSWORD 'runtime_pass';
 
+          -- Harden role attributes explicitly.
+          ALTER ROLE qs_migrate BYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+          ALTER ROLE qs_runtime NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+
           GRANT CONNECT ON DATABASE qs_pro_test TO qs_migrate;
           GRANT CONNECT ON DATABASE qs_pro_test TO qs_runtime;
           GRANT CREATE ON DATABASE qs_pro_test TO qs_migrate;
@@ -80,6 +84,24 @@ jobs:
         run: |
           if echo "$DATABASE_URL" | grep -q 'qs_migrate'; then
             echo "ERROR: DATABASE_URL must not use qs_migrate" >&2
+            exit 1
+          fi
+
+      - name: Validate database role privileges
+        run: |
+          set -euo pipefail
+
+          runtime_privileged=$(psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -tAc \
+            "SELECT CASE WHEN (SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user) THEN 1 ELSE 0 END")
+          if [ "$runtime_privileged" != "0" ]; then
+            echo "ERROR: Runtime role (DATABASE_URL) must not have SUPERUSER or BYPASSRLS" >&2
+            exit 1
+          fi
+
+          migrate_correct=$(psql "$DATABASE_URL_MIGRATIONS" -v ON_ERROR_STOP=1 -tAc \
+            "SELECT CASE WHEN (SELECT rolbypassrls AND NOT rolsuper FROM pg_roles WHERE rolname = current_user) THEN 1 ELSE 0 END")
+          if [ "$migrate_correct" != "1" ]; then
+            echo "ERROR: Migrations role (DATABASE_URL_MIGRATIONS) must have BYPASSRLS but not SUPERUSER" >&2
             exit 1
           fi
 

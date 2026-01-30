@@ -129,13 +129,14 @@ vi.mock("../SaveQueryModal", () => ({
   SaveQueryModal: ({
     isOpen,
     onClose,
+    onSaveSuccess,
     onSave,
-    folders,
   }: {
     isOpen: boolean;
+    content: string;
     onClose: () => void;
-    onSave: (name: string, folderId: string) => void;
-    folders: Folder[];
+    onSaveSuccess?: (queryId: string, name: string) => void;
+    onSave?: (name: string, folderId: string) => void;
   }) =>
     isOpen ? (
       <div data-testid="mock-save-modal" role="dialog">
@@ -144,7 +145,10 @@ vi.mock("../SaveQueryModal", () => ({
           Cancel
         </button>
         <button
-          onClick={() => onSave("Test Query", folders[0]?.id ?? "folder-1")}
+          onClick={() => {
+            onSaveSuccess?.("new-query-id", "Test Query");
+            onSave?.("Test Query", "folder-1");
+          }}
           data-testid="save-modal-confirm"
         >
           Save
@@ -238,6 +242,13 @@ let mockQueryExecutionReturn: MockQueryExecution = {
 
 vi.mock("@/features/editor-workspace/hooks/use-query-execution", () => ({
   useQueryExecution: () => mockQueryExecutionReturn,
+}));
+
+vi.mock("@/features/editor-workspace/hooks/use-saved-queries", () => ({
+  useUpdateSavedQuery: () => ({
+    mutateAsync: vi.fn().mockResolvedValue({ id: "q1", name: "Updated Query" }),
+    isPending: false,
+  }),
 }));
 
 vi.mock(
@@ -570,6 +581,7 @@ describe("EditorWorkspace", () => {
       const initialTabs: QueryTab[] = [
         {
           id: "tab-1",
+          queryId: "q1", // Must have queryId for auto-save to work
           name: "Existing Query",
           content: "SELECT 1",
           isDirty: true,
@@ -586,7 +598,7 @@ describe("EditorWorkspace", () => {
 
       await user.click(saveButton as HTMLElement);
 
-      // Should call onSave directly, not open modal
+      // Should call onSave after API mutation completes, not open modal
       await waitFor(() => {
         expect(onSave).toHaveBeenCalledWith("tab-1", "SELECT 1");
       });
@@ -880,6 +892,7 @@ describe("EditorWorkspace", () => {
       const initialTabs: QueryTab[] = [
         {
           id: "tab-1",
+          queryId: "q1", // Must have queryId for auto-save
           name: "Existing Query",
           content: "SELECT 1",
           isDirty: false,
@@ -906,8 +919,10 @@ describe("EditorWorkspace", () => {
 
       await user.click(saveButton as HTMLElement);
 
-      // onSave should be called
-      expect(onSave).toHaveBeenCalled();
+      // onSave should be called after async mutation completes
+      await waitFor(() => {
+        expect(onSave).toHaveBeenCalled();
+      });
 
       // Should no longer be dirty (no pulse indicator)
       await waitFor(() => {

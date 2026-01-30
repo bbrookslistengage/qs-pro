@@ -18,9 +18,11 @@ import {
   useRef,
   useState,
 } from "react";
+import { toast } from "sonner";
 
 import { FeatureGate } from "@/components/FeatureGate";
 import { useQueryExecution } from "@/features/editor-workspace/hooks/use-query-execution";
+import { useUpdateSavedQuery } from "@/features/editor-workspace/hooks/use-saved-queries";
 import type {
   EditorWorkspaceProps,
   ExecutionResult,
@@ -101,6 +103,9 @@ export function EditorWorkspace({
     currentPage,
     setPage,
   } = useQueryExecution({ tenantId, eid });
+
+  // Mutation for auto-saving existing queries
+  const updateQuery = useUpdateSavedQuery();
 
   // Tab Management - ensure tabs array is never empty
   const [{ tabs, activeTabId }, setTabState] = useState(() => {
@@ -339,16 +344,44 @@ export function EditorWorkspace({
     }
   };
 
-  const handleSave = () => {
+  const handleSave = useCallback(async () => {
     if (activeTab.isNew) {
       setIsSaveModalOpen(true);
-    } else {
-      safeSetTabs(
-        tabs.map((t) => (t.id === activeTabId ? { ...t, isDirty: false } : t)),
-      );
-      onSave?.(activeTab.id, activeTab.content);
+    } else if (activeTab.isDirty && activeTab.queryId) {
+      // Auto-save existing query via API
+      try {
+        await updateQuery.mutateAsync({
+          id: activeTab.queryId,
+          data: { sqlText: activeTab.content },
+        });
+
+        // Update local state
+        safeSetTabs(
+          tabs.map((t) =>
+            t.id === activeTabId ? { ...t, isDirty: false } : t,
+          ),
+        );
+
+        // Sync with Zustand store
+        const zustandTab = useTabsStore
+          .getState()
+          .tabs.find((t) => t.queryId === activeTab.queryId);
+        if (zustandTab) {
+          useTabsStore
+            .getState()
+            .markTabSaved(zustandTab.id, activeTab.queryId, activeTab.name);
+        }
+
+        toast.success("Query saved");
+        onSave?.(activeTab.id, activeTab.content);
+      } catch (error) {
+        toast.error("Failed to save query", {
+          description:
+            error instanceof Error ? error.message : "An error occurred",
+        });
+      }
     }
-  };
+  }, [activeTab, activeTabId, tabs, safeSetTabs, updateQuery, onSave]);
 
   const handleFinalSave = (name: string, folderId: string) => {
     safeSetTabs(

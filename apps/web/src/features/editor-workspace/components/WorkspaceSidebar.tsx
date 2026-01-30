@@ -29,7 +29,7 @@ import {
 interface WorkspaceSidebarProps {
   tenantId?: string | null;
   folders: Folder[];
-  savedQueries: SavedQuery[];
+  savedQueries?: SavedQuery[];
   dataExtensions: DataExtension[];
   isCollapsed: boolean;
   isDataExtensionsFetching?: boolean;
@@ -170,7 +170,7 @@ function toggleExpandedDeId(
 export function WorkspaceSidebar({
   tenantId,
   folders,
-  savedQueries,
+  savedQueries = [],
   dataExtensions,
   isCollapsed,
   isDataExtensionsFetching = false,

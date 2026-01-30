@@ -22,7 +22,10 @@ import { toast } from "sonner";
 
 import { FeatureGate } from "@/components/FeatureGate";
 import { useQueryExecution } from "@/features/editor-workspace/hooks/use-query-execution";
-import { useUpdateSavedQuery } from "@/features/editor-workspace/hooks/use-saved-queries";
+import {
+  useSavedQuery,
+  useUpdateSavedQuery,
+} from "@/features/editor-workspace/hooks/use-saved-queries";
 import type {
   EditorWorkspaceProps,
   ExecutionResult,
@@ -91,6 +94,16 @@ export function EditorWorkspace({
   const [isConfirmCloseOpen, setIsConfirmCloseOpen] = useState(false);
   const [tabToClose, setTabToClose] = useState<string | null>(null);
   const [isRunBlockedOpen, setIsRunBlockedOpen] = useState(false);
+
+  // State for lazy-loading query content when opening from sidebar
+  const [pendingQueryId, setPendingQueryId] = useState<string | null>(null);
+
+  // State for Save As mode
+  const [isSaveAsMode, setIsSaveAsMode] = useState(false);
+  const [saveAsInitialName, setSaveAsInitialName] = useState<string>("");
+
+  // Lazy fetch query content when opening from sidebar
+  const { data: pendingQuery } = useSavedQuery(pendingQueryId ?? undefined);
 
   const {
     execute,
@@ -264,13 +277,11 @@ export function EditorWorkspace({
   // Subscribe to Zustand store changes and sync back to EditorWorkspace
   useEffect(() => {
     const unsubscribe = useTabsStore.subscribe((state) => {
-      // Sync active tab changes from Zustand to EditorWorkspace
       if (state.activeTabId) {
         const zustandActiveTab = state.tabs.find(
           (t) => t.id === state.activeTabId,
         );
         if (zustandActiveTab) {
-          // Find corresponding tab in EditorWorkspace
           const localTab = tabs.find(
             (t) =>
               t.id === zustandActiveTab.id ||
@@ -285,6 +296,30 @@ export function EditorWorkspace({
     });
     return unsubscribe;
   }, [tabs, activeTabId, setActiveTabId, onTabChange]);
+
+  // Effect to open tab when pending query loads
+  useEffect(() => {
+    if (pendingQuery && pendingQueryId) {
+      const newId = `t-${Date.now()}`;
+      safeSetTabs([
+        ...tabs,
+        {
+          id: newId,
+          queryId: pendingQuery.id,
+          name: pendingQuery.name,
+          content: pendingQuery.sqlText,
+          isDirty: false,
+          isNew: false,
+        },
+      ]);
+      setActiveTabId(newId);
+      // Sync with Zustand store
+      useTabsStore
+        .getState()
+        .openQuery(pendingQuery.id, pendingQuery.name, pendingQuery.sqlText);
+      setPendingQueryId(null);
+    }
+  }, [pendingQuery, pendingQueryId, tabs, safeSetTabs, setActiveTabId]);
 
   // Dirty State & BeforeUnload
   useEffect(() => {
@@ -345,9 +380,9 @@ export function EditorWorkspace({
   };
 
   const handleSave = useCallback(async () => {
-    if (activeTab.isNew) {
+    if (!activeTab.queryId) {
       setIsSaveModalOpen(true);
-    } else if (activeTab.isDirty && activeTab.queryId) {
+    } else if (activeTab.isDirty) {
       // Auto-save existing query via API
       try {
         await updateQuery.mutateAsync({
@@ -382,6 +417,40 @@ export function EditorWorkspace({
       }
     }
   }, [activeTab, activeTabId, tabs, safeSetTabs, updateQuery, onSave]);
+
+  const handleSaveAs = useCallback(() => {
+    const name = activeTab?.name || "Untitled";
+    setSaveAsInitialName(`${name} (copy)`);
+    setIsSaveAsMode(true);
+    setIsSaveModalOpen(true);
+  }, [activeTab?.name]);
+
+  const handleSaveAsSuccess = useCallback(
+    (queryId: string, name: string) => {
+      // Create new tab for the copy (Google Docs style - original tab stays open)
+      const newId = `t-${Date.now()}`;
+      safeSetTabs([
+        ...tabs,
+        {
+          id: newId,
+          queryId,
+          name,
+          content: activeTab?.content ?? "",
+          isDirty: false,
+          isNew: false,
+        },
+      ]);
+      setActiveTabId(newId);
+      // Sync with Zustand store
+      useTabsStore
+        .getState()
+        .openQuery(queryId, name, activeTab?.content ?? "");
+      setIsSaveModalOpen(false);
+      setIsSaveAsMode(false);
+      setSaveAsInitialName("");
+    },
+    [activeTab?.content, tabs, safeSetTabs, setActiveTabId],
+  );
 
   const handleFinalSave = (name: string, folderId: string) => {
     safeSetTabs(
@@ -475,32 +544,21 @@ export function EditorWorkspace({
           isDataExtensionsFetching={isDataExtensionsFetching}
           onToggle={handleToggleSidebar}
           onSelectQuery={(id) => {
-            const query = savedQueries.find((q) => q.id === id);
-            if (query) {
-              const existingTab = tabs.find((t) => t.queryId === id);
-              if (existingTab) {
-                setActiveTabId(existingTab.id);
-                // Sync with Zustand store for QueryTabBar
-                useTabsStore.getState().setActiveTab(existingTab.id);
-              } else {
-                const newId = `t-${Date.now()}`;
-                safeSetTabs([
-                  ...tabs,
-                  {
-                    id: newId,
-                    queryId: id,
-                    name: query.name,
-                    content: query.content,
-                    isDirty: false,
-                  },
-                ]);
-                setActiveTabId(newId);
-                // Sync with Zustand store for QueryTabBar
-                useTabsStore
-                  .getState()
-                  .openQuery(id, query.name, query.content);
+            // Check if already open in local state
+            const existingTab = tabs.find((t) => t.queryId === id);
+            if (existingTab) {
+              setActiveTabId(existingTab.id);
+              // Find Zustand tab by queryId (Zustand uses different ID format)
+              const zustandTab = useTabsStore
+                .getState()
+                .tabs.find((t) => t.queryId === id);
+              if (zustandTab) {
+                useTabsStore.getState().setActiveTab(zustandTab.id);
               }
+              return;
             }
+            // Trigger lazy fetch
+            setPendingQueryId(id);
             onSelectQuery?.(id);
           }}
           onSelectDE={onSelectDE}
@@ -649,6 +707,7 @@ export function EditorWorkspace({
                   value={activeTab.content}
                   onChange={handleEditorChange}
                   onSave={handleSave}
+                  onSaveAs={handleSaveAs}
                   onRunRequest={handleRunRequest}
                   onCursorPositionChange={setCursorPosition}
                   diagnostics={sqlDiagnostics}
@@ -751,26 +810,36 @@ export function EditorWorkspace({
         <SaveQueryModal
           isOpen={isSaveModalOpen}
           content={activeTab.content}
-          initialName={activeTab.name}
-          onClose={() => setIsSaveModalOpen(false)}
-          onSaveSuccess={(queryId, name) => {
-            // Update local tab state
-            safeSetTabs(
-              tabs.map((t) =>
-                t.id === activeTabId
-                  ? {
-                      ...t,
-                      queryId,
-                      name,
-                      isDirty: false,
-                      isNew: false,
-                    }
-                  : t,
-              ),
-            );
-            // Sync with Zustand store
-            useTabsStore.getState().markTabSaved(activeTabId, queryId, name);
+          initialName={isSaveAsMode ? saveAsInitialName : activeTab.name}
+          onClose={() => {
+            setIsSaveModalOpen(false);
+            setIsSaveAsMode(false);
+            setSaveAsInitialName("");
           }}
+          onSaveSuccess={
+            isSaveAsMode
+              ? handleSaveAsSuccess
+              : (queryId, name) => {
+                  // Update local tab state
+                  safeSetTabs(
+                    tabs.map((t) =>
+                      t.id === activeTabId
+                        ? {
+                            ...t,
+                            queryId,
+                            name,
+                            isDirty: false,
+                            isNew: false,
+                          }
+                        : t,
+                    ),
+                  );
+                  // Sync with Zustand store
+                  useTabsStore
+                    .getState()
+                    .markTabSaved(activeTabId, queryId, name);
+                }
+          }
           onSave={handleFinalSave}
         />
 

@@ -86,7 +86,6 @@ export function EditorWorkspacePage() {
         tenantId={tenant?.id}
         eid={tenant?.eid}
         folders={folders}
-        savedQueries={[]}
         dataExtensions={dataExtensions}
         executionResult={executionResult}
         isSidebarCollapsed={false}

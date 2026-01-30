@@ -102,7 +102,7 @@ export interface EditorWorkspaceProps {
   tenantId?: string | null;
   eid?: string;
   folders: Folder[];
-  savedQueries: SavedQuery[];
+  savedQueries?: SavedQuery[];
   dataExtensions: DataExtension[];
   executionResult: ExecutionResult;
   initialTabs?: QueryTab[];

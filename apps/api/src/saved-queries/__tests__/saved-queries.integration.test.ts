@@ -84,42 +84,12 @@ describe('SavedQueriesService (integration)', () => {
     foldersService = app.get(FoldersService);
     encryptionService = app.get(EncryptionService);
 
-    // Clean up any leftover test data from previous runs (BEFORE insert)
-    const existingTenant = await sqlClient`
-      SELECT id FROM tenants WHERE eid = ${TEST_EID} LIMIT 1
-    `;
-    if (existingTenant[0]) {
-      const existingTenantId = existingTenant[0].id;
-
-      // Get existing user to set RLS context
-      const existingUser = await sqlClient`
-        SELECT id FROM users WHERE tenant_id = ${existingTenantId}::uuid LIMIT 1
-      `;
-      const existingUserId = existingUser[0]?.id;
-
-      if (existingUserId) {
-        // Delete RLS-protected tables with proper context
-        const reserved = await sqlClient.reserve();
-        await reserved`SELECT set_config('app.tenant_id', ${existingTenantId}, false)`;
-        await reserved`SELECT set_config('app.mid', ${TEST_MID}, false)`;
-        await reserved`SELECT set_config('app.user_id', ${existingUserId}, false)`;
-        await reserved`DELETE FROM saved_queries WHERE tenant_id = ${existingTenantId}::uuid`;
-        await reserved`DELETE FROM folders WHERE tenant_id = ${existingTenantId}::uuid`;
-        await reserved`RESET app.tenant_id`;
-        await reserved`RESET app.mid`;
-        await reserved`RESET app.user_id`;
-        reserved.release();
-      }
-
-      // Delete non-RLS-protected tables
-      await sqlClient`DELETE FROM users WHERE tenant_id = ${existingTenantId}::uuid`;
-      await sqlClient`DELETE FROM tenants WHERE id = ${existingTenantId}::uuid`;
-    }
-
-    // Create test tenant
+    // Clean up any leftover test data from previous runs using ON CONFLICT
+    // This is more robust than checking first since it handles partial state
     const tenantResult = await sqlClient`
       INSERT INTO tenants (eid, tssd)
       VALUES (${TEST_EID}, ${TEST_TSSD})
+      ON CONFLICT (eid) DO UPDATE SET tssd = ${TEST_TSSD}
       RETURNING id
     `;
     const tenantRow = tenantResult[0];
@@ -128,10 +98,11 @@ describe('SavedQueriesService (integration)', () => {
     }
     testTenantId = tenantRow.id;
 
-    // Create test user
+    // Create or get existing test user
     const userResult = await sqlClient`
       INSERT INTO users (sf_user_id, tenant_id, email, name)
       VALUES ('sf-saved-queries-int', ${testTenantId}, 'saved-queries-int@example.com', 'Saved Queries Test User')
+      ON CONFLICT (sf_user_id) DO UPDATE SET name = 'Saved Queries Test User'
       RETURNING id
     `;
     const userRow = userResult[0];
@@ -139,6 +110,18 @@ describe('SavedQueriesService (integration)', () => {
       throw new Error('Failed to insert test user');
     }
     testUserId = userRow.id;
+
+    // Clean up any leftover saved queries/folders from previous runs
+    const reserved = await sqlClient.reserve();
+    await reserved`SELECT set_config('app.tenant_id', ${testTenantId}, false)`;
+    await reserved`SELECT set_config('app.mid', ${TEST_MID}, false)`;
+    await reserved`SELECT set_config('app.user_id', ${testUserId}, false)`;
+    await reserved`DELETE FROM saved_queries WHERE tenant_id = ${testTenantId}::uuid`;
+    await reserved`DELETE FROM folders WHERE tenant_id = ${testTenantId}::uuid`;
+    await reserved`RESET app.tenant_id`;
+    await reserved`RESET app.mid`;
+    await reserved`RESET app.user_id`;
+    reserved.release();
   }, 60000);
 
   afterAll(async () => {

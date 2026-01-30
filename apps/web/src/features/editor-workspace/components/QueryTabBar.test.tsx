@@ -93,7 +93,9 @@ describe("QueryTabBar", () => {
       render(<QueryTabBar />);
 
       const tab1 = screen.getByText("Untitled-1").closest("[role='button']");
-      tab1?.focus();
+      if (tab1 instanceof HTMLElement) {
+        tab1.focus();
+      }
       await user.keyboard("{Enter}");
 
       expect(useTabsStore.getState().activeTabId).toBe("untitled-1");

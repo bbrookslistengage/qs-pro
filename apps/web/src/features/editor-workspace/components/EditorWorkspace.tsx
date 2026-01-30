@@ -1,21 +1,15 @@
 import * as Tooltip from "@radix-ui/react-tooltip";
 import {
-  AddCircle,
-  AltArrowLeft,
-  AltArrowRight,
   AltArrowUp,
-  CloseCircle,
   Code,
   Database,
   Diskette,
   Download,
-  FileText,
   MenuDots,
   Play,
   Rocket,
 } from "@solar-icons/react";
 import {
-  type MouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   useCallback,
@@ -39,11 +33,13 @@ import {
 } from "@/features/editor-workspace/utils/sql-lint";
 import { useSqlDiagnostics } from "@/features/editor-workspace/utils/sql-lint/use-sql-diagnostics";
 import { cn } from "@/lib/utils";
+import { useTabsStore } from "@/store/tabs-store";
 
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { DataExtensionModal } from "./DataExtensionModal";
 import { MonacoQueryEditor } from "./MonacoQueryEditor";
 import { QueryActivityModal } from "./QueryActivityModal";
+import { QueryTabBar } from "./QueryTabBar";
 import { ResultsPane } from "./ResultsPane";
 import { SaveQueryModal } from "./SaveQueryModal";
 import { WorkspaceSidebar } from "./WorkspaceSidebar";
@@ -81,7 +77,7 @@ export function EditorWorkspace({
   onCreateDE,
   onTabClose,
   onTabChange,
-  onNewTab,
+  onNewTab: _onNewTab,
 }: EditorWorkspaceProps) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
     initialSidebarCollapsed,
@@ -119,7 +115,6 @@ export function EditorWorkspace({
   const setActiveTabId = useCallback((id: string) => {
     setTabState((prev) => ({ ...prev, activeTabId: id }));
   }, []);
-  const [isTabRailExpanded, setIsTabRailExpanded] = useState(false);
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [resultsHeight, setResultsHeight] = useState(280);
   const [isResizingResults, setIsResizingResults] = useState(false);
@@ -232,6 +227,60 @@ export function EditorWorkspace({
     currentPage,
   ]);
 
+  // Sync EditorWorkspace tabs with Zustand store for QueryTabBar
+  // Initialize store with current tabs on mount
+  useEffect(() => {
+    const store = useTabsStore.getState();
+    // Reset store and populate with current tabs
+    store.reset();
+    tabs.forEach((tab) => {
+      if (tab.queryId) {
+        store.openQuery(tab.queryId, tab.name, tab.content);
+      } else {
+        store.createNewTab();
+        const newTabId = store.tabs[store.tabs.length - 1]?.id;
+        if (newTabId && tab.content) {
+          store.updateTabContent(newTabId, tab.content);
+        }
+      }
+    });
+    // Set active tab
+    if (activeTabId) {
+      const zustandTab = store.tabs.find(
+        (t) => t.id === activeTabId || t.queryId === activeTabId,
+      );
+      if (zustandTab) {
+        store.setActiveTab(zustandTab.id);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only run on mount
+  }, []);
+
+  // Subscribe to Zustand store changes and sync back to EditorWorkspace
+  useEffect(() => {
+    const unsubscribe = useTabsStore.subscribe((state) => {
+      // Sync active tab changes from Zustand to EditorWorkspace
+      if (state.activeTabId) {
+        const zustandActiveTab = state.tabs.find(
+          (t) => t.id === state.activeTabId,
+        );
+        if (zustandActiveTab) {
+          // Find corresponding tab in EditorWorkspace
+          const localTab = tabs.find(
+            (t) =>
+              t.id === zustandActiveTab.id ||
+              t.queryId === zustandActiveTab.queryId,
+          );
+          if (localTab && localTab.id !== activeTabId) {
+            setActiveTabId(localTab.id);
+            onTabChange?.(localTab.id);
+          }
+        }
+      }
+    });
+    return unsubscribe;
+  }, [tabs, activeTabId, setActiveTabId, onTabChange]);
+
   // Dirty State & BeforeUnload
   useEffect(() => {
     const hasDirtyTabs = tabs.some((t) => t.isDirty);
@@ -265,39 +314,6 @@ export function EditorWorkspace({
     setIsQueryActivityModalOpen(true);
   };
 
-  const handleNewTab = () => {
-    const newId = `t-${Date.now()}`;
-    const newTab: QueryTab = {
-      id: newId,
-      name: "Untitled Query",
-      content: "",
-      isDirty: false,
-      isNew: true,
-    };
-    safeSetTabs([...tabs, newTab]);
-    setActiveTabId(newId);
-    onNewTab?.();
-  };
-
-  const handleTabChange = (id: string) => {
-    setActiveTabId(id);
-    onTabChange?.(id);
-  };
-
-  const handleRequestCloseTab = (
-    e: MouseEvent<HTMLButtonElement>,
-    id: string,
-  ) => {
-    e.stopPropagation();
-    const tab = tabs.find((t) => t.id === id);
-    if (tab?.isDirty) {
-      setTabToClose(id);
-      setIsConfirmCloseOpen(true);
-    } else {
-      handleCloseTab(id);
-    }
-  };
-
   const handleCloseTab = (id: string) => {
     const newTabs = tabs.filter((t) => t.id !== id);
     safeSetTabs(newTabs);
@@ -317,6 +333,10 @@ export function EditorWorkspace({
         t.id === activeTabId ? { ...t, content, isDirty: true } : t,
       ),
     );
+    // Sync with Zustand store for QueryTabBar
+    if (activeTabId) {
+      useTabsStore.getState().updateTabContent(activeTabId, content);
+    }
   };
 
   const handleSave = () => {
@@ -427,6 +447,8 @@ export function EditorWorkspace({
               const existingTab = tabs.find((t) => t.queryId === id);
               if (existingTab) {
                 setActiveTabId(existingTab.id);
+                // Sync with Zustand store for QueryTabBar
+                useTabsStore.getState().setActiveTab(existingTab.id);
               } else {
                 const newId = `t-${Date.now()}`;
                 safeSetTabs([
@@ -440,6 +462,10 @@ export function EditorWorkspace({
                   },
                 ]);
                 setActiveTabId(newId);
+                // Sync with Zustand store for QueryTabBar
+                useTabsStore
+                  .getState()
+                  .openQuery(id, query.name, query.content);
               }
             }
             onSelectQuery?.(id);
@@ -601,149 +627,25 @@ export function EditorWorkspace({
               </div>
 
               {/* Vertical Tabs Sidebar (Right Side) */}
-              <div
-                className={cn(
-                  "border-l border-border bg-card/50 flex flex-col py-2 shrink-0 transition-[width] duration-200",
-                  isTabRailExpanded ? "w-56" : "w-12 items-center",
-                )}
-              >
-                <div
-                  className={cn(
-                    "flex flex-col gap-2",
-                    isTabRailExpanded ? "px-2" : "items-center",
-                  )}
-                >
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <button
-                        onClick={handleNewTab}
-                        className={cn(
-                          "rounded-lg flex items-center text-primary hover:bg-primary/10 transition-colors",
-                          isTabRailExpanded
-                            ? "w-full px-2 py-1.5 text-xs font-bold"
-                            : "w-8 h-8 justify-center",
-                        )}
-                      >
-                        <AddCircle size={20} weight="Bold" />
-                        {isTabRailExpanded ? (
-                          <span className="ml-2">New Tab</span>
-                        ) : null}
-                      </button>
-                    </Tooltip.Trigger>
-                    {!isTabRailExpanded ? (
-                      <Tooltip.Portal>
-                        <Tooltip.Content
-                          className="bg-foreground text-background text-[10px] px-2 py-1 rounded shadow-md z-50"
-                          side="left"
-                          sideOffset={10}
-                        >
-                          New Tab
-                        </Tooltip.Content>
-                      </Tooltip.Portal>
-                    ) : null}
-                  </Tooltip.Root>
-
-                  <button
-                    onClick={() => setIsTabRailExpanded((prev) => !prev)}
-                    className={cn(
-                      "rounded-lg flex items-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors",
-                      isTabRailExpanded
-                        ? "w-full px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest justify-between"
-                        : "w-8 h-8 justify-center",
-                    )}
-                  >
-                    {isTabRailExpanded ? (
-                      <>
-                        <span>Collapse</span>
-                        <AltArrowRight size={14} />
-                      </>
-                    ) : (
-                      <AltArrowLeft size={14} />
-                    )}
-                  </button>
-                </div>
-
-                <div
-                  className={cn(
-                    "mt-3 flex-1 flex flex-col gap-2 overflow-y-auto no-scrollbar",
-                    isTabRailExpanded ? "px-2" : "items-center",
-                  )}
-                >
-                  {tabs.map((tab) => (
-                    <Tooltip.Root key={tab.id}>
-                      <Tooltip.Trigger asChild>
-                        <div
-                          className={cn(
-                            "relative group",
-                            isTabRailExpanded ? "w-full" : "",
-                          )}
-                        >
-                          <button
-                            onClick={() => handleTabChange(tab.id)}
-                            className={cn(
-                              "rounded-lg flex items-center transition-all relative",
-                              isTabRailExpanded
-                                ? "w-full px-2 py-1.5 gap-2 pr-7"
-                                : "w-8 h-8 justify-center",
-                              activeTabId === tab.id
-                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-                                : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                            )}
-                          >
-                            <FileText
-                              size={18}
-                              weight={
-                                activeTabId === tab.id ? "Bold" : "Linear"
-                              }
-                            />
-                            {isTabRailExpanded ? (
-                              <span className="truncate text-[11px] font-medium flex items-center gap-1">
-                                {tab.name}
-                                {tab.isDirty ? (
-                                  <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                                ) : null}
-                              </span>
-                            ) : null}
-                            {!isTabRailExpanded && tab.isDirty ? (
-                              <div
-                                className={cn(
-                                  "absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-background",
-                                  activeTabId === tab.id
-                                    ? "bg-white"
-                                    : "bg-primary",
-                                )}
-                              />
-                            ) : null}
-                          </button>
-
-                          <button
-                            onClick={(e) => handleRequestCloseTab(e, tab.id)}
-                            className={cn(
-                              "absolute bg-background rounded-full text-muted-foreground hover:text-error opacity-0 group-hover:opacity-100 transition-opacity shadow-sm",
-                              isTabRailExpanded
-                                ? "right-1.5 top-1/2 -translate-y-1/2 p-0.5"
-                                : "-bottom-1 -right-1 p-0.5",
-                            )}
-                          >
-                            <CloseCircle size={12} weight="Bold" />
-                          </button>
-                        </div>
-                      </Tooltip.Trigger>
-                      {!isTabRailExpanded ? (
-                        <Tooltip.Portal>
-                          <Tooltip.Content
-                            className="bg-foreground text-background text-[10px] px-2 py-1 rounded shadow-md z-50 max-w-[120px] truncate"
-                            side="left"
-                            sideOffset={10}
-                          >
-                            {tab.name} {tab.isDirty ? "*" : ""}
-                          </Tooltip.Content>
-                        </Tooltip.Portal>
-                      ) : null}
-                    </Tooltip.Root>
-                  ))}
-                </div>
-              </div>
+              <QueryTabBar
+                onSaveTab={(tabId) => {
+                  const tab = tabs.find((t) => t.id === tabId);
+                  if (tab?.isNew) {
+                    setIsSaveModalOpen(true);
+                  } else if (tab) {
+                    safeSetTabs(
+                      tabs.map((t) =>
+                        t.id === tabId ? { ...t, isDirty: false } : t,
+                      ),
+                    );
+                    onSave?.(tab.id, tab.content);
+                  }
+                }}
+                onCloseWithConfirm={(tabId) => {
+                  setTabToClose(tabId);
+                  setIsConfirmCloseOpen(true);
+                }}
+              />
             </div>
 
             {/* Results Resizable Pane */}

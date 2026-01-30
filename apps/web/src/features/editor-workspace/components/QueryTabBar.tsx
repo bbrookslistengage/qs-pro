@@ -1,11 +1,11 @@
 import {
-  DndContext,
   closestCenter,
+  DndContext,
+  type DragEndEvent,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
-  type DragEndEvent,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -27,7 +27,7 @@ import {
 import { useCallback, useState } from "react";
 
 import { cn } from "@/lib/utils";
-import { useTabsStore, type Tab } from "@/store/tabs-store";
+import { type Tab, useTabsStore } from "@/store/tabs-store";
 
 import { InlineRenameInput } from "./InlineRenameInput";
 
@@ -91,6 +91,13 @@ function SortableTab({
     );
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onSelect();
+    }
+  };
+
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>
@@ -99,11 +106,14 @@ function SortableTab({
           style={style}
           {...attributes}
           {...listeners}
+          role="button"
+          tabIndex={0}
           onClick={onSelect}
+          onKeyDown={handleKeyDown}
           onDoubleClick={onStartRename}
           className={cn(
             "flex items-center gap-2 px-3 py-2 cursor-pointer group border-l-2 transition-colors",
-            "hover:bg-surface-hover",
+            "hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-primary/50",
             isActive ? "bg-surface-hover border-primary" : "border-transparent",
             isDragging && "opacity-50",
           )}
@@ -161,7 +171,7 @@ function SortableTab({
             <Pen size={14} />
             Rename
           </ContextMenu.Item>
-          {tab.isDirty && (
+          {tab.isDirty ? (
             <ContextMenu.Item
               className="flex items-center gap-2 px-2 py-1.5 text-xs rounded hover:bg-surface-hover cursor-pointer outline-none"
               onSelect={onSave}
@@ -169,7 +179,7 @@ function SortableTab({
               <Diskette size={14} />
               Save
             </ContextMenu.Item>
-          )}
+          ) : null}
           <ContextMenu.Separator className="h-px bg-border my-1" />
           <ContextMenu.Item
             className="flex items-center gap-2 px-2 py-1.5 text-xs rounded hover:bg-surface-hover cursor-pointer outline-none"

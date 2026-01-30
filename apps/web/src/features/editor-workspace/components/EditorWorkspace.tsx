@@ -717,9 +717,27 @@ export function EditorWorkspace({
 
         <SaveQueryModal
           isOpen={isSaveModalOpen}
-          folders={folders}
+          content={activeTab.content}
           initialName={activeTab.name}
           onClose={() => setIsSaveModalOpen(false)}
+          onSaveSuccess={(queryId, name) => {
+            // Update local tab state
+            safeSetTabs(
+              tabs.map((t) =>
+                t.id === activeTabId
+                  ? {
+                      ...t,
+                      queryId,
+                      name,
+                      isDirty: false,
+                      isNew: false,
+                    }
+                  : t,
+              ),
+            );
+            // Sync with Zustand store
+            useTabsStore.getState().markTabSaved(activeTabId, queryId, name);
+          }}
           onSave={handleFinalSave}
         />
 

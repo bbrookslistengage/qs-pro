@@ -102,19 +102,8 @@ export class SavedQueriesService {
   ): Promise<
     { id: string; name: string; folderId: string | null; updatedAt: Date }[]
   > {
-    return this.rlsContext.runWithUserContext(
-      tenantId,
-      mid,
-      userId,
-      async () => {
-        const queries = await this.savedQueriesRepository.findAll();
-        return queries.map((q) => ({
-          id: q.id,
-          name: q.name,
-          folderId: q.folderId,
-          updatedAt: q.updatedAt,
-        }));
-      },
+    return this.rlsContext.runWithUserContext(tenantId, mid, userId, () =>
+      this.savedQueriesRepository.findAllListItems(),
     );
   }
 

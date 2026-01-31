@@ -54,7 +54,23 @@ export class DrizzleSavedQueriesRepository implements SavedQueriesRepository {
     return this.getDb().select().from(savedQueries);
   }
 
-  async update(id: string, params: UpdateSavedQueryParams): Promise<SavedQuery | null> {
+  async findAllListItems(): Promise<
+    { id: string; name: string; folderId: string | null; updatedAt: Date }[]
+  > {
+    return this.getDb()
+      .select({
+        id: savedQueries.id,
+        name: savedQueries.name,
+        folderId: savedQueries.folderId,
+        updatedAt: savedQueries.updatedAt,
+      })
+      .from(savedQueries);
+  }
+
+  async update(
+    id: string,
+    params: UpdateSavedQueryParams,
+  ): Promise<SavedQuery | null> {
     const updateData: Record<string, unknown> = {
       updatedAt: new Date(),
     };

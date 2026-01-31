@@ -21,7 +21,13 @@ export interface SavedQueriesRepository {
   create(params: CreateSavedQueryParams): Promise<SavedQuery>;
   findById(id: string): Promise<SavedQuery | null>;
   findAll(): Promise<SavedQuery[]>;
-  update(id: string, params: UpdateSavedQueryParams): Promise<SavedQuery | null>;
+  findAllListItems(): Promise<
+    { id: string; name: string; folderId: string | null; updatedAt: Date }[]
+  >;
+  update(
+    id: string,
+    params: UpdateSavedQueryParams,
+  ): Promise<SavedQuery | null>;
   delete(id: string): Promise<boolean>;
   countByUser(): Promise<number>;
 }

@@ -95,6 +95,15 @@ export class FoldersService {
               reason: 'Folder cannot be its own parent',
             });
           }
+          const wouldCycle = await this.foldersRepository.wouldCreateCycle(
+            id,
+            dto.parentId,
+          );
+          if (wouldCycle) {
+            throw new AppError(ErrorCode.VALIDATION_ERROR, undefined, {
+              reason: 'Cannot move folder: would create circular reference',
+            });
+          }
           const parent = await this.foldersRepository.findById(dto.parentId);
           if (!parent) {
             throw new AppError(ErrorCode.RESOURCE_NOT_FOUND, undefined, {

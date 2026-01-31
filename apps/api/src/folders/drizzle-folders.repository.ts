@@ -5,6 +5,7 @@ import {
   eq,
   folders,
   savedQueries,
+  sql,
 } from '@qpp/database';
 
 import type {
@@ -89,7 +90,6 @@ export class DrizzleFoldersRepository implements FoldersRepository {
   }
 
   async hasChildren(id: string): Promise<boolean> {
-    // Check for child folders
     const [childFolder] = await this.getDb()
       .select({ id: folders.id })
       .from(folders)
@@ -99,12 +99,33 @@ export class DrizzleFoldersRepository implements FoldersRepository {
       return true;
     }
 
-    // Check for queries in this folder
     const [childQuery] = await this.getDb()
       .select({ id: savedQueries.id })
       .from(savedQueries)
       .where(eq(savedQueries.folderId, id))
       .limit(1);
     return !!childQuery;
+  }
+
+  async wouldCreateCycle(
+    folderId: string,
+    proposedParentId: string,
+  ): Promise<boolean> {
+    const result = await this.getDb().execute(sql`
+      WITH RECURSIVE ancestors AS (
+        SELECT id, parent_id
+        FROM folders
+        WHERE id = ${proposedParentId}::uuid
+        UNION ALL
+        SELECT f.id, f.parent_id
+        FROM folders f
+        JOIN ancestors a ON f.id = a.parent_id
+      ) CYCLE id SET is_cycle USING path
+      SELECT EXISTS (
+        SELECT 1 FROM ancestors WHERE id = ${folderId}::uuid
+      ) AS would_cycle
+    `);
+    const row = result[0] as { would_cycle: boolean } | undefined;
+    return row?.would_cycle ?? false;
   }
 }

@@ -23,4 +23,8 @@ export interface FoldersRepository {
   delete(id: string): Promise<boolean>;
   countByUser(): Promise<number>;
   hasChildren(id: string): Promise<boolean>;
+  wouldCreateCycle(
+    folderId: string,
+    proposedParentId: string,
+  ): Promise<boolean>;
 }

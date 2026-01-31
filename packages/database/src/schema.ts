@@ -1,4 +1,5 @@
 import {
+  type AnyPgColumn,
   boolean,
   index,
   integer,
@@ -152,6 +153,55 @@ export const tenantSettings = pgTable(
   }),
 );
 
+// 8. Folders (User-created folders for organizing saved queries)
+export const folders = pgTable(
+  "folders",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .references(() => tenants.id)
+      .notNull(),
+    mid: varchar("mid").notNull(),
+    userId: uuid("user_id")
+      .references(() => users.id)
+      .notNull(),
+    parentId: uuid("parent_id").references((): AnyPgColumn => folders.id),
+    name: varchar("name").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    tenantIdIdx: index("folders_tenant_id_idx").on(t.tenantId),
+    userIdIdx: index("folders_user_id_idx").on(t.userId),
+    parentIdIdx: index("folders_parent_id_idx").on(t.parentId),
+  }),
+);
+
+// 9. Saved Queries (User-saved queries with folder organization)
+export const savedQueries = pgTable(
+  "saved_queries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .references(() => tenants.id)
+      .notNull(),
+    mid: varchar("mid").notNull(),
+    userId: uuid("user_id")
+      .references(() => users.id)
+      .notNull(),
+    folderId: uuid("folder_id").references(() => folders.id),
+    name: varchar("name").notNull(),
+    sqlTextEncrypted: text("sql_text_encrypted").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    tenantIdIdx: index("saved_queries_tenant_id_idx").on(t.tenantId),
+    userIdIdx: index("saved_queries_user_id_idx").on(t.userId),
+    folderIdIdx: index("saved_queries_folder_id_idx").on(t.folderId),
+  }),
+);
+
 // --- Zod Validation Schemas ---
 export const selectTenantSchema = createSelectSchema(tenants);
 export const insertTenantSchema = createInsertSchema(tenants);
@@ -180,3 +230,9 @@ export const selectTenantFeatureOverrideSchema = createSelectSchema(
 export const insertTenantFeatureOverrideSchema = createInsertSchema(
   tenantFeatureOverrides,
 );
+
+export const selectFolderSchema = createSelectSchema(folders);
+export const insertFolderSchema = createInsertSchema(folders);
+
+export const selectSavedQuerySchema = createSelectSchema(savedQueries);
+export const insertSavedQuerySchema = createInsertSchema(savedQueries);

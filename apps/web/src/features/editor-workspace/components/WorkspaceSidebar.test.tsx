@@ -314,30 +314,36 @@ describe("WorkspaceSidebar", () => {
       const user = userEvent.setup();
       const onSelectQuery = vi.fn();
 
-      const folders: Folder[] = [
-        {
-          id: "lib-folder",
-          name: "Sales",
-          parentId: null,
-          type: "library",
-        },
-      ];
-      const queries: SavedQuery[] = [
-        {
-          id: "q1",
-          name: "Customer Report",
-          folderId: "lib-folder",
-          content: "SELECT * FROM [Customers]",
-          updatedAt: "2024-01-01",
-        },
-      ];
+      server.use(
+        http.get("/api/folders", () =>
+          HttpResponse.json([
+            {
+              id: "lib-folder",
+              name: "Sales",
+              parentId: null,
+              createdAt: "2024-01-01T00:00:00Z",
+              updatedAt: "2024-01-01T00:00:00Z",
+            },
+          ]),
+        ),
+        http.get("/api/saved-queries", () =>
+          HttpResponse.json([
+            {
+              id: "q1",
+              name: "Customer Report",
+              folderId: "lib-folder",
+              updatedAt: "2024-01-01T00:00:00Z",
+            },
+          ]),
+        ),
+      );
 
       const queryClient = createQueryClient();
       render(
         <WorkspaceSidebar
           tenantId="tenant-1"
-          folders={folders}
-          savedQueries={queries}
+          folders={[]}
+          savedQueries={[]}
           dataExtensions={[]}
           isCollapsed={false}
           onToggle={() => undefined}
@@ -349,10 +355,17 @@ describe("WorkspaceSidebar", () => {
       // Switch to queries tab
       await user.click(screen.getByRole("button", { name: /^Queries$/i }));
 
-      // Click on query
-      await user.click(
-        screen.getByRole("button", { name: /customer report/i }),
+      // Wait for data to load and expand the folder
+      await waitFor(() =>
+        expect(screen.getByText("Sales")).toBeInTheDocument(),
       );
+      await user.click(screen.getByText("Sales"));
+
+      // Wait for query to appear and click on it
+      await waitFor(() =>
+        expect(screen.getByText("Customer Report")).toBeInTheDocument(),
+      );
+      await user.click(screen.getByText("Customer Report"));
 
       expect(onSelectQuery).toHaveBeenCalledWith("q1");
     });
